@@ -6,86 +6,109 @@
 
 .brandPanel {
   position: relative;
-  flex: 0 0 44%;
+  flex: 0 0 46%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   padding: 3rem;
   overflow: hidden;
-  background: linear-gradient(165deg, var(--primary) 0%, #16300c 100%);
+  background: linear-gradient(175deg, var(--primary) 0%, #142c0b 100%);
   color: #ffffff;
-}
-
-.brandPanel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: repeating-linear-gradient(
-    115deg,
-    rgba(255, 255, 255, 0.05) 0px,
-    rgba(255, 255, 255, 0.05) 2px,
-    transparent 2px,
-    transparent 34px
-  );
-  pointer-events: none;
-}
-
-.brandPanel::after {
-  content: "";
-  position: absolute;
-  width: 480px;
-  height: 480px;
-  right: -180px;
-  bottom: -180px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
-  opacity: 0.18;
-  pointer-events: none;
 }
 
 .brandTop {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
   z-index: 1;
 }
 
 .brandLogo {
-  border-radius: 12px;
   flex-shrink: 0;
 }
 
 .brandName {
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .brandMiddle {
   position: relative;
   z-index: 1;
-  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 420px;
+}
+
+.heroLogoWrap {
+  position: relative;
+  margin-bottom: 1.75rem;
+}
+
+.heroLogoGlow {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 68%);
+  opacity: 0.22;
+  filter: blur(4px);
+  pointer-events: none;
+}
+
+.heroLogo {
+  position: relative;
+  display: block;
 }
 
 .brandTagline {
-  font-size: 2rem;
+  font-size: 1.85rem;
   font-weight: 700;
-  line-height: 1.3;
-  margin-bottom: 1rem;
+  line-height: 1.35;
+  margin-bottom: 0.85rem;
 }
 
 .brandSubtext {
-  font-size: 1rem;
+  font-size: 0.95rem;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.72);
+  margin-bottom: 2rem;
+}
+
+.featureList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.featureItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.featureIcon {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
 }
 
 .brandFooter {
   position: relative;
   z-index: 1;
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .formPanel {

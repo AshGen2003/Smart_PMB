@@ -19,6 +19,14 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["email"] = user.email
         return token
 
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        if not self.user.email_confirmed:
+            raise serializers.ValidationError(
+                {"detail": "Please confirm your email address before logging in."}
+            )
+        return data
+
 
 class RegisterFarmerSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -60,6 +68,7 @@ class RegisterFarmerSerializer(serializers.Serializer):
                 password=validated_data["password"],
                 full_name=validated_data["name"],
                 role=User.Role.FARMER,
+                email_confirmed=False,
             )
             farmer = Farmer.objects.create(
                 user=user,

@@ -1,6 +1,13 @@
 import Image from "next/image";
+import { Sprout, Coins, Truck } from "lucide-react";
 import styles from "./AuthLayout.module.css";
 import AuthThemeToggle from "./AuthThemeToggle";
+
+const FEATURES = [
+  { icon: Sprout, label: "Log every harvest in seconds" },
+  { icon: Coins, label: "See guaranteed prices before you sell" },
+  { icon: Truck, label: "Track collection and delivery status" },
+];
 
 export default function AuthLayout({
   children,
@@ -12,23 +19,45 @@ export default function AuthLayout({
       <div className={styles.brandPanel}>
         <div className={styles.brandTop}>
           <Image
-            src="/smart-pmb-logo.svg"
+            src="/logo.png"
             alt=""
-            width={40}
-            height={40}
+            width={28}
+            height={28}
             className={styles.brandLogo}
           />
           <span className={styles.brandName}>Smart PMB</span>
         </div>
 
         <div className={styles.brandMiddle}>
+          <div className={styles.heroLogoWrap}>
+            <div className={styles.heroLogoGlow} />
+            <Image
+              src="/logo.png"
+              alt="Smart PMB"
+              width={168}
+              height={168}
+              className={styles.heroLogo}
+              priority
+            />
+          </div>
+
           <p className={styles.brandTagline}>
-            From paddy field to fair price, all in one place.
+            Track your harvest. Know your price. Get paid on time.
           </p>
           <p className={styles.brandSubtext}>
-            Track your harvests, follow guaranteed prices, and get paid on
-            time — built for Sri Lanka&apos;s farmers.
+            The digital home for Sri Lanka&apos;s paddy purchasing network.
           </p>
+
+          <div className={styles.featureList}>
+            {FEATURES.map(({ icon: Icon, label }) => (
+              <div className={styles.featureItem} key={label}>
+                <span className={styles.featureIcon}>
+                  <Icon size={16} />
+                </span>
+                {label}
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className={styles.brandFooter}>

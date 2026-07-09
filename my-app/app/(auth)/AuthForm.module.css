@@ -12,6 +12,25 @@
   max-width: 620px;
 }
 
+.mobileLogoRow {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.75rem;
+}
+
+.mobileLogoRow span {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+@media (max-width: 900px) {
+  .mobileLogoRow {
+    display: flex;
+  }
+}
+
 .title {
   font-size: 1.5rem;
   font-weight: 700;

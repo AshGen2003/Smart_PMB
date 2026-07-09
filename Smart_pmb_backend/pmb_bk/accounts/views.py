@@ -1,3 +1,4 @@
+from django.core import signing
 from rest_framework import status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -5,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from .emails import send_confirmation_email
 from .models import User
 from .permissions import IsAdminRole
 from .serializers import (
@@ -13,6 +15,7 @@ from .serializers import (
     CustomTokenObtainPairSerializer,
     RegisterFarmerSerializer,
 )
+from .tokens import read_email_confirmation_token
 
 
 class LoginView(TokenObtainPairView):
@@ -29,15 +32,47 @@ class RegisterFarmerView(APIView):
         result = serializer.save()
         user = result["user"]
 
-        token = CustomTokenObtainPairSerializer.get_token(user)
+        send_confirmation_email(user)
 
         return Response(
             {
-                "access": str(token.access_token),
-                "refresh": str(token),
+                "detail": "Account created. Check your email to confirm your account before logging in."
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class ConfirmEmailView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get("token")
+        if not token:
+            return Response({"detail": "Missing confirmation token."}, status=400)
+
+        try:
+            uid = read_email_confirmation_token(token)
+        except signing.SignatureExpired:
+            return Response(
+                {"detail": "This confirmation link has expired."}, status=400
+            )
+        except signing.BadSignature:
+            return Response(
+                {"detail": "This confirmation link is invalid."}, status=400
+            )
+
+        try:
+            user = User.objects.get(pk=uid)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "This confirmation link is invalid."}, status=400
+            )
+
+        if not user.email_confirmed:
+            user.email_confirmed = True
+            user.save(update_fields=["email_confirmed"])
+
+        return Response({"detail": "Email confirmed. You can now log in."})
 
 
 class LogoutView(APIView):
