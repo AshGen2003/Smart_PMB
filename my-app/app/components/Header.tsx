@@ -2,9 +2,10 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { Menu, Moon, Sun, Bell } from "lucide-react";
+import { Menu, Moon, Sun, Bell, LogOut } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useLayout } from "./LayoutProvider";
+import { logout } from "@/app/actions/auth";
 import styles from "./Header.module.css";
 
 interface HeaderProps {
@@ -54,6 +55,17 @@ export default function Header({ userName = "Admin User", roleLabel }: HeaderPro
             {roleLabel ? ` · ${roleLabel}` : ""}
           </span>
         </div>
+
+        <form action={logout}>
+          <button
+            type="submit"
+            className={styles.iconBtn}
+            aria-label="Log out"
+            title="Log out"
+          >
+            <LogOut size={20} />
+          </button>
+        </form>
       </div>
     </header>
   );

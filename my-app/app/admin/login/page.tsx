@@ -1,53 +1,37 @@
 "use client";
 
-import React, { Suspense, useState } from "react";
+import React, { useState } from "react";
 import { useActionState } from "react";
-import { useSearchParams } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
-import { login, type FormState } from "@/app/actions/auth";
-import styles from "../AuthForm.module.css";
+import { adminLogin, type AdminLoginState } from "@/app/actions/admin-auth";
+import styles from "../AdminAuth.module.css";
 
-const initialState: FormState = {};
+const initialState: AdminLoginState = {};
 
-export default function LoginPage() {
-  return (
-    <Suspense fallback={null}>
-      <LoginForm />
-    </Suspense>
+export default function AdminLoginPage() {
+  const [state, formAction, pending] = useActionState(
+    adminLogin,
+    initialState
   );
-}
-
-function LoginForm() {
-  const [state, formAction, pending] = useActionState(login, initialState);
   const [showPassword, setShowPassword] = useState(false);
-  const searchParams = useSearchParams();
-  const justRegistered = searchParams.get("registered") === "1";
 
   return (
     <div className={styles.card}>
-      <div className={styles.mobileLogoRow}>
-        <Image src="/logo.png" alt="" width={28} height={28} />
-        <span>Smart PMB</span>
+      <div className={styles.badge}>
+        <span className={styles.badgeIcon}>
+          <ShieldCheck size={16} />
+        </span>
+        <span className={styles.badgeText}>Admin Portal</span>
       </div>
 
-      <h1 className={styles.title}>Welcome back</h1>
-      <p className={styles.subtitle}>Log in to your Smart PMB account.</p>
+      <h1 className={styles.title}>Administrator sign in</h1>
+      <p className={styles.subtitle}>
+        Restricted access. Authorized personnel only.
+      </p>
 
-      {justRegistered && !state.error && (
-        <div className={clsx(styles.banner, styles.bannerSuccess)}>
-          Account created! Check your email for a confirmation link, then log
-          in below.
-        </div>
-      )}
-
-      {state.error && (
-        <div className={clsx(styles.banner, styles.bannerError)}>
-          {state.error}
-        </div>
-      )}
+      {state.error && <div className={styles.banner}>{state.error}</div>}
 
       <form action={formAction} noValidate>
         <div className={styles.field}>
@@ -61,7 +45,7 @@ function LoginForm() {
             autoComplete="email"
             required
             className={styles.input}
-            placeholder="you@example.com"
+            placeholder="admin@smartpmb.com"
           />
         </div>
 
@@ -92,12 +76,12 @@ function LoginForm() {
 
         <button type="submit" className={styles.submitBtn} disabled={pending}>
           {pending && <Loader2 size={16} className={styles.spin} />}
-          {pending ? "Logging in…" : "Log in"}
+          {pending ? "Signing in…" : "Sign in"}
         </button>
       </form>
 
-      <p className={styles.switchLine}>
-        Farmer without an account? <Link href="/signup/farmer">Sign up</Link>
+      <p className={styles.footerLine}>
+        Not an admin? <Link href="/login">Go to the regular login</Link>
       </p>
     </div>
   );

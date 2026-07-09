@@ -3,37 +3,14 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { verifyAccessToken } from "@/app/lib/jwt";
+import {
+  ACCESS_COOKIE,
+  REFRESH_COOKIE,
+  setTokenCookies,
+} from "@/app/lib/session";
+import { firstErrorMessage } from "@/app/lib/errors";
 
 const API_URL = process.env.NEXT_PUBLIC_DJANGO_API_URL!;
-const ACCESS_COOKIE = "access_token";
-const REFRESH_COOKIE = "refresh_token";
-
-const cookieOpts = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
-  path: "/",
-};
-
-async function setTokenCookies(access: string, refresh: string) {
-  const cookieStore = await cookies();
-  cookieStore.set(ACCESS_COOKIE, access, { ...cookieOpts, maxAge: 60 * 15 });
-  cookieStore.set(REFRESH_COOKIE, refresh, {
-    ...cookieOpts,
-    maxAge: 60 * 60 * 24 * 7,
-  });
-}
-
-function firstErrorMessage(data: unknown): string {
-  if (data && typeof data === "object") {
-    const firstValue = Object.values(data as Record<string, unknown>)[0];
-    if (Array.isArray(firstValue) && typeof firstValue[0] === "string") {
-      return firstValue[0];
-    }
-    if (typeof firstValue === "string") return firstValue;
-  }
-  return "Something went wrong. Please try again.";
-}
 
 export type FormState = {
   error?: string;
@@ -58,13 +35,20 @@ export async function login(
   });
 
   if (!res.ok) {
-    return { error: "Invalid email or password." };
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data, "Invalid email or password.") };
   }
 
   const { access, refresh } = await res.json();
-  await setTokenCookies(access, refresh);
-
   const payload = await verifyAccessToken(access);
+
+  if (payload?.role === "admin") {
+    return {
+      error: "Admin accounts must sign in through the admin portal.",
+    };
+  }
+
+  await setTokenCookies(access, refresh);
   redirect(payload?.role === "farmer" ? "/farmer" : "/");
 }
 
@@ -116,9 +100,7 @@ export async function signupFarmer(
     return { error: firstErrorMessage(data) };
   }
 
-  const { access, refresh } = await res.json();
-  await setTokenCookies(access, refresh);
-  redirect("/farmer");
+  redirect("/login?registered=1");
 }
 
 export async function logout() {

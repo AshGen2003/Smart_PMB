@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useActionState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import clsx from "clsx";
@@ -39,6 +40,11 @@ export default function SignupFarmerForm({
 
   return (
     <div className={clsx(styles.card, styles.cardWide)}>
+      <div className={styles.mobileLogoRow}>
+        <Image src="/logo.png" alt="" width={28} height={28} />
+        <span>Smart PMB</span>
+      </div>
+
       <h1 className={styles.title}>Create your farmer account</h1>
       <p className={styles.subtitle}>
         Register to track harvests, prices, and payments with Smart PMB.
