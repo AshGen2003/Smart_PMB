@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyAccessToken } from "@/app/lib/jwt";
 
-const PUBLIC_PREFIXES = ["/login", "/signup", "/admin/login", "/confirm-email"];
+const PUBLIC_PREFIXES = ["/login", "/signup", "/confirm-email"];
 const API_URL = process.env.NEXT_PUBLIC_DJANGO_API_URL!;
 
 const cookieOpts = {
@@ -27,7 +27,8 @@ async function refreshAccessToken(refreshToken: string) {
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const isPublicPath = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+  const isPublicPath =
+    pathname === "/" || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 
   const accessToken = request.cookies.get("access_token")?.value;
   let payload = accessToken ? await verifyAccessToken(accessToken) : null;
@@ -55,11 +56,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (payload && isPublicPath) {
-    const url = request.nextUrl.clone();
-    url.pathname = payload.role === "farmer" ? "/farmer" : "/";
-    return NextResponse.redirect(url);
-  }
+  // Auth-form pages (/login, /login/admin, /signup, /confirm-email) stay
+  // reachable even for an already-logged-in visitor, so one signed-in
+  // session on a shared browser never blocks someone else from logging in
+  // — submitting the form there just overwrites the session cookies with
+  // the new one.
 
   const response = NextResponse.next({ request });
   if (refreshedTokens) {

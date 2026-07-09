@@ -32,7 +32,7 @@
 
 .regBadge {
   background-color: var(--sidebar-active);
-  color: var(--primary);
+  color: var(--primary-text);
   border-radius: 8px;
   padding: 0.5rem 0.9rem;
   font-size: 0.85rem;
@@ -73,10 +73,16 @@
 }
 
 .kpiIcon {
-  color: var(--primary);
-  background-color: var(--sidebar-active);
-  padding: 0.5rem;
-  border-radius: 8px;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-foreground);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(45, 80, 22, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .kpiValue {
@@ -151,7 +157,7 @@
 
 .priceValue {
   font-weight: 700;
-  color: var(--primary);
+  color: var(--primary-text);
 }
 
 .table {
@@ -226,7 +232,7 @@
 .markReadBtn {
   border: none;
   background: none;
-  color: var(--primary);
+  color: var(--primary-text);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;

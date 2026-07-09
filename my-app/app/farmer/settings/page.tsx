@@ -1,26 +1,24 @@
 import { requireUser } from "@/app/lib/dal";
 import {
   AccountSettingsForm,
-  AdminShortcutSettings,
   AppearanceSettings,
 } from "@/app/components/SettingsSections";
-import styles from "../users/Users.module.css";
+import styles from "../FarmerDashboard.module.css";
 
-export default async function SettingsPage() {
+export default async function FarmerSettingsPage() {
   const user = await requireUser();
 
   return (
-    <div className={styles.page}>
+    <div className={styles.dashboard}>
       <div>
         <h1 className={styles.title}>Settings</h1>
         <p className={styles.subtitle}>
-          Manage your account, preferences, and system access.
+          Manage your account and how Smart PMB looks for you.
         </p>
       </div>
 
       <AccountSettingsForm fullName={user.fullName ?? ""} email={user.email} />
       <AppearanceSettings />
-      {user.role === "admin" && <AdminShortcutSettings />}
     </div>
   );
 }

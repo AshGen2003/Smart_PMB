@@ -49,7 +49,7 @@ export async function login(
   }
 
   await setTokenCookies(access, refresh);
-  redirect(payload?.role === "farmer" ? "/farmer" : "/");
+  redirect(payload?.role === "farmer" ? "/farmer" : "/dashboard");
 }
 
 export type SignupState = {

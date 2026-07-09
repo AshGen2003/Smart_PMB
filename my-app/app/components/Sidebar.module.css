@@ -21,7 +21,7 @@
   padding: 0 1.5rem;
   font-weight: 700;
   font-size: 1.25rem;
-  color: var(--primary);
+  color: var(--primary-text);
   border-bottom: 1px solid var(--card-border);
   white-space: nowrap;
   overflow: hidden;
@@ -69,8 +69,8 @@
 
 .navItemActive {
   background-color: var(--sidebar-active);
-  color: var(--primary);
-  border-left-color: var(--primary);
+  color: var(--primary-text);
+  border-left-color: var(--primary-text);
   font-weight: 600;
 }
 

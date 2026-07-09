@@ -86,6 +86,40 @@ class RegisterFarmerSerializer(serializers.Serializer):
         return {"user": user, "farmer": farmer}
 
 
+class SelfProfileSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    current_password = serializers.CharField(
+        required=False, allow_blank=True, write_only=True
+    )
+    new_password = serializers.CharField(
+        required=False, allow_blank=True, min_length=8, write_only=True
+    )
+
+    def validate(self, attrs):
+        new_password = attrs.get("new_password")
+        current_password = attrs.get("current_password")
+        if new_password:
+            user = self.context["user"]
+            if not current_password or not user.check_password(current_password):
+                raise serializers.ValidationError(
+                    {"detail": "Current password is incorrect."}
+                )
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.context["user"]
+        full_name = self.validated_data.get("full_name")
+        new_password = self.validated_data.get("new_password")
+
+        if full_name is not None:
+            user.full_name = full_name.strip()
+        if new_password:
+            user.set_password(new_password)
+
+        user.save()
+        return user
+
+
 class AdminUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

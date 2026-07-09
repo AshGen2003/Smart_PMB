@@ -14,6 +14,7 @@ from .serializers import (
     AdminUserWriteSerializer,
     CustomTokenObtainPairSerializer,
     RegisterFarmerSerializer,
+    SelfProfileSerializer,
 )
 from .tokens import read_email_confirmation_token
 
@@ -99,6 +100,26 @@ class MeView(APIView):
                 "email": user.email,
                 "full_name": user.full_name,
                 "role": user.role,
+            }
+        )
+
+    def patch(self, request):
+        serializer = SelfProfileSerializer(
+            data=request.data, context={"user": request.user}
+        )
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        token = CustomTokenObtainPairSerializer.get_token(user)
+
+        return Response(
+            {
+                "id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "role": user.role,
+                "access": str(token.access_token),
+                "refresh": str(token),
             }
         )
 
