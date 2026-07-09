@@ -1,51 +1,26 @@
 .card {
-  width: 100%;
-  max-width: 420px;
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 12px;
-  padding: 2.5rem;
+  padding: 1.5rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
 }
 
-.cardWide {
-  max-width: 620px;
-}
-
-.mobileLogoRow {
-  display: none;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 1.75rem;
-}
-
-.mobileLogoRow span {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--foreground);
-}
-
-@media (max-width: 900px) {
-  .mobileLogoRow {
-    display: flex;
-  }
-}
-
-.title {
-  font-size: 1.5rem;
+.cardTitle {
+  font-size: 1.15rem;
   font-weight: 700;
   margin: 0 0 0.35rem;
   color: var(--foreground);
 }
 
-.subtitle {
+.cardSubtitle {
   color: var(--text-muted);
-  font-size: 0.9rem;
-  margin: 0 0 1.75rem;
+  font-size: 0.88rem;
+  margin: 0 0 1.5rem;
 }
 
 .banner {
-  padding: 0.7rem 1rem;
+  padding: 0.65rem 0.9rem;
   border-radius: 8px;
   font-size: 0.85rem;
   margin-bottom: 1.25rem;
@@ -62,6 +37,10 @@
   color: var(--success);
 }
 
+.field {
+  margin-bottom: 1.1rem;
+}
+
 .row2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -74,10 +53,6 @@
   }
 }
 
-.field {
-  margin-bottom: 1.1rem;
-}
-
 .label {
   display: block;
   font-size: 0.85rem;
@@ -86,70 +61,49 @@
   margin-bottom: 0.4rem;
 }
 
-.optional {
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
-.inputWrapper {
-  position: relative;
-}
-
-.input,
-.select {
+.input {
   width: 100%;
-  padding: 0.65rem 0.85rem;
+  padding: 0.6rem 0.8rem;
   border-radius: 8px;
   border: 1px solid var(--card-border);
   background-color: var(--background);
   color: var(--foreground);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-family: inherit;
   outline: none;
   transition: border-color 0.2s ease;
 }
 
-.input:focus,
-.select:focus {
+.input:focus {
   border-color: var(--primary);
 }
 
-.inputError {
-  border-color: var(--danger);
-}
-
-.inputWithToggle {
-  padding-right: 2.5rem;
-}
-
-.visibilityToggle {
-  position: absolute;
-  right: 0.6rem;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  padding: 0.2rem;
+.input:disabled {
   color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
+  cursor: not-allowed;
 }
 
-.fieldError {
-  color: var(--danger);
-  font-size: 0.78rem;
-  margin-top: 0.35rem;
+.divider {
+  border: none;
+  border-top: 1px solid var(--card-border);
+  margin: 1.5rem 0;
+}
+
+.sectionLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0 0 1rem;
 }
 
 .submitBtn {
-  width: 100%;
-  padding: 0.75rem;
-  margin-top: 0.5rem;
+  padding: 0.65rem 1.2rem;
+  margin-top: 0.25rem;
   border: none;
   border-radius: 8px;
   background-color: var(--primary);
   color: var(--primary-foreground);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -182,14 +136,64 @@
   }
 }
 
-.switchLine {
-  text-align: center;
-  margin-top: 1.5rem;
-  font-size: 0.9rem;
-  color: var(--text-muted);
+.appearanceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
-.switchLine a {
-  color: var(--primary-text);
+.appearanceLabel {
+  font-size: 0.9rem;
   font-weight: 600;
+  color: var(--foreground);
+  margin: 0 0 0.2rem;
+}
+
+.appearanceValue {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.themeSwitch {
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: none;
+  color: var(--foreground);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.themeSwitch:hover {
+  background-color: var(--sidebar-hover);
+}
+
+.shortcutRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.shortcutLink {
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: none;
+  color: var(--primary-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.shortcutLink:hover {
+  background-color: var(--sidebar-hover);
 }

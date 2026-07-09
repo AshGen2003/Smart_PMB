@@ -1,3 +1,4 @@
+import AuthShell from "../../AuthShell";
 import SignupFarmerForm, { type DistrictOption } from "./SignupFarmerForm";
 
 export default async function SignupFarmerPage() {
@@ -7,5 +8,9 @@ export default async function SignupFarmerPage() {
   );
   const districts = res.ok ? ((await res.json()) as DistrictOption[]) : [];
 
-  return <SignupFarmerForm districts={districts} />;
+  return (
+    <AuthShell>
+      <SignupFarmerForm districts={districts} />
+    </AuthShell>
+  );
 }

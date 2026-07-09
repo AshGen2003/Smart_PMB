@@ -9,7 +9,7 @@ const FEATURES = [
   { icon: Truck, label: "Track collection and delivery status" },
 ];
 
-export default function AuthLayout({
+export default function AuthShell({
   children,
 }: {
   children: React.ReactNode;

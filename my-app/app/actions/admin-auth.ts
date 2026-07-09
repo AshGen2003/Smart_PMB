@@ -42,5 +42,5 @@ export async function adminLogin(
   }
 
   await setTokenCookies(access, refresh);
-  redirect("/");
+  redirect("/dashboard");
 }

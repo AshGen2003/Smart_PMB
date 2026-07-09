@@ -1,5 +1,6 @@
 import Link from "next/link";
 import clsx from "clsx";
+import AuthShell from "../AuthShell";
 import styles from "../AuthForm.module.css";
 
 const API_URL = process.env.NEXT_PUBLIC_DJANGO_API_URL!;
@@ -31,23 +32,25 @@ export default async function ConfirmEmailPage({
   }
 
   return (
-    <div className={styles.card}>
-      <h1 className={styles.title}>
-        {success ? "Email confirmed" : "Confirmation failed"}
-      </h1>
+    <AuthShell>
+      <div className={styles.card}>
+        <h1 className={styles.title}>
+          {success ? "Email confirmed" : "Confirmation failed"}
+        </h1>
 
-      <div
-        className={clsx(
-          styles.banner,
-          success ? styles.bannerSuccess : styles.bannerError
-        )}
-      >
-        {message}
+        <div
+          className={clsx(
+            styles.banner,
+            success ? styles.bannerSuccess : styles.bannerError
+          )}
+        >
+          {message}
+        </div>
+
+        <p className={styles.switchLine}>
+          <Link href="/login">Go to login</Link>
+        </p>
       </div>
-
-      <p className={styles.switchLine}>
-        <Link href="/login">Go to login</Link>
-      </p>
-    </div>
+    </AuthShell>
   );
 }
