@@ -1,0 +1,87 @@
+:root {
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --primary: #2d5016;
+  --primary-foreground: #ffffff;
+  --accent: #d4af37;
+  --accent-foreground: #1a1a1a;
+  
+  --card-bg: #ffffff;
+  --card-border: #e5e7eb;
+  
+  --sidebar-bg: #f9fafb;
+  --sidebar-hover: #e5e7eb;
+  --sidebar-active: #e8efe2; /* Light green tint */
+  
+  --text-muted: #6b7280;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  --transition-speed: 0.3s;
+}
+
+:root[data-theme='dark'] {
+  --background: #121212;
+  --foreground: #f3f4f6;
+  --primary: #2d5016;
+  --primary-foreground: #ffffff;
+  --accent: #d4af37;
+  --accent-foreground: #121212;
+  
+  --card-bg: #1e1e1e;
+  --card-border: #333333;
+  
+  --sidebar-bg: #1a1a1a;
+  --sidebar-hover: #2d2d2d;
+  --sidebar-active: #1e3a0f; /* Dark green tint */
+  
+  --text-muted: #9ca3af;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Minimal Utilities */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-1 { flex: 1; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.grid { display: grid; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--card-border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}

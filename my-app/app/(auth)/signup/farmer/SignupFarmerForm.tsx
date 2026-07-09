@@ -1,0 +1,243 @@
+"use client";
+
+import React, { useMemo, useState } from "react";
+import { useActionState } from "react";
+import Link from "next/link";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import clsx from "clsx";
+import { signupFarmer, type SignupState } from "@/app/actions/auth";
+import styles from "../../AuthForm.module.css";
+
+export type DistrictOption = {
+  id: number;
+  name: string;
+  province: { name: string } | null;
+};
+
+const initialState: SignupState = {};
+
+export default function SignupFarmerForm({
+  districts,
+}: {
+  districts: DistrictOption[];
+}) {
+  const [state, formAction, pending] = useActionState(
+    signupFarmer,
+    initialState
+  );
+  const [showPassword, setShowPassword] = useState(false);
+
+  const districtsByProvince = useMemo(() => {
+    const groups = new Map<string, DistrictOption[]>();
+    for (const d of districts) {
+      const province = d.province?.name ?? "Other";
+      if (!groups.has(province)) groups.set(province, []);
+      groups.get(province)!.push(d);
+    }
+    return groups;
+  }, [districts]);
+
+  return (
+    <div className={clsx(styles.card, styles.cardWide)}>
+      <h1 className={styles.title}>Create your farmer account</h1>
+      <p className={styles.subtitle}>
+        Register to track harvests, prices, and payments with Smart PMB.
+      </p>
+
+      {state.error && (
+        <div className={clsx(styles.banner, styles.bannerError)}>
+          {state.error}
+        </div>
+      )}
+
+      <form action={formAction} noValidate>
+        <div className={styles.row2}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="name">
+              Full name
+            </label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              required
+              className={styles.input}
+              placeholder="K. A. Perera"
+            />
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="nic">
+              NIC number
+            </label>
+            <input
+              id="nic"
+              name="nic"
+              type="text"
+              required
+              className={styles.input}
+              placeholder="199012345678"
+            />
+          </div>
+        </div>
+
+        <div className={styles.row2}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="email">
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className={styles.input}
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="contactNumber">
+              Contact number
+            </label>
+            <input
+              id="contactNumber"
+              name="contactNumber"
+              type="tel"
+              required
+              className={styles.input}
+              placeholder="0771234567"
+            />
+          </div>
+        </div>
+
+        <div className={styles.row2}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="password">
+              Password
+            </label>
+            <div className={styles.inputWrapper}>
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                required
+                minLength={8}
+                className={clsx(styles.input, styles.inputWithToggle)}
+                placeholder="At least 8 characters"
+              />
+              <button
+                type="button"
+                className={styles.visibilityToggle}
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="confirmPassword">
+              Confirm password
+            </label>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              required
+              minLength={8}
+              className={styles.input}
+              placeholder="Repeat password"
+            />
+          </div>
+        </div>
+
+        <div className={styles.row2}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="districtId">
+              District
+            </label>
+            <select
+              id="districtId"
+              name="districtId"
+              required
+              defaultValue=""
+              className={styles.select}
+            >
+              <option value="" disabled>
+                Select your district
+              </option>
+              {Array.from(districtsByProvince.entries()).map(
+                ([province, items]) => (
+                  <optgroup key={province} label={province}>
+                    {items.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="landSize">
+              Land size <span className={styles.optional}>(acres)</span>
+            </label>
+            <input
+              id="landSize"
+              name="landSize"
+              type="number"
+              step="0.01"
+              min="0"
+              className={styles.input}
+              placeholder="2.5"
+            />
+          </div>
+        </div>
+
+        <div className={styles.row2}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="bankName">
+              Bank name <span className={styles.optional}>(optional)</span>
+            </label>
+            <input
+              id="bankName"
+              name="bankName"
+              type="text"
+              className={styles.input}
+              placeholder="Bank of Ceylon"
+            />
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="bankAccount">
+              Bank account <span className={styles.optional}>(optional)</span>
+            </label>
+            <input
+              id="bankAccount"
+              name="bankAccount"
+              type="text"
+              className={styles.input}
+              placeholder="000123456789"
+            />
+          </div>
+        </div>
+
+        <button type="submit" className={styles.submitBtn} disabled={pending}>
+          {pending && <Loader2 size={16} className={styles.spin} />}
+          {pending ? "Creating account…" : "Create account"}
+        </button>
+      </form>
+
+      <p className={styles.switchLine}>
+        Already have an account? <Link href="/login">Log in</Link>
+      </p>
+    </div>
+  );
+}
