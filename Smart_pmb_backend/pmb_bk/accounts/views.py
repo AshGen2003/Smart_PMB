@@ -1,7 +1,9 @@
 from django.core import signing
+from django.db.models import Count
 from rest_framework import status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -25,6 +27,8 @@ from .tokens import read_email_confirmation_token
 class LoginView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
 
 
 class RegisterFarmerView(APIView):
@@ -95,6 +99,11 @@ class LogoutView(APIView):
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def _profile_picture_url(self, request, user):
+        if not user.profile_picture:
+            return None
+        return request.build_absolute_uri(user.profile_picture.url)
+
     def get(self, request):
         user = request.user
         return Response(
@@ -102,6 +111,9 @@ class MeView(APIView):
                 "id": str(user.id),
                 "email": user.email,
                 "full_name": user.full_name,
+                "nic": user.nic,
+                "phone_number": user.phone_number,
+                "profile_picture": self._profile_picture_url(request, user),
                 "role": user.role.slug,
                 "role_name": user.role.name,
                 "permissions": list(
@@ -124,6 +136,9 @@ class MeView(APIView):
                 "id": str(user.id),
                 "email": user.email,
                 "full_name": user.full_name,
+                "nic": user.nic,
+                "phone_number": user.phone_number,
+                "profile_picture": self._profile_picture_url(request, user),
                 "role": user.role.slug,
                 "role_name": user.role.name,
                 "permissions": list(
@@ -191,3 +206,42 @@ class PermissionListView(APIView):
     def get(self, request):
         permissions = Permission.objects.all().order_by("codename")
         return Response(PermissionSerializer(permissions, many=True).data)
+
+
+class AdminOverviewView(APIView):
+    permission_classes = [HasPermission("manage_users")]
+
+    def get(self, request):
+        roles = Role.objects.annotate(member_count=Count("users")).order_by(
+            "-member_count"
+        )
+        recent_users = User.objects.select_related("role").order_by(
+            "-date_joined"
+        )[:5]
+
+        return Response(
+            {
+                "total_users": User.objects.count(),
+                "active_users": User.objects.filter(is_active=True).count(),
+                "total_roles": roles.count(),
+                "role_breakdown": [
+                    {
+                        "name": r.name,
+                        "slug": r.slug,
+                        "user_count": r.member_count,
+                    }
+                    for r in roles
+                ],
+                "recent_users": [
+                    {
+                        "id": str(u.id),
+                        "email": u.email,
+                        "full_name": u.full_name,
+                        "role_name": u.role.name,
+                        "date_joined": u.date_joined,
+                        "is_active": u.is_active,
+                    }
+                    for u in recent_users
+                ],
+            }
+        )

@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Moon, Sun, Bell, LogOut } from "lucide-react";
+import { Menu, Moon, Sun, Bell, LogOut, Settings, User } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useLayout } from "./LayoutProvider";
 import { logout } from "@/app/actions/auth";
@@ -11,17 +12,38 @@ import styles from "./Header.module.css";
 interface HeaderProps {
   userName?: string;
   roleLabel?: string;
+  profileHref?: string;
+  settingsHref?: string;
+  profilePictureUrl?: string | null;
 }
 
-export default function Header({ userName = "Admin User", roleLabel }: HeaderProps) {
+export default function Header({
+  userName = "Admin User",
+  roleLabel,
+  profileHref = "/profile",
+  settingsHref = "/settings",
+  profilePictureUrl,
+}: HeaderProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const { toggleMobileSidebar } = useLayout();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const avatarLetter = userName.trim().charAt(0).toUpperCase() || "?";
 
   // Simple breadcrumb logic based on pathname
   const routeName = pathname === "/" ? "Dashboard" : pathname.replace("/", "");
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <header className={styles.header}>
@@ -43,29 +65,69 @@ export default function Header({ userName = "Admin User", roleLabel }: HeaderPro
         <button className={styles.iconBtn} onClick={toggleTheme} aria-label="Toggle Theme">
           {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
         </button>
-        
+
         <button className={styles.iconBtn} aria-label="Notifications">
           <Bell size={20} />
         </button>
 
-        <div className={styles.profile}>
-          <div className={styles.avatar}>{avatarLetter}</div>
-          <span className={styles.profileName}>
-            {userName}
-            {roleLabel ? ` · ${roleLabel}` : ""}
-          </span>
-        </div>
-
-        <form action={logout}>
+        <div className={styles.profileWrap} ref={menuRef}>
           <button
-            type="submit"
-            className={styles.iconBtn}
-            aria-label="Log out"
-            title="Log out"
+            type="button"
+            className={styles.profile}
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
           >
-            <LogOut size={20} />
+            {profilePictureUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={profilePictureUrl} alt="" className={styles.avatarImage} />
+            ) : (
+              <div className={styles.avatar}>{avatarLetter}</div>
+            )}
+            <span className={styles.profileName}>
+              {userName}
+              {roleLabel ? ` · ${roleLabel}` : ""}
+            </span>
           </button>
-        </form>
+
+          {menuOpen && (
+            <div className={styles.profileMenu} role="menu">
+              <div className={styles.profileMenuHeader}>
+                {profilePictureUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={profilePictureUrl} alt="" className={styles.avatarImage} />
+                ) : (
+                  <div className={styles.avatar}>{avatarLetter}</div>
+                )}
+                <div>
+                  <div className={styles.menuName}>{userName}</div>
+                  {roleLabel && <div className={styles.menuRole}>{roleLabel}</div>}
+                </div>
+              </div>
+              <div className={styles.profileMenuDivider} />
+              <Link
+                href={profileHref}
+                className={styles.profileMenuItem}
+                onClick={() => setMenuOpen(false)}
+              >
+                <User size={16} /> My Profile
+              </Link>
+              <Link
+                href={settingsHref}
+                className={styles.profileMenuItem}
+                onClick={() => setMenuOpen(false)}
+              >
+                <Settings size={16} /> Settings
+              </Link>
+              <div className={styles.profileMenuDivider} />
+              <form action={logout}>
+                <button type="submit" className={styles.profileMenuItem}>
+                  <LogOut size={16} /> Log out
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

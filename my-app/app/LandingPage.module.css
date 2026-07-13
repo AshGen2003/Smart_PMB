@@ -244,13 +244,13 @@
   gap: 0.45rem;
   padding: 0.4rem 0.8rem 0.4rem 0.6rem;
   border-radius: 9999px;
-  background-color: rgba(212, 175, 55, 0.14);
-  border: 1px solid rgba(212, 175, 55, 0.35);
+  background-color: rgba(250, 204, 21, 0.14);
+  border: 1px solid rgba(250, 204, 21, 0.35);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #e5c158;
+  color: #facc15;
   margin-bottom: 1.5rem;
   animation: heroFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: 0.1s;
@@ -260,7 +260,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #e5c158;
+  background-color: #facc15;
   flex-shrink: 0;
   animation: pulseDot 2.2s ease-in-out infinite;
 }
@@ -288,7 +288,7 @@
 }
 
 .heroTitleAccent {
-  background: linear-gradient(100deg, #e5c158 0%, #f3d97f 50%, #e5c158 100%);
+  background: linear-gradient(100deg, #facc15 0%, #fde68a 50%, #facc15 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -328,18 +328,18 @@
   align-items: center;
   gap: 0.45rem;
   padding: 0.8rem 1.5rem;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 0.95rem;
   font-weight: 700;
-  background-color: #d4af37;
-  color: #14181f;
+  background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
+  color: #1c1502;
   transition: filter 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .btnPrimary:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
   transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(212, 175, 55, 0.35);
+  box-shadow: 0 10px 24px rgba(234, 179, 8, 0.35);
 }
 
 .btnPrimary svg {
@@ -610,121 +610,57 @@
   margin: 0;
 }
 
-/* Roles / portals */
-.rolesSection {
+/* Final CTA band */
+.ctaSection {
   background-color: var(--sidebar-bg);
   border-top: 1px solid var(--card-border);
   border-bottom: 1px solid var(--card-border);
 }
 
-.roleGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-  margin-top: 2.5rem;
-}
-
-.roleCard {
-  position: relative;
-  padding: 2rem;
-  border-radius: 16px;
-  background-color: var(--card-bg);
-  border: 1px solid var(--card-border);
+.ctaBand {
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
-}
-
-.roleCard::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--primary), var(--accent));
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.roleCard:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.1);
-}
-
-.roleCard:hover::before {
-  transform: scaleX(1);
-}
-
-.roleIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-  color: var(--primary-foreground);
-  box-shadow: 0 8px 18px -6px rgba(45, 80, 22, 0.5);
-  margin-bottom: 1.25rem;
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.roleCard:hover .roleIcon {
-  transform: scale(1.1) rotate(-6deg);
-}
-
-.roleTitle {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: var(--foreground);
-  margin: 0 0 0.5rem;
-}
-
-.roleText {
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: var(--text-muted);
-  margin: 0 0 1.5rem;
-  flex: 1;
-}
-
-.roleActions {
-  display: flex;
-  gap: 0.75rem;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2.5rem;
+  padding: 3rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--primary) 0%, #0f2c19 100%);
+  box-shadow: var(--shadow-md);
 }
 
-.roleLinkPrimary {
-  padding: 0.6rem 1.1rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  background-color: var(--primary);
-  color: var(--primary-foreground);
-  transition: filter 0.2s ease, transform 0.2s ease;
+.ctaBand .sectionEyebrow {
+  color: #facc15;
 }
 
-.roleLinkPrimary:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+.ctaHeading {
+  font-size: clamp(1.5rem, 2.8vw, 2rem);
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0.4rem 0 0.75rem;
+  max-width: 480px;
+  letter-spacing: -0.01em;
 }
 
-.roleLinkGhost {
-  padding: 0.6rem 1.1rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  border: 1px solid var(--card-border);
-  color: var(--foreground);
-  transition: background-color 0.2s ease, transform 0.2s ease;
+.ctaSubheading {
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.78);
+  max-width: 460px;
+  margin: 0;
 }
 
-.roleLinkGhost:hover {
-  background-color: var(--sidebar-hover);
-  transform: translateY(-1px);
+.ctaActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .ctaBand {
+    padding: 2rem;
+  }
 }
 
 /* Footer */

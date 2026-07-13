@@ -59,3 +59,11 @@ export async function requirePermission(codename: string): Promise<AppUser> {
   }
   return user;
 }
+
+export async function requireAnyPermission(...codenames: string[]): Promise<AppUser> {
+  const user = await requireUser();
+  if (!codenames.some((c) => user.permissions.includes(c))) {
+    redirect(homeFor(user));
+  }
+  return user;
+}

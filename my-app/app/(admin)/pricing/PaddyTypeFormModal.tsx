@@ -1,0 +1,140 @@
+"use client";
+
+import React, { useEffect, useRef, useActionState } from "react";
+import { Coins, Loader2, X } from "lucide-react";
+import {
+  createPaddyType,
+  updatePaddyType,
+  type PaddyTypeFormState,
+} from "@/app/actions/pricing";
+import styles from "./Pricing.module.css";
+
+export type EditablePaddyType = {
+  id: number;
+  type_name: string;
+  variety: string;
+  description: string;
+  guaranteed_price: string;
+  is_active: boolean;
+};
+
+const initialState: PaddyTypeFormState = {};
+
+export default function PaddyTypeFormModal({
+  mode,
+  paddyType,
+  onClose,
+}: {
+  mode: "create" | "edit";
+  paddyType?: EditablePaddyType;
+  onClose: () => void;
+}) {
+  const action =
+    mode === "create" ? createPaddyType : updatePaddyType.bind(null, paddyType!.id);
+  const [state, formAction, pending] = useActionState(action, initialState);
+  const wasSubmitting = useRef(false);
+
+  useEffect(() => {
+    if (pending) wasSubmitting.current = true;
+    if (!pending && wasSubmitting.current && !state.error) {
+      onClose();
+    }
+  }, [pending, state, onClose]);
+
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <div className={styles.modalHeaderTitle}>
+            <Coins size={20} />
+            {mode === "create" ? "New paddy type" : `Edit — ${paddyType?.type_name}`}
+          </div>
+          <button type="button" className={styles.modalCloseBtn} onClick={onClose} aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className={styles.modalBody}>
+          {state.error && <div className={styles.modalBanner}>{state.error}</div>}
+
+          <form action={formAction}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="type_name">Type name</label>
+              <input
+                id="type_name"
+                name="type_name"
+                type="text"
+                required
+                defaultValue={paddyType?.type_name}
+                className={styles.input}
+                placeholder="e.g. Nadu"
+              />
+            </div>
+
+            <div className={styles.fieldRow}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="variety">
+                  Variety <span className={styles.optional}>(optional)</span>
+                </label>
+                <input
+                  id="variety"
+                  name="variety"
+                  type="text"
+                  defaultValue={paddyType?.variety}
+                  className={styles.input}
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="guaranteed_price">
+                  Guaranteed price (Rs./kg)
+                </label>
+                <input
+                  id="guaranteed_price"
+                  name="guaranteed_price"
+                  type="number"
+                  step="0.01"
+                  required
+                  defaultValue={paddyType?.guaranteed_price}
+                  className={styles.input}
+                />
+              </div>
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="description">
+                Description <span className={styles.optional}>(optional)</span>
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                defaultValue={paddyType?.description}
+                className={styles.textarea}
+                rows={2}
+              />
+            </div>
+
+            <label className={styles.checkRow}>
+              <input
+                type="checkbox"
+                name="is_active"
+                defaultChecked={paddyType?.is_active ?? true}
+                className={styles.checkbox}
+              />
+              Active (visible to farmers)
+            </label>
+
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.secondaryBtn} onClick={onClose}>
+                Cancel
+              </button>
+              <button type="submit" className={styles.primaryBtn} disabled={pending}>
+                {pending && <Loader2 size={16} className={styles.spin} />}
+                {pending ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

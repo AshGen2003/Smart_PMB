@@ -4,3 +4,6 @@ Smart_pmb_backend/pmb/
 # OS cruft
 .DS_Store
 Thumbs.db
+
+# Local AI assistant tooling (not project code)
+.claude/

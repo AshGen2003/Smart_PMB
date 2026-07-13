@@ -12,9 +12,16 @@ interface AdminShellProps {
   userName: string;
   roleLabel: string;
   permissions: string[];
+  profilePictureUrl?: string | null;
 }
 
-function LayoutWrapper({ children, userName, roleLabel, permissions }: AdminShellProps) {
+function LayoutWrapper({
+  children,
+  userName,
+  roleLabel,
+  permissions,
+  profilePictureUrl,
+}: AdminShellProps) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
   return (
@@ -30,7 +37,11 @@ function LayoutWrapper({ children, userName, roleLabel, permissions }: AdminShel
       </div>
       <div className={styles.mainWrapper}>
         <div className={styles.headerArea}>
-          <Header userName={userName} roleLabel={roleLabel} />
+          <Header
+            userName={userName}
+            roleLabel={roleLabel}
+            profilePictureUrl={profilePictureUrl}
+          />
         </div>
         <main className={styles.mainArea}>{children}</main>
       </div>
@@ -43,10 +54,16 @@ export default function AdminShell({
   userName,
   roleLabel,
   permissions,
+  profilePictureUrl,
 }: AdminShellProps) {
   return (
     <LayoutProvider>
-      <LayoutWrapper userName={userName} roleLabel={roleLabel} permissions={permissions}>
+      <LayoutWrapper
+        userName={userName}
+        roleLabel={roleLabel}
+        permissions={permissions}
+        profilePictureUrl={profilePictureUrl}
+      >
         {children}
       </LayoutWrapper>
     </LayoutProvider>

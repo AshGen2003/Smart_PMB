@@ -1,13 +1,18 @@
 import random
+from datetime import timedelta
 
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from farmers.models import District, Farmer
 
 from .models import Permission, Role, User
+
+LOGIN_LOCKOUT_THRESHOLD = 5
+LOGIN_LOCKOUT_MINUTES = 15
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -24,7 +29,40 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        data = super().validate(attrs)
+        email = attrs.get(self.username_field)
+        user = User.objects.filter(email__iexact=email).first() if email else None
+
+        if user and user.locked_until and user.locked_until > timezone.now():
+            minutes_left = max(
+                1, int((user.locked_until - timezone.now()).total_seconds() // 60) + 1
+            )
+            raise serializers.ValidationError(
+                {
+                    "detail": (
+                        "Too many failed login attempts. Try again in "
+                        f"{minutes_left} minute{'s' if minutes_left != 1 else ''}."
+                    )
+                }
+            )
+
+        try:
+            data = super().validate(attrs)
+        except AuthenticationFailed:
+            if user:
+                user.failed_login_attempts += 1
+                if user.failed_login_attempts >= LOGIN_LOCKOUT_THRESHOLD:
+                    user.locked_until = timezone.now() + timedelta(
+                        minutes=LOGIN_LOCKOUT_MINUTES
+                    )
+                    user.failed_login_attempts = 0
+                user.save(update_fields=["failed_login_attempts", "locked_until"])
+            raise
+
+        if user.failed_login_attempts or user.locked_until:
+            user.failed_login_attempts = 0
+            user.locked_until = None
+            user.save(update_fields=["failed_login_attempts", "locked_until"])
+
         if not self.user.email_confirmed:
             raise serializers.ValidationError(
                 {"detail": "Please confirm your email address before logging in."}
@@ -92,6 +130,9 @@ class RegisterFarmerSerializer(serializers.Serializer):
 
 class SelfProfileSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    nic = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    profile_picture = serializers.ImageField(required=False, allow_null=True)
     current_password = serializers.CharField(
         required=False, allow_blank=True, write_only=True
     )
@@ -113,10 +154,19 @@ class SelfProfileSerializer(serializers.Serializer):
     def save(self, **kwargs):
         user = self.context["user"]
         full_name = self.validated_data.get("full_name")
+        nic = self.validated_data.get("nic")
+        phone_number = self.validated_data.get("phone_number")
+        profile_picture = self.validated_data.get("profile_picture")
         new_password = self.validated_data.get("new_password")
 
         if full_name is not None:
             user.full_name = full_name.strip()
+        if nic is not None:
+            user.nic = nic.strip()
+        if phone_number is not None:
+            user.phone_number = phone_number.strip()
+        if profile_picture is not None:
+            user.profile_picture = profile_picture
         if new_password:
             user.set_password(new_password)
 

@@ -4,6 +4,7 @@ import React, { useActionState, useEffect, useRef } from "react";
 import { Loader2, X } from "lucide-react";
 import clsx from "clsx";
 import { createUser, updateUser, type UserFormState } from "@/app/actions/users";
+import { PasswordInput } from "@/app/components/PasswordInput";
 import styles from "./Users.module.css";
 
 export type RoleOption = {
@@ -93,10 +94,9 @@ export default function UserFormModal({
                 </span>
               )}
             </label>
-            <input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               required={mode === "create"}
               minLength={8}
               className={styles.input}
