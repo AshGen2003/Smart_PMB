@@ -2,21 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { apiFetch } from "@/app/lib/api";
+import { firstErrorMessage } from "@/app/lib/errors";
 
 export type UserFormState = {
   error?: string;
 };
-
-function firstErrorMessage(data: unknown): string {
-  if (data && typeof data === "object") {
-    const firstValue = Object.values(data as Record<string, unknown>)[0];
-    if (Array.isArray(firstValue) && typeof firstValue[0] === "string") {
-      return firstValue[0];
-    }
-    if (typeof firstValue === "string") return firstValue;
-  }
-  return "Something went wrong. Please try again.";
-}
 
 export async function createUser(
   _prevState: UserFormState,
@@ -26,7 +16,7 @@ export async function createUser(
     email: String(formData.get("email") ?? "").trim(),
     password: String(formData.get("password") ?? ""),
     full_name: String(formData.get("fullName") ?? "").trim(),
-    role: String(formData.get("role") ?? ""),
+    role: Number(formData.get("role")),
   };
 
   const res = await apiFetch("/api/admin/users/", {
@@ -39,7 +29,7 @@ export async function createUser(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/users");
+  revalidatePath("/residents");
   return {};
 }
 
@@ -52,7 +42,7 @@ export async function updateUser(
   const payload: Record<string, unknown> = {
     email: String(formData.get("email") ?? "").trim(),
     full_name: String(formData.get("fullName") ?? "").trim(),
-    role: String(formData.get("role") ?? ""),
+    role: Number(formData.get("role")),
     is_active: formData.get("isActive") === "on",
   };
   if (password) payload.password = password;
@@ -67,7 +57,7 @@ export async function updateUser(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/users");
+  revalidatePath("/residents");
   return {};
 }
 
@@ -81,6 +71,6 @@ export async function deleteUser(userId: string): Promise<{ error?: string }> {
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/users");
+  revalidatePath("/residents");
   return {};
 }

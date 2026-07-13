@@ -6,5 +6,5 @@ class IsFarmer(BasePermission):
         return bool(
             request.user
             and request.user.is_authenticated
-            and request.user.role == "farmer"
+            and request.user.role.slug == "farmer"
         )

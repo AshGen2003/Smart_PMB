@@ -7,33 +7,37 @@ import { usePathname } from "next/navigation";
 import { useLayout } from "./LayoutProvider";
 import styles from "./Sidebar.module.css";
 import clsx from "clsx";
-import { 
-  LayoutDashboard, 
-  Users, 
-  Building2, 
-  CreditCard, 
-  Wrench, 
-  BarChart3, 
-  Settings, 
-  UserCog,
+import {
+  LayoutDashboard,
+  Users,
+  Building2,
+  CreditCard,
+  Wrench,
+  BarChart3,
+  Settings,
+  ShieldCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Residents", href: "/residents", icon: Users },
+  { label: "Users", href: "/residents", icon: Users, permission: "manage_users" },
   { label: "Properties", href: "/properties", icon: Building2 },
   { label: "Payments", href: "/payments", icon: CreditCard },
   { label: "Maintenance", href: "/maintenance", icon: Wrench },
   { label: "Reports", href: "/reports", icon: BarChart3 },
+  { label: "Roles", href: "/roles", icon: ShieldCheck, permission: "manage_roles" },
   { label: "Settings", href: "/settings", icon: Settings },
-  { label: "User Config", href: "/users", icon: UserCog },
-];
+] as const;
 
-export default function Sidebar() {
+export default function Sidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
+
+  const items = NAV_ITEMS.filter(
+    (item) => !("permission" in item) || permissions.includes(item.permission)
+  );
 
   return (
     <aside
@@ -43,11 +47,11 @@ export default function Sidebar() {
       )}
     >
       <div className={clsx(styles.logoArea, !isSidebarOpen && styles.logoAreaCollapsed)}>
-        <Image 
-          src="/logo.png" 
-          alt="Smart PMB Logo" 
-          width={32} 
-          height={32} 
+        <Image
+          src="/logo.png"
+          alt="Smart PMB Logo"
+          width={32}
+          height={32}
           className={styles.logoIconImage}
           priority
         />
@@ -59,7 +63,7 @@ export default function Sidebar() {
       </button>
 
       <nav className={styles.nav}>
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           return (

@@ -7,13 +7,16 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .emails import send_confirmation_email
-from .models import User
-from .permissions import IsAdminRole
+from .models import Permission, Role, User
+from .permissions import HasPermission, RoleAccessPermission
 from .serializers import (
     AdminUserSerializer,
     AdminUserWriteSerializer,
     CustomTokenObtainPairSerializer,
+    PermissionSerializer,
     RegisterFarmerSerializer,
+    RoleSerializer,
+    RoleWriteSerializer,
     SelfProfileSerializer,
 )
 from .tokens import read_email_confirmation_token
@@ -99,7 +102,11 @@ class MeView(APIView):
                 "id": str(user.id),
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role,
+                "role": user.role.slug,
+                "role_name": user.role.name,
+                "permissions": list(
+                    user.role.permissions.values_list("codename", flat=True)
+                ),
             }
         )
 
@@ -117,7 +124,11 @@ class MeView(APIView):
                 "id": str(user.id),
                 "email": user.email,
                 "full_name": user.full_name,
-                "role": user.role,
+                "role": user.role.slug,
+                "role_name": user.role.name,
+                "permissions": list(
+                    user.role.permissions.values_list("codename", flat=True)
+                ),
                 "access": str(token.access_token),
                 "refresh": str(token),
             }
@@ -125,14 +136,14 @@ class MeView(APIView):
 
 
 class AdminUserViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, IsAdminRole]
-    queryset = User.objects.all().order_by("-date_joined")
+    permission_classes = [HasPermission("manage_users")]
+    queryset = User.objects.all().select_related("role").order_by("-date_joined")
 
     def get_queryset(self):
         qs = super().get_queryset()
         role = self.request.query_params.get("role")
         if role:
-            qs = qs.filter(role=role)
+            qs = qs.filter(role__slug=role)
         return qs
 
     def get_serializer_class(self):
@@ -148,3 +159,35 @@ class AdminUserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return super().destroy(request, *args, **kwargs)
+
+
+class RoleViewSet(viewsets.ModelViewSet):
+    permission_classes = [RoleAccessPermission]
+    queryset = Role.objects.all().prefetch_related("permissions").order_by("name")
+
+    def get_serializer_class(self):
+        if self.action in ("create", "update", "partial_update"):
+            return RoleWriteSerializer
+        return RoleSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.is_system:
+            return Response(
+                {"detail": "System roles cannot be deleted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if instance.users.exists():
+            return Response(
+                {"detail": "This role is still assigned to one or more users."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
+
+class PermissionListView(APIView):
+    permission_classes = [RoleAccessPermission]
+
+    def get(self, request):
+        permissions = Permission.objects.all().order_by("codename")
+        return Response(PermissionSerializer(permissions, many=True).data)

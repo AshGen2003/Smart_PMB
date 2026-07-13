@@ -4,14 +4,19 @@ import React, { useActionState, useEffect, useRef } from "react";
 import { Loader2, X } from "lucide-react";
 import clsx from "clsx";
 import { createUser, updateUser, type UserFormState } from "@/app/actions/users";
-import { ROLES } from "@/app/lib/roles";
 import styles from "./Users.module.css";
+
+export type RoleOption = {
+  id: number;
+  name: string;
+  slug: string;
+};
 
 export type EditableUser = {
   id: string;
   email: string;
   full_name: string;
-  role: string;
+  roleId: number;
   is_active: boolean;
 };
 
@@ -20,10 +25,12 @@ const initialState: UserFormState = {};
 export default function UserFormModal({
   mode,
   user,
+  roles,
   onClose,
 }: {
   mode: "create" | "edit";
   user?: EditableUser;
+  roles: RoleOption[];
   onClose: () => void;
 }) {
   const action = mode === "create" ? createUser : updateUser.bind(null, user!.id);
@@ -105,15 +112,15 @@ export default function UserFormModal({
               id="role"
               name="role"
               required
-              defaultValue={user?.role ?? ""}
+              defaultValue={user?.roleId ?? ""}
               className={styles.select2}
             >
               <option value="" disabled>
                 Select a role
               </option>
-              {ROLES.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
                 </option>
               ))}
             </select>

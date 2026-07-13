@@ -3,6 +3,8 @@ import { jwtVerify } from "jose";
 export type AccessTokenPayload = {
   sub: string;
   role: string;
+  role_name: string;
+  permissions: string[];
   full_name: string;
   email: string;
   exp: number;

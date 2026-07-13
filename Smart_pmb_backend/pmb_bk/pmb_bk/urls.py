@@ -18,14 +18,16 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from accounts.views import AdminUserViewSet
+from accounts.views import AdminUserViewSet, PermissionListView, RoleViewSet
 
 router = DefaultRouter()
 router.register('admin/users', AdminUserViewSet, basename='admin-users')
+router.register('admin/roles', RoleViewSet, basename='admin-roles')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('farmers.urls')),
+    path('api/admin/permissions/', PermissionListView.as_view()),
     path('api/', include(router.urls)),
 ]

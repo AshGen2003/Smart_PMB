@@ -3,21 +3,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { verifyAccessToken } from "./jwt";
 
-export type UserRole =
-  | "admin"
-  | "moderator"
-  | "pmb_officer"
-  | "farmer"
-  | "mill_owner"
-  | "driver"
-  | "warehouse_manager"
-  | "authorized_purchaser";
-
 export type AppUser = {
   id: string;
   email: string;
   fullName: string | null;
-  role: UserRole;
+  role: string;
+  roleName: string;
+  permissions: string[];
 };
 
 // Verifies the Django-issued JWT signature/expiry on every call within a
@@ -35,7 +27,9 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
     id: payload.sub,
     email: payload.email,
     fullName: payload.full_name || null,
-    role: payload.role as UserRole,
+    role: payload.role,
+    roleName: payload.role_name,
+    permissions: payload.permissions ?? [],
   };
 });
 
@@ -45,11 +39,23 @@ export async function requireUser(): Promise<AppUser> {
   return user;
 }
 
-export async function requireRole(role: UserRole): Promise<AppUser> {
+function homeFor(user: AppUser): string {
+  return user.role === "farmer" ? "/farmer" : "/dashboard";
+}
+
+export async function requireRole(role: string): Promise<AppUser> {
   const user = await requireUser();
   if (user.role !== role) {
     // Send them to their own home, not the page they were denied.
-    redirect(user.role === "farmer" ? "/farmer" : "/");
+    redirect(homeFor(user));
+  }
+  return user;
+}
+
+export async function requirePermission(codename: string): Promise<AppUser> {
+  const user = await requireUser();
+  if (!user.permissions.includes(codename)) {
+    redirect(homeFor(user));
   }
   return user;
 }

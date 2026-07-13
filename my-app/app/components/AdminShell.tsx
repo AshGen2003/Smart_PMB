@@ -11,9 +11,10 @@ interface AdminShellProps {
   children: React.ReactNode;
   userName: string;
   roleLabel: string;
+  permissions: string[];
 }
 
-function LayoutWrapper({ children, userName, roleLabel }: AdminShellProps) {
+function LayoutWrapper({ children, userName, roleLabel, permissions }: AdminShellProps) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
   return (
@@ -25,7 +26,7 @@ function LayoutWrapper({ children, userName, roleLabel }: AdminShellProps) {
           isMobileSidebarOpen && styles.mobileOpen
         )}
       >
-        <Sidebar />
+        <Sidebar permissions={permissions} />
       </div>
       <div className={styles.mainWrapper}>
         <div className={styles.headerArea}>
@@ -37,10 +38,15 @@ function LayoutWrapper({ children, userName, roleLabel }: AdminShellProps) {
   );
 }
 
-export default function AdminShell({ children, userName, roleLabel }: AdminShellProps) {
+export default function AdminShell({
+  children,
+  userName,
+  roleLabel,
+  permissions,
+}: AdminShellProps) {
   return (
     <LayoutProvider>
-      <LayoutWrapper userName={userName} roleLabel={roleLabel}>
+      <LayoutWrapper userName={userName} roleLabel={roleLabel} permissions={permissions}>
         {children}
       </LayoutWrapper>
     </LayoutProvider>
