@@ -7,6 +7,7 @@ import { Loader2, Moon, Sun } from "lucide-react";
 import clsx from "clsx";
 import { updateProfile, type ProfileState } from "@/app/actions/profile";
 import { useTheme } from "./ThemeProvider";
+import { PasswordInput } from "./PasswordInput";
 import styles from "./SettingsSections.module.css";
 
 const initialState: ProfileState = {};
@@ -14,9 +15,13 @@ const initialState: ProfileState = {};
 export function AccountSettingsForm({
   fullName,
   email,
+  nic = "",
+  phoneNumber = "",
 }: {
   fullName: string;
   email: string;
+  nic?: string;
+  phoneNumber?: string;
 }) {
   const [state, formAction, pending] = useActionState(
     updateProfile,
@@ -27,7 +32,8 @@ export function AccountSettingsForm({
     <div className={styles.card}>
       <h2 className={styles.cardTitle}>Account</h2>
       <p className={styles.cardSubtitle}>
-        Update your name, or change your password.
+        Update your name and contact details, or change your password. Your
+        email address can only be changed by an administrator.
       </p>
 
       {state.error && (
@@ -69,6 +75,35 @@ export function AccountSettingsForm({
           />
         </div>
 
+        <div className={styles.row2}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="nic">
+              NIC
+            </label>
+            <input
+              id="nic"
+              name="nic"
+              type="text"
+              defaultValue={nic}
+              className={styles.input}
+              placeholder="e.g. 200012345678"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="phoneNumber">
+              Phone number
+            </label>
+            <input
+              id="phoneNumber"
+              name="phoneNumber"
+              type="tel"
+              defaultValue={phoneNumber}
+              className={styles.input}
+              placeholder="e.g. 0771234567"
+            />
+          </div>
+        </div>
+
         <hr className={styles.divider} />
 
         <p className={styles.sectionLabel}>Change password (optional)</p>
@@ -77,10 +112,9 @@ export function AccountSettingsForm({
           <label className={styles.label} htmlFor="currentPassword">
             Current password
           </label>
-          <input
+          <PasswordInput
             id="currentPassword"
             name="currentPassword"
-            type="password"
             autoComplete="current-password"
             className={styles.input}
           />
@@ -91,10 +125,9 @@ export function AccountSettingsForm({
             <label className={styles.label} htmlFor="newPassword">
               New password
             </label>
-            <input
+            <PasswordInput
               id="newPassword"
               name="newPassword"
-              type="password"
               autoComplete="new-password"
               minLength={8}
               className={styles.input}
@@ -105,10 +138,9 @@ export function AccountSettingsForm({
             <label className={styles.label} htmlFor="confirmPassword">
               Confirm new password
             </label>
-            <input
+            <PasswordInput
               id="confirmPassword"
               name="confirmPassword"
-              type="password"
               autoComplete="new-password"
               minLength={8}
               className={styles.input}

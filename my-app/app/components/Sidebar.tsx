@@ -16,6 +16,9 @@ import {
   BarChart3,
   Settings,
   ShieldCheck,
+  Warehouse,
+  Coins,
+  ClipboardCheck,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -26,7 +29,20 @@ const NAV_ITEMS = [
   { label: "Properties", href: "/properties", icon: Building2 },
   { label: "Payments", href: "/payments", icon: CreditCard },
   { label: "Maintenance", href: "/maintenance", icon: Wrench },
-  { label: "Reports", href: "/reports", icon: BarChart3 },
+  {
+    label: "Warehouses",
+    href: "/warehouses",
+    icon: Warehouse,
+    permission: "manage_warehouses",
+  },
+  { label: "Pricing", href: "/pricing", icon: Coins, permission: "manage_pricing" },
+  {
+    label: "Approvals",
+    href: "/approvals",
+    icon: ClipboardCheck,
+    permissions: ["monitor_operations", "record_purchases"],
+  },
+  { label: "Reports", href: "/reports", icon: BarChart3, permission: "generate_reports" },
   { label: "Roles", href: "/roles", icon: ShieldCheck, permission: "manage_roles" },
   { label: "Settings", href: "/settings", icon: Settings },
 ] as const;
@@ -35,9 +51,11 @@ export default function Sidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
 
-  const items = NAV_ITEMS.filter(
-    (item) => !("permission" in item) || permissions.includes(item.permission)
-  );
+  const items = NAV_ITEMS.filter((item) => {
+    if ("permissions" in item) return item.permissions.some((p) => permissions.includes(p));
+    if ("permission" in item) return permissions.includes(item.permission);
+    return true;
+  });
 
   return (
     <aside

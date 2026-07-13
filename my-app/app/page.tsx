@@ -7,9 +7,8 @@ import {
   Factory,
   Truck,
   BrainCircuit,
-  Users,
-  ShieldCheck,
   ArrowRight,
+  LogIn,
   ChevronDown,
 } from "lucide-react";
 import LandingNav from "./components/LandingNav";
@@ -178,79 +177,33 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="roles" className={`${styles.section} ${styles.rolesSection}`}>
+      <section id="get-started" className={`${styles.section} ${styles.ctaSection}`}>
         <div className={`${styles.blob} ${styles.blobAccent}`} />
         <div className={styles.sectionInner}>
           <Reveal>
-            <p className={styles.sectionEyebrow}>Portals</p>
-            <h2 className={styles.sectionHeading}>
-              Log in to your respective portal
-            </h2>
-            <p className={styles.sectionSubheading}>
-              Every role gets access built around what they actually do.
-            </p>
+            <div className={styles.ctaBand}>
+              <div>
+                <p className={styles.sectionEyebrow}>Get started</p>
+                <h2 className={styles.ctaHeading}>
+                  One secure sign-in for every role
+                </h2>
+                <p className={styles.ctaSubheading}>
+                  Farmers, PMB officers, purchasers, and administrators all
+                  sign in from the same place — you&apos;ll land on the
+                  dashboard built for your role automatically.
+                </p>
+              </div>
+              <div className={styles.ctaActions}>
+                <Link href="/login" className={styles.btnPrimary}>
+                  <LogIn size={16} />
+                  Log in
+                </Link>
+                <Link href="/signup/farmer" className={styles.btnSecondary}>
+                  Register as a Farmer
+                </Link>
+              </div>
+            </div>
           </Reveal>
-
-          <div className={styles.roleGrid}>
-            <Reveal delay={0}>
-              <div className={styles.roleCard}>
-                <div className={styles.roleIcon}>
-                  <Sprout size={22} />
-                </div>
-                <h3 className={styles.roleTitle}>Farmers</h3>
-                <p className={styles.roleText}>
-                  Submit harvests, view guaranteed prices, and track your
-                  sales and payments from one dashboard.
-                </p>
-                <div className={styles.roleActions}>
-                  <Link href="/login" className={styles.roleLinkPrimary}>
-                    Log in
-                  </Link>
-                  <Link href="/signup/farmer" className={styles.roleLinkGhost}>
-                    Create an account
-                  </Link>
-                </div>
-              </div>
-            </Reveal>
-
-            <Reveal delay={90}>
-              <div className={styles.roleCard}>
-                <div className={styles.roleIcon}>
-                  <Users size={22} />
-                </div>
-                <h3 className={styles.roleTitle}>
-                  PMB Officers, Purchasers &amp; Partners
-                </h3>
-                <p className={styles.roleText}>
-                  Purchasing staff, rice mill owners, warehouse managers, and
-                  PMB officers all sign in from the same staff portal.
-                </p>
-                <div className={styles.roleActions}>
-                  <Link href="/login" className={styles.roleLinkPrimary}>
-                    Log in
-                  </Link>
-                </div>
-              </div>
-            </Reveal>
-
-            <Reveal delay={180}>
-              <div className={styles.roleCard}>
-                <div className={styles.roleIcon}>
-                  <ShieldCheck size={22} />
-                </div>
-                <h3 className={styles.roleTitle}>Administrators</h3>
-                <p className={styles.roleText}>
-                  Platform administrators manage accounts, roles, and system
-                  access through a separate, restricted portal.
-                </p>
-                <div className={styles.roleActions}>
-                  <Link href="/login/admin" className={styles.roleLinkGhost}>
-                    Admin sign in
-                  </Link>
-                </div>
-              </div>
-            </Reveal>
-          </div>
         </div>
       </section>
 
@@ -273,13 +226,12 @@ export default function LandingPage() {
               <h4>Platform</h4>
               <a href="#about">About</a>
               <a href="#features">Features</a>
-              <a href="#roles">Portals</a>
+              <a href="#get-started">Get started</a>
             </div>
             <div className={styles.footerLinkGroup}>
               <h4>Access</h4>
               <Link href="/login">Log in</Link>
               <Link href="/signup/farmer">Farmer sign up</Link>
-              <Link href="/login/admin">Admin sign in</Link>
             </div>
           </div>
         </div>

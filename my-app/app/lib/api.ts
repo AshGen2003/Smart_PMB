@@ -9,7 +9,11 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   const accessToken = cookieStore.get("access_token")?.value;
 
   const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
+  // Let fetch set the multipart boundary itself for FormData bodies —
+  // forcing application/json would break file uploads.
+  if (!(init.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
   if (accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
   }

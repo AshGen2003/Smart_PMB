@@ -10,9 +10,10 @@ import clsx from "clsx";
 interface FarmerShellProps {
   children: React.ReactNode;
   userName: string;
+  profilePictureUrl?: string | null;
 }
 
-function LayoutWrapper({ children, userName }: FarmerShellProps) {
+function LayoutWrapper({ children, userName, profilePictureUrl }: FarmerShellProps) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
   return (
@@ -28,7 +29,13 @@ function LayoutWrapper({ children, userName }: FarmerShellProps) {
       </div>
       <div className={styles.mainWrapper}>
         <div className={styles.headerArea}>
-          <Header userName={userName} roleLabel="Farmer" />
+          <Header
+            userName={userName}
+            roleLabel="Farmer"
+            profileHref="/farmer/profile"
+            settingsHref="/farmer/settings"
+            profilePictureUrl={profilePictureUrl}
+          />
         </div>
         <main className={styles.mainArea}>{children}</main>
       </div>
@@ -36,10 +43,16 @@ function LayoutWrapper({ children, userName }: FarmerShellProps) {
   );
 }
 
-export default function FarmerShell({ children, userName }: FarmerShellProps) {
+export default function FarmerShell({
+  children,
+  userName,
+  profilePictureUrl,
+}: FarmerShellProps) {
   return (
     <LayoutProvider>
-      <LayoutWrapper userName={userName}>{children}</LayoutWrapper>
+      <LayoutWrapper userName={userName} profilePictureUrl={profilePictureUrl}>
+        {children}
+      </LayoutWrapper>
     </LayoutProvider>
   );
 }

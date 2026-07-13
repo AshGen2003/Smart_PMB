@@ -6,7 +6,7 @@ from .models import Permission, Role, User
 
 class UserAdmin(BaseUserAdmin):
     ordering = ["email"]
-    list_display = ["email", "full_name", "role", "is_staff"]
+    list_display = ["email", "full_name", "role", "is_staff", "locked_until"]
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Personal info", {"fields": ("full_name", "role")}),
@@ -20,6 +20,14 @@ class UserAdmin(BaseUserAdmin):
                     "groups",
                     "user_permissions",
                 )
+            },
+        ),
+        (
+            "Security",
+            {
+                # Break-glass unlock: clear both fields here to lift a
+                # lockout early instead of waiting out LOGIN_LOCKOUT_MINUTES.
+                "fields": ("failed_login_attempts", "locked_until"),
             },
         ),
     )

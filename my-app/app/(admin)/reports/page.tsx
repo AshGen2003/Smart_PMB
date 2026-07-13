@@ -1,14 +1,14 @@
-"use client";
+import { requirePermission } from "@/app/lib/dal";
+import { apiFetch } from "@/app/lib/api";
+import ReportsManager, { type ReportsData } from "./ReportsManager";
 
-import React from "react";
+export default async function ReportsPage() {
+  await requirePermission("generate_reports");
 
-export default function ReportsPage() {
-  return (
-    <div>
-      <h1 style={{ fontSize: "1.75rem", fontWeight: 700, marginBottom: "1rem" }}>Reports & Analytics</h1>
-      <div style={{ backgroundColor: "var(--card-bg)", padding: "2rem", borderRadius: "12px", border: "1px solid var(--card-border)" }}>
-        <p style={{ color: "var(--text-muted)" }}>Customizable reports and exports will go here.</p>
-      </div>
-    </div>
-  );
+  const res = await apiFetch("/api/officer/reports/");
+  const data: ReportsData = res.ok
+    ? await res.json()
+    : { stock_report: [], transaction_report: [] };
+
+  return <ReportsManager data={data} />;
 }

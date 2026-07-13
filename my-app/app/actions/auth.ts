@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { verifyAccessToken } from "@/app/lib/jwt";
 import {
   ACCESS_COOKIE,
@@ -42,13 +43,8 @@ export async function login(
   const { access, refresh } = await res.json();
   const payload = await verifyAccessToken(access);
 
-  if (payload?.role === "admin") {
-    return {
-      error: "Admin accounts must sign in through the admin portal.",
-    };
-  }
-
   await setTokenCookies(access, refresh);
+  revalidatePath("/", "layout");
   redirect(payload?.role === "farmer" ? "/farmer" : "/dashboard");
 }
 
@@ -122,5 +118,6 @@ export async function logout() {
 
   cookieStore.delete(ACCESS_COOKIE);
   cookieStore.delete(REFRESH_COOKIE);
+  revalidatePath("/", "layout");
   redirect("/login");
 }

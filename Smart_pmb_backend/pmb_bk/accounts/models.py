@@ -51,6 +51,13 @@ class User(AbstractUser):
     full_name = models.CharField(max_length=150, blank=True)
     role = models.ForeignKey(Role, on_delete=models.PROTECT, related_name="users")
     email_confirmed = models.BooleanField(default=True)
+    nic = models.CharField(max_length=20, blank=True)
+    phone_number = models.CharField(max_length=20, blank=True)
+    profile_picture = models.ImageField(
+        upload_to="profile_pictures/", null=True, blank=True
+    )
+    failed_login_attempts = models.PositiveSmallIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []

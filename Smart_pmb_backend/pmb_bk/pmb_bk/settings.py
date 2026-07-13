@@ -129,6 +129,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -142,6 +145,12 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_THROTTLE_RATES': {
+        # IP-based cap on login attempts, independent of the per-account
+        # lockout in CustomTokenObtainPairSerializer — this slows down an
+        # attacker hammering many different accounts from one IP.
+        'login': '10/min',
+    },
 }
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')

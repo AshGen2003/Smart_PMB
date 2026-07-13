@@ -29,7 +29,7 @@ export default function LandingNav() {
       <nav className={styles.navLinks}>
         <a href="#about">About</a>
         <a href="#features">Features</a>
-        <a href="#roles">Portals</a>
+        <a href="#get-started">Get started</a>
       </nav>
 
       <div className={styles.navActions}>
