@@ -170,7 +170,7 @@ export function AdminShortcutSettings() {
             Create, edit, or deactivate accounts
           </p>
         </div>
-        <Link href="/users" className={styles.shortcutLink}>
+        <Link href="/residents" className={styles.shortcutLink}>
           Go to Users →
         </Link>
       </div>

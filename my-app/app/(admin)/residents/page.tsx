@@ -1,14 +1,20 @@
-"use client";
+import { requirePermission } from "@/app/lib/dal";
+import { apiFetch } from "@/app/lib/api";
+import UsersManager, { type AdminUserRow } from "./UsersManager";
+import type { RoleOption } from "./UserFormModal";
 
-import React from "react";
+export default async function UsersPage() {
+  const currentUser = await requirePermission("manage_users");
 
-export default function ResidentsPage() {
+  const [usersRes, rolesRes] = await Promise.all([
+    apiFetch("/api/admin/users/"),
+    apiFetch("/api/admin/roles/"),
+  ]);
+
+  const users = usersRes.ok ? ((await usersRes.json()) as AdminUserRow[]) : [];
+  const roles = rolesRes.ok ? ((await rolesRes.json()) as RoleOption[]) : [];
+
   return (
-    <div>
-      <h1 style={{ fontSize: "1.75rem", fontWeight: 700, marginBottom: "1rem" }}>Residents Management</h1>
-      <div style={{ backgroundColor: "var(--card-bg)", padding: "2rem", borderRadius: "12px", border: "1px solid var(--card-border)" }}>
-        <p style={{ color: "var(--text-muted)" }}>Residents table and forms will go here.</p>
-      </div>
-    </div>
+    <UsersManager users={users} roles={roles} currentUserId={currentUser.id} />
   );
 }

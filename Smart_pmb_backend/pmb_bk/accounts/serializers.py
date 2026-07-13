@@ -7,14 +7,18 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from farmers.models import District, Farmer
 
-from .models import User
+from .models import Permission, Role, User
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        token["role"] = user.role
+        token["role"] = user.role.slug
+        token["role_name"] = user.role.name
+        token["permissions"] = list(
+            user.role.permissions.values_list("codename", flat=True)
+        )
         token["full_name"] = user.full_name
         token["email"] = user.email
         return token
@@ -67,7 +71,7 @@ class RegisterFarmerSerializer(serializers.Serializer):
                 email=validated_data["email"],
                 password=validated_data["password"],
                 full_name=validated_data["name"],
-                role=User.Role.FARMER,
+                role=Role.objects.get(slug="farmer"),
                 email_confirmed=False,
             )
             farmer = Farmer.objects.create(
@@ -120,11 +124,24 @@ class SelfProfileSerializer(serializers.Serializer):
         return user
 
 
+class RoleMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role
+        fields = ["id", "name", "slug"]
+
+
 class AdminUserSerializer(serializers.ModelSerializer):
+    role = RoleMiniSerializer(read_only=True)
+    nic = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "email", "full_name", "role", "is_active", "date_joined"]
+        fields = ["id", "email", "full_name", "nic", "role", "is_active", "date_joined"]
         read_only_fields = ["id", "date_joined"]
+
+    def get_nic(self, obj):
+        farmer = getattr(obj, "farmer_profile", None)
+        return farmer.nic if farmer else None
 
 
 class AdminUserWriteSerializer(serializers.ModelSerializer):
@@ -158,4 +175,77 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
         if password:
             instance.set_password(password)
         instance.save()
+        return instance
+
+
+class PermissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Permission
+        fields = ["codename", "label", "description"]
+
+
+class RoleSerializer(serializers.ModelSerializer):
+    permissions = serializers.SerializerMethodField()
+    user_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Role
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "description",
+            "is_system",
+            "permissions",
+            "user_count",
+        ]
+
+    def get_permissions(self, obj):
+        return list(obj.permissions.values_list("codename", flat=True))
+
+    def get_user_count(self, obj):
+        return obj.users.count()
+
+
+class RoleWriteSerializer(serializers.ModelSerializer):
+    permissions = serializers.ListField(
+        child=serializers.CharField(), required=False, write_only=True
+    )
+
+    class Meta:
+        model = Role
+        fields = ["id", "name", "description", "permissions"]
+        read_only_fields = ["id"]
+
+    def validate_name(self, value):
+        qs = Role.objects.filter(name__iexact=value.strip())
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A role with this name already exists.")
+        return value.strip()
+
+    def validate_permissions(self, codenames):
+        permissions = list(Permission.objects.filter(codename__in=codenames))
+        found = {p.codename for p in permissions}
+        missing = set(codenames) - found
+        if missing:
+            raise serializers.ValidationError(
+                f"Unknown permission(s): {', '.join(sorted(missing))}"
+            )
+        return permissions
+
+    def create(self, validated_data):
+        permissions = validated_data.pop("permissions", [])
+        role = Role.objects.create(**validated_data)
+        role.permissions.set(permissions)
+        return role
+
+    def update(self, instance, validated_data):
+        permissions = validated_data.pop("permissions", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if permissions is not None:
+            instance.permissions.set(permissions)
         return instance

@@ -4,7 +4,7 @@ import {
   AdminShortcutSettings,
   AppearanceSettings,
 } from "@/app/components/SettingsSections";
-import styles from "../users/Users.module.css";
+import styles from "../residents/Users.module.css";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -20,7 +20,7 @@ export default async function SettingsPage() {
 
       <AccountSettingsForm fullName={user.fullName ?? ""} email={user.email} />
       <AppearanceSettings />
-      {user.role === "admin" && <AdminShortcutSettings />}
+      {user.permissions.includes("manage_users") && <AdminShortcutSettings />}
     </div>
   );
 }

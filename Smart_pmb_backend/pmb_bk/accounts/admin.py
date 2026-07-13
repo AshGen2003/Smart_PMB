@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import User
+from .models import Permission, Role, User
 
 
 class UserAdmin(BaseUserAdmin):
@@ -35,4 +35,17 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ["email", "full_name"]
 
 
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ["name", "slug", "is_system"]
+    filter_horizontal = ["permissions"]
+    search_fields = ["name", "slug"]
+
+
+class PermissionAdmin(admin.ModelAdmin):
+    list_display = ["codename", "label"]
+    search_fields = ["codename", "label"]
+
+
 admin.site.register(User, UserAdmin)
+admin.site.register(Role, RoleAdmin)
+admin.site.register(Permission, PermissionAdmin)

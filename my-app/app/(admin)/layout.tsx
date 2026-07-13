@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/app/lib/dal";
-import { ROLE_LABELS } from "@/app/lib/roles";
 import AdminShell from "@/app/components/AdminShell";
 
 export default async function AdminLayout({
@@ -17,7 +16,8 @@ export default async function AdminLayout({
   return (
     <AdminShell
       userName={user.fullName ?? user.email}
-      roleLabel={ROLE_LABELS[user.role] ?? user.role}
+      roleLabel={user.roleName}
+      permissions={user.permissions}
     >
       {children}
     </AdminShell>
