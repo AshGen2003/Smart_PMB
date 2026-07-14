@@ -28,7 +28,12 @@ const NAV_ITEMS = [
   { label: "Users", href: "/residents", icon: Users, permission: "manage_users" },
   { label: "Properties", href: "/properties", icon: Building2 },
   { label: "Payments", href: "/payments", icon: CreditCard },
-  { label: "Maintenance", href: "/maintenance", icon: Wrench },
+  {
+    label: "Maintenance",
+    href: "/maintenance",
+    icon: Wrench,
+    permission: "view_audit_logs",
+  },
   {
     label: "Warehouses",
     href: "/warehouses",

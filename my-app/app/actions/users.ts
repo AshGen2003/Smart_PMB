@@ -74,3 +74,30 @@ export async function deleteUser(userId: string): Promise<{ error?: string }> {
   revalidatePath("/residents");
   return {};
 }
+
+export async function unlockUser(userId: string): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/admin/users/${userId}/unlock/`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/residents");
+  return {};
+}
+
+export async function forceLogoutUser(userId: string): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/admin/users/${userId}/force-logout/`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  return {};
+}

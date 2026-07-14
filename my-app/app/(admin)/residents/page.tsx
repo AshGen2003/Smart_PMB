@@ -15,6 +15,11 @@ export default async function UsersPage() {
   const roles = rolesRes.ok ? ((await rolesRes.json()) as RoleOption[]) : [];
 
   return (
-    <UsersManager users={users} roles={roles} currentUserId={currentUser.id} />
+    <UsersManager
+      users={users}
+      roles={roles}
+      currentUserId={currentUser.id}
+      canManageSystem={currentUser.permissions.includes("manage_system")}
+    />
   );
 }

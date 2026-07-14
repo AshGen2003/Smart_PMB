@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import HasAnyPermission, HasPermission
+from sysops.utils import log_audit
 
 from .models import Farmer, Harvest, Notification, PaddyType, Payment, Warehouse
 from .permissions import IsFarmer
@@ -103,10 +104,14 @@ class WarehouseViewSet(viewsets.ModelViewSet):
         instance.save(update_fields=["province"])
 
     def perform_create(self, serializer):
-        self._sync_province(serializer.save())
+        warehouse = serializer.save()
+        self._sync_province(warehouse)
+        log_audit(self.request.user, "create_warehouse", "farmers", warehouse.name)
 
     def perform_update(self, serializer):
-        self._sync_province(serializer.save())
+        warehouse = serializer.save()
+        self._sync_province(warehouse)
+        log_audit(self.request.user, "update_warehouse", "farmers", warehouse.name)
 
 
 class PaddyTypeViewSet(viewsets.ModelViewSet):
@@ -121,6 +126,20 @@ class PaddyTypeViewSet(viewsets.ModelViewSet):
         if self.action in ("create", "update", "partial_update"):
             return PaddyTypeWriteSerializer
         return PaddyTypeSerializer
+
+    def perform_create(self, serializer):
+        paddy_type = serializer.save()
+        log_audit(
+            self.request.user, "create_paddy_type", "farmers",
+            f"{paddy_type.type_name} @ Rs.{paddy_type.guaranteed_price}",
+        )
+
+    def perform_update(self, serializer):
+        paddy_type = serializer.save()
+        log_audit(
+            self.request.user, "update_paddy_type", "farmers",
+            f"{paddy_type.type_name} @ Rs.{paddy_type.guaranteed_price}",
+        )
 
 
 class OfficerHarvestViewSet(viewsets.ModelViewSet):
@@ -167,6 +186,7 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
                 "method": Payment.Method.CASH,
             },
         )
+        log_audit(request.user, "approve_harvest", "farmers", f"Harvest #{harvest.id}")
         return Response(OfficerHarvestSerializer(harvest).data)
 
     @action(detail=True, methods=["post"])
@@ -178,6 +198,7 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
             )
         harvest.status = Harvest.Status.REJECTED
         harvest.save(update_fields=["status"])
+        log_audit(request.user, "reject_harvest", "farmers", f"Harvest #{harvest.id}")
         return Response(OfficerHarvestSerializer(harvest).data)
 
     @action(detail=True, methods=["post"], url_path="collect")
@@ -201,6 +222,7 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
                 current_stock=harvest.warehouse.current_stock + harvest.quantity_kg
             )
 
+        log_audit(request.user, "collect_harvest", "farmers", f"Harvest #{harvest.id}")
         return Response(OfficerHarvestSerializer(harvest).data)
 
 

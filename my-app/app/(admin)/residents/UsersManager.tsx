@@ -3,8 +3,8 @@
 import React, { useMemo, useState, useTransition } from "react";
 import { format } from "date-fns";
 import clsx from "clsx";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { deleteUser } from "@/app/actions/users";
+import { LogOut, Pencil, Plus, Search, Trash2, Unlock } from "lucide-react";
+import { deleteUser, forceLogoutUser, unlockUser } from "@/app/actions/users";
 import UserFormModal, { type EditableUser, type RoleOption } from "./UserFormModal";
 import styles from "./Users.module.css";
 
@@ -16,16 +16,19 @@ export type AdminUserRow = {
   role: { id: number; name: string; slug: string };
   is_active: boolean;
   date_joined: string;
+  is_locked: boolean;
 };
 
 export default function UsersManager({
   users,
   roles,
   currentUserId,
+  canManageSystem,
 }: {
   users: AdminUserRow[];
   roles: RoleOption[];
   currentUserId: string;
+  canManageSystem: boolean;
 }) {
   const [roleFilter, setRoleFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -33,6 +36,7 @@ export default function UsersManager({
     { mode: "create" } | { mode: "edit"; user: EditableUser } | null
   >(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -55,6 +59,28 @@ export default function UsersManager({
     startTransition(async () => {
       const result = await deleteUser(user.id);
       if (result.error) setDeleteError(result.error);
+    });
+  }
+
+  function handleUnlock(user: AdminUserRow) {
+    setDeleteError(null);
+    setActionMessage(null);
+    startTransition(async () => {
+      const result = await unlockUser(user.id);
+      if (result.error) setDeleteError(result.error);
+      else setActionMessage(`${user.email} unlocked.`);
+    });
+  }
+
+  function handleForceLogout(user: AdminUserRow) {
+    if (!window.confirm(`Force-logout ${user.email} from all devices?`)) return;
+
+    setDeleteError(null);
+    setActionMessage(null);
+    startTransition(async () => {
+      const result = await forceLogoutUser(user.id);
+      if (result.error) setDeleteError(result.error);
+      else setActionMessage(`${user.email} signed out everywhere.`);
     });
   }
 
@@ -104,6 +130,7 @@ export default function UsersManager({
       </div>
 
       {deleteError && <div className={styles.banner}>{deleteError}</div>}
+      {actionMessage && <div className={styles.successBanner}>{actionMessage}</div>}
 
       <div className={styles.card}>
         {filtered.length > 0 ? (
@@ -131,18 +158,49 @@ export default function UsersManager({
                     </span>
                   </td>
                   <td>
-                    <span
-                      className={clsx(
-                        styles.badge,
-                        u.is_active ? styles["badge-success"] : styles["badge-neutral"]
+                    <div className={styles.statusCell}>
+                      <span
+                        className={clsx(
+                          styles.badge,
+                          u.is_active ? styles["badge-success"] : styles["badge-neutral"]
+                        )}
+                      >
+                        {u.is_active ? "Active" : "Inactive"}
+                      </span>
+                      {u.is_locked && (
+                        <span className={clsx(styles.badge, styles["badge-danger"])}>
+                          Locked
+                        </span>
                       )}
-                    >
-                      {u.is_active ? "Active" : "Inactive"}
-                    </span>
+                    </div>
                   </td>
                   <td>{format(new Date(u.date_joined), "MMM d, yyyy")}</td>
                   <td>
                     <div className={styles.rowActions}>
+                      {canManageSystem && u.is_locked && (
+                        <button
+                          type="button"
+                          className={styles.iconBtn}
+                          aria-label="Unlock account"
+                          title="Unlock account"
+                          disabled={isPending}
+                          onClick={() => handleUnlock(u)}
+                        >
+                          <Unlock size={16} />
+                        </button>
+                      )}
+                      {canManageSystem && u.id !== currentUserId && (
+                        <button
+                          type="button"
+                          className={styles.iconBtn}
+                          aria-label="Force logout"
+                          title="Force logout from all devices"
+                          disabled={isPending}
+                          onClick={() => handleForceLogout(u)}
+                        >
+                          <LogOut size={16} />
+                        </button>
+                      )}
                       <button
                         type="button"
                         className={styles.iconBtn}

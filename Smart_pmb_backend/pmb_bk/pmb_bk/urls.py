@@ -27,6 +27,15 @@ from accounts.views import (
     RoleViewSet,
 )
 from farmers.views import OfficerHarvestViewSet, PaddyTypeViewSet, WarehouseViewSet
+from sysops.views import (
+    AdminReportPdfView,
+    AdminReportView,
+    AuditLogViewSet,
+    AuthLogViewSet,
+    BackupRecordViewSet,
+    SystemAlertViewSet,
+    SystemConfigView,
+)
 
 router = DefaultRouter()
 router.register('admin/users', AdminUserViewSet, basename='admin-users')
@@ -34,6 +43,10 @@ router.register('admin/roles', RoleViewSet, basename='admin-roles')
 router.register('admin/warehouses', WarehouseViewSet, basename='admin-warehouses')
 router.register('admin/paddy-types', PaddyTypeViewSet, basename='admin-paddy-types')
 router.register('admin/harvests', OfficerHarvestViewSet, basename='admin-harvests')
+router.register('admin/audit-logs', AuditLogViewSet, basename='admin-audit-logs')
+router.register('admin/auth-logs', AuthLogViewSet, basename='admin-auth-logs')
+router.register('admin/alerts', SystemAlertViewSet, basename='admin-alerts')
+router.register('admin/backups', BackupRecordViewSet, basename='admin-backups')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -41,6 +54,9 @@ urlpatterns = [
     path('api/', include('farmers.urls')),
     path('api/admin/permissions/', PermissionListView.as_view()),
     path('api/admin/overview/', AdminOverviewView.as_view()),
+    path('api/admin/system-config/', SystemConfigView.as_view()),
+    path('api/admin/reports/admin-summary/', AdminReportView.as_view()),
+    path('api/admin/reports/admin-summary/pdf/', AdminReportPdfView.as_view()),
     path('api/', include(router.urls)),
 ]
 
