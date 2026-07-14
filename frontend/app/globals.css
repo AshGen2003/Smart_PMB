@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  @apply bg-pmb-50 text-pmb-900 antialiased;
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-pmb-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-pmb-800 focus:outline-none focus:ring-2 focus:ring-pmb-300 disabled:opacity-60;
+  }
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-gold-600 focus:outline-none focus:ring-2 focus:ring-gold-200 disabled:opacity-60;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-lg border border-pmb-200 bg-white px-4 py-2 text-sm font-medium text-pmb-700 transition hover:bg-pmb-50;
+  }
+  .card {
+    @apply rounded-xl border border-pmb-100 bg-white shadow-sm;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-pmb-800;
+  }
+  .input,
+  .select,
+  .textarea {
+    @apply w-full rounded-lg border border-pmb-200 bg-white px-3 py-2 text-sm text-pmb-900 shadow-sm outline-none transition focus:border-pmb-500 focus:ring-2 focus:ring-pmb-200;
+  }
+  .alert-error {
+    @apply mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700;
+  }
+  .link {
+    @apply text-sm font-medium text-pmb-700 hover:text-pmb-900 hover:underline;
+  }
+  .link-danger {
+    @apply text-sm font-medium text-red-600 hover:underline;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+}
