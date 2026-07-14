@@ -36,6 +36,19 @@
   background-color: var(--background);
 }
 
+.maintenanceBanner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #b45309;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+}
+
 @media (max-width: 768px) {
   .sidebarArea {
     position: fixed;

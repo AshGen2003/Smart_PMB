@@ -1,12 +1,16 @@
 from django.core import signing
 from django.db.models import Count
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
+
+from sysops.utils import log_audit, log_auth
 
 from .emails import send_confirmation_email
 from .models import Permission, Role, User
@@ -93,6 +97,7 @@ class LogoutView(APIView):
                 RefreshToken(refresh).blacklist()
             except Exception:
                 pass
+        log_auth(request, "logout", user=request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -173,7 +178,41 @@ class AdminUserViewSet(viewsets.ModelViewSet):
                 {"detail": "You cannot delete your own account."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return super().destroy(request, *args, **kwargs)
+        email = instance.email
+        response = super().destroy(request, *args, **kwargs)
+        log_audit(request.user, "delete_user", "accounts", email)
+        return response
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        log_audit(self.request.user, "create_user", "accounts", user.email)
+
+    def perform_update(self, serializer):
+        user = serializer.save()
+        log_audit(self.request.user, "update_user", "accounts", user.email)
+
+    @action(detail=True, methods=["post"], permission_classes=[HasPermission("manage_system")])
+    def unlock(self, request, pk=None):
+        user = self.get_object()
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        user.save(update_fields=["failed_login_attempts", "locked_until"])
+        log_audit(request.user, "unlock_account", "accounts", user.email)
+        return Response(AdminUserSerializer(user).data)
+
+    @action(
+        detail=True, methods=["post"], url_path="force-logout",
+        permission_classes=[HasPermission("manage_system")],
+    )
+    def force_logout(self, request, pk=None):
+        user = self.get_object()
+        for outstanding in OutstandingToken.objects.filter(user=user):
+            try:
+                RefreshToken(outstanding.token).blacklist()
+            except Exception:
+                pass
+        log_audit(request.user, "force_logout", "accounts", user.email)
+        return Response({"detail": "Session revoked."})
 
 
 class RoleViewSet(viewsets.ModelViewSet):
@@ -184,6 +223,14 @@ class RoleViewSet(viewsets.ModelViewSet):
         if self.action in ("create", "update", "partial_update"):
             return RoleWriteSerializer
         return RoleSerializer
+
+    def perform_create(self, serializer):
+        role = serializer.save()
+        log_audit(self.request.user, "create_role", "accounts", role.name)
+
+    def perform_update(self, serializer):
+        role = serializer.save()
+        log_audit(self.request.user, "update_role", "accounts", role.name)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -197,7 +244,10 @@ class RoleViewSet(viewsets.ModelViewSet):
                 {"detail": "This role is still assigned to one or more users."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return super().destroy(request, *args, **kwargs)
+        name = instance.name
+        response = super().destroy(request, *args, **kwargs)
+        log_audit(request.user, "delete_role", "accounts", name)
+        return response
 
 
 class PermissionListView(APIView):

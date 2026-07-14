@@ -8,11 +8,9 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from farmers.models import District, Farmer
+from sysops.utils import get_config_value, log_auth
 
 from .models import Permission, Role, User
-
-LOGIN_LOCKOUT_THRESHOLD = 5
-LOGIN_LOCKOUT_MINUTES = 15
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -29,6 +27,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
+        request = self.context.get("request")
         email = attrs.get(self.username_field)
         user = User.objects.filter(email__iexact=email).first() if email else None
 
@@ -36,6 +35,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             minutes_left = max(
                 1, int((user.locked_until - timezone.now()).total_seconds() // 60) + 1
             )
+            if request:
+                log_auth(request, "login_failed", user=user)
             raise serializers.ValidationError(
                 {
                     "detail": (
@@ -49,13 +50,22 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             data = super().validate(attrs)
         except AuthenticationFailed:
             if user:
+                threshold = get_config_value("login_lockout_threshold")
+                lockout_minutes = get_config_value("login_lockout_minutes")
                 user.failed_login_attempts += 1
-                if user.failed_login_attempts >= LOGIN_LOCKOUT_THRESHOLD:
-                    user.locked_until = timezone.now() + timedelta(
-                        minutes=LOGIN_LOCKOUT_MINUTES
-                    )
+                locked_now = user.failed_login_attempts >= threshold
+                if locked_now:
+                    user.locked_until = timezone.now() + timedelta(minutes=lockout_minutes)
                     user.failed_login_attempts = 0
                 user.save(update_fields=["failed_login_attempts", "locked_until"])
+                if request:
+                    log_auth(
+                        request,
+                        "account_locked" if locked_now else "login_failed",
+                        user=user,
+                    )
+            elif request:
+                log_auth(request, "login_failed", email=email or "")
             raise
 
         if user.failed_login_attempts or user.locked_until:
@@ -67,6 +77,9 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise serializers.ValidationError(
                 {"detail": "Please confirm your email address before logging in."}
             )
+
+        if request:
+            log_auth(request, "login_success", user=user)
         return data
 
 
@@ -183,15 +196,22 @@ class RoleMiniSerializer(serializers.ModelSerializer):
 class AdminUserSerializer(serializers.ModelSerializer):
     role = RoleMiniSerializer(read_only=True)
     nic = serializers.SerializerMethodField()
+    is_locked = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "email", "full_name", "nic", "role", "is_active", "date_joined"]
+        fields = [
+            "id", "email", "full_name", "nic", "role", "is_active",
+            "date_joined", "is_locked",
+        ]
         read_only_fields = ["id", "date_joined"]
 
     def get_nic(self, obj):
         farmer = getattr(obj, "farmer_profile", None)
         return farmer.nic if farmer else None
+
+    def get_is_locked(self, obj):
+        return bool(obj.locked_until and obj.locked_until > timezone.now())
 
 
 class AdminUserWriteSerializer(serializers.ModelSerializer):

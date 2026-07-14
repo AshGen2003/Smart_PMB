@@ -152,6 +152,27 @@
   color: var(--text-muted);
 }
 
+.badge-danger {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.statusCell {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.successBanner {
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  background-color: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+}
+
 .rowActions {
   display: flex;
   gap: 0.5rem;

@@ -7,8 +7,8 @@ import OfficerDashboardPanel from "./OfficerDashboardPanel";
 export default async function DashboardPage() {
   const user = await requireUser();
 
-  const showOfficerPanel = user.permissions.includes("monitor_operations");
   const showAdminPanel = user.permissions.includes("manage_users");
+  const showOfficerPanel = !showAdminPanel && user.permissions.includes("monitor_operations");
 
   if (!showOfficerPanel && !showAdminPanel) {
     return <GenericDashboard />;

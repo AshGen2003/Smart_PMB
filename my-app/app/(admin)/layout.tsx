@@ -14,8 +14,12 @@ export default async function AdminLayout({
     redirect("/farmer");
   }
 
-  const meRes = await apiFetch("/api/auth/me/");
+  const [meRes, configRes] = await Promise.all([
+    apiFetch("/api/auth/me/"),
+    apiFetch("/api/admin/system-config/"),
+  ]);
   const me = meRes.ok ? await meRes.json() : null;
+  const config = configRes.ok ? await configRes.json() : null;
 
   return (
     <AdminShell
@@ -23,6 +27,8 @@ export default async function AdminLayout({
       roleLabel={user.roleName}
       permissions={user.permissions}
       profilePictureUrl={me?.profile_picture ?? null}
+      idleMinutes={config?.idle_logout_minutes}
+      maintenanceMode={config?.maintenance_mode ?? false}
     >
       {children}
     </AdminShell>
