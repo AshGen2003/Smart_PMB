@@ -1,0 +1,9 @@
+# Python virtual environment (never commit — environment-specific, huge)
+Smart_pmb_backend/pmb/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Local AI assistant tooling (not project code)
+.claude/
