@@ -1,0 +1,53 @@
+[33mcommit 501fb85c3ee1889f1e5457a080f27dfaa8a61159[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mAshin[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;31morigin/Ashin[m[33m)[m
+Author: AshGen927 <ashgen9275336@gmail.com>
+Date:   Tue Jul 14 13:40:31 2026 +0530
+
+    Add system maintenance tools, admin governance report, and PDF export
+    
+    Adds a sysops app (audit/auth logs, alerts, backups, system config) with
+    a new manage_system permission, unlock/force-logout actions, and a
+    tabbed System Maintenance hub in the admin portal. Login lockout
+    settings and the idle-logout timeout are now admin-configurable instead
+    of hardcoded, and the admin dashboard/report views no longer bleed into
+    officer-only operational data. Adds a governance PDF report with a
+    watermarked PMB logo, downloaded through an authenticated proxy route.
+
+ .../migrations/0009_manage_system_permission.py    |  33 [32m++[m
+ Smart_pmb_backend/pmb_bk/accounts/serializers.py   |  36 [32m+[m[31m-[m
+ Smart_pmb_backend/pmb_bk/accounts/views.py         |  54 [32m++[m[31m-[m
+ Smart_pmb_backend/pmb_bk/farmers/views.py          |  26 [32m+[m[31m-[m
+ Smart_pmb_backend/pmb_bk/pmb_bk/settings.py        |   1 [32m+[m
+ Smart_pmb_backend/pmb_bk/pmb_bk/urls.py            |  16 [32m+[m
+ Smart_pmb_backend/pmb_bk/requirements.txt          |   2 [32m+[m
+ Smart_pmb_backend/pmb_bk/sysops/__init__.py        |   0
+ Smart_pmb_backend/pmb_bk/sysops/admin.py           |   3 [32m+[m
+ Smart_pmb_backend/pmb_bk/sysops/apps.py            |   5 [32m+[m
+ .../pmb_bk/sysops/assets/logo.png                  | Bin
+ .../pmb_bk/sysops/migrations/0001_initial.py       |  92 [32m++++[m
+ .../pmb_bk/sysops/migrations/__init__.py           |   0
+ Smart_pmb_backend/pmb_bk/sysops/models.py          | 102 [32m+++++[m
+ Smart_pmb_backend/pmb_bk/sysops/pdf.py             | 166 [32m+++++++[m
+ Smart_pmb_backend/pmb_bk/sysops/reports.py         |  78 [32m++++[m
+ Smart_pmb_backend/pmb_bk/sysops/serializers.py     |  50 [32m++[m
+ Smart_pmb_backend/pmb_bk/sysops/tests.py           |   3 [32m+[m
+ Smart_pmb_backend/pmb_bk/sysops/utils.py           |  64 [32m+++[m
+ Smart_pmb_backend/pmb_bk/sysops/views.py           | 162 [32m+++++++[m
+ my-app/app/(admin)/dashboard/page.tsx              |   2 [32m+[m[31m-[m
+ my-app/app/(admin)/layout.tsx                      |   8 [32m+[m[31m-[m
+ .../app/(admin)/maintenance/Maintenance.module.css | 331 [32m++++++++++++++[m
+ .../app/(admin)/maintenance/MaintenanceManager.tsx | 508 [32m+++++++++++++++++++++[m
+ my-app/app/(admin)/maintenance/page.tsx            |  50 [32m+[m[31m-[m
+ my-app/app/(admin)/reports/AdminReportPanel.tsx    | 206 [32m+++++++++[m
+ my-app/app/(admin)/reports/Reports.module.css      |  49 [32m++[m
+ my-app/app/(admin)/reports/page.tsx                |  23 [32m+[m[31m-[m
+ my-app/app/(admin)/residents/Users.module.css      |  21 [32m+[m
+ my-app/app/(admin)/residents/UsersManager.tsx      |  76 [32m++[m[31m-[m
+ my-app/app/(admin)/residents/page.tsx              |   7 [32m+[m[31m-[m
+ my-app/app/actions/sysops.ts                       |  61 [32m+++[m
+ my-app/app/actions/users.ts                        |  27 [32m++[m
+ my-app/app/api/reports/admin-pdf/route.ts          |  25 [32m+[m
+ my-app/app/components/AdminShell.tsx               |  15 [32m+[m
+ my-app/app/components/DashboardShell.module.css    |  13 [32m+[m
+ my-app/app/components/IdleGuard.tsx                |  52 [32m+++[m
+ my-app/app/components/Sidebar.tsx                  |   7 [32m+[m[31m-[m
+ 38 files changed, 2338 insertions(+), 36 deletions(-)
