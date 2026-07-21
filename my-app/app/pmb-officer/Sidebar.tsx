@@ -10,7 +10,6 @@ const sidebarItems = [
   { icon: "₨", label: "Pricing", href: "/pmb-officer/pricing" },
   { icon: "👥", label: "Staff", href: "/pmb-officer/staff" },
   { icon: "📊", label: "Reports", href: "/pmb-officer/reports" },
-  { icon: "🚛", label: "Transport", href: "/pmb-officer/transportation" },
   { icon: "👤", label: "Profile", href: "/pmb-officer/profile" },
 ];
 

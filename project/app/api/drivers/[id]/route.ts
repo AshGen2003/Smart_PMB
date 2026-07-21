@@ -4,18 +4,16 @@ import { pool } from "@/lib/db";
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
     const body = await request.json();
-    const { type_name, variety, description, guaranteed_price, is_active } = body;
+    const { name, license_no, contact_no, address, status } = body;
     const { id } = params;
 
-    const result = await pool.query(`
-      UPDATE paddy_types 
-      SET type_name = $1, variety = $2, description = $3, 
-          guaranteed_price = $4, is_active = $5
-      WHERE paddy_type_id = $6
-      RETURNING *
-    `, [type_name, variety, description, guaranteed_price, is_active, id]);
+    await pool.query(`
+      UPDATE drivers 
+      SET name = $1, license_no = $2, contact_no = $3, address = $4, status = $5::driver_status
+      WHERE driver_id = $6
+    `, [name, license_no, contact_no, address, status, id]);
 
-    return NextResponse.json(result.rows[0]);
+    return NextResponse.json({ message: "Driver updated successfully" });
   } catch (error: unknown) {
     const err = error as Error;
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -25,8 +23,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
     const { id } = params;
-    await pool.query(`DELETE FROM paddy_types WHERE paddy_type_id = $1`, [id]);
-    return NextResponse.json({ message: "Paddy type deleted successfully" });
+    await pool.query(`DELETE FROM drivers WHERE driver_id = $1`, [id]);
+    return NextResponse.json({ message: "Driver deleted successfully" });
   } catch (error: unknown) {
     const err = error as Error;
     return NextResponse.json({ error: err.message }, { status: 500 });
