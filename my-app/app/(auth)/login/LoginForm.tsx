@@ -1,3 +1,9 @@
+/**
+ * Login form for the `/login` page. Submits email/password via the
+ * `login` Server Action, which sets the JWT httpOnly cookie and redirects
+ * on success (redirect target depends on the user's role: admin/officer
+ * shell vs. farmer portal).
+ */
 "use client";
 
 import React, { Suspense, useEffect, useRef, useState } from "react";
@@ -12,6 +18,11 @@ import styles from "../AuthForm.module.css";
 
 const initialState: FormState = {};
 
+/**
+ * Wraps the actual form in Suspense because it reads `useSearchParams()`
+ * (to detect the `?registered=1` flag from a just-completed signup), which
+ * requires a Suspense boundary during static rendering.
+ */
 export default function LoginForm() {
   return (
     <Suspense fallback={null}>
@@ -20,6 +31,7 @@ export default function LoginForm() {
   );
 }
 
+/** Renders the email/password fields, a post-signup success banner, and error banner from a failed login attempt. */
 function LoginFormInner() {
   const [state, formAction, pending] = useActionState(login, initialState);
   const [showPassword, setShowPassword] = useState(false);

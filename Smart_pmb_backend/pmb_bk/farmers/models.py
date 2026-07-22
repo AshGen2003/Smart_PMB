@@ -1,8 +1,14 @@
+# Core domain models for the paddy-purchasing business: geography
+# (Province/District), farmer profiles, warehouses, paddy types and their
+# guaranteed prices, harvest submissions and their approval workflow, and
+# the payments/notifications generated along the way.
 from django.conf import settings
 from django.db import models
 
 
 class Province(models.Model):
+    """A top-level administrative region (e.g. "Western"), used to group Districts."""
+
     name = models.CharField(max_length=50, unique=True)
 
     class Meta:
@@ -13,6 +19,8 @@ class Province(models.Model):
 
 
 class District(models.Model):
+    """A district within a Province; Farmers and Warehouses are located in one."""
+
     name = models.CharField(max_length=50)
     province = models.ForeignKey(
         Province, on_delete=models.PROTECT, related_name="districts"
@@ -27,6 +35,12 @@ class District(models.Model):
 
 
 class Farmer(models.Model):
+    """
+    A registered farmer's profile: the paddy-purchasing-domain data linked
+    one-to-one to a User account with role "farmer" (created together by
+    RegisterFarmerSerializer in accounts/serializers.py).
+    """
+
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
         INACTIVE = "inactive", "Inactive"
@@ -47,8 +61,6 @@ class Farmer(models.Model):
     )
     land_size = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     contact_number = models.CharField(max_length=20, blank=True)
-    bank_account = models.CharField(max_length=50, blank=True)
-    bank_name = models.CharField(max_length=100, blank=True)
     registered_date = models.DateField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
 
@@ -57,6 +69,8 @@ class Farmer(models.Model):
 
 
 class PaddyType(models.Model):
+    """A variety of paddy the board purchases (e.g. "Nadu"), with its currently guaranteed price per kg."""
+
     type_name = models.CharField(max_length=100, unique=True)
     variety = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True)
@@ -71,6 +85,12 @@ class PaddyType(models.Model):
 
 
 class Warehouse(models.Model):
+    """
+    A storage facility that receives collected paddy. `current_stock` is
+    incremented whenever a Harvest is marked collected (see
+    OfficerHarvestViewSet.mark_collected in views.py).
+    """
+
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
         INACTIVE = "inactive", "Inactive"
@@ -100,6 +120,17 @@ class Warehouse(models.Model):
 
 
 class Harvest(models.Model):
+    """
+    A farmer's paddy harvest submission and its progress through the
+    purchasing workflow:
+      pending -> verified (an officer records grade/moisture/price and
+      approves it, which also creates a pending Payment) -> collected (an
+      officer confirms physical collection, which completes the Payment
+      and adds the quantity to the warehouse's stock); or pending ->
+      rejected. See OfficerHarvestViewSet's approve/reject/mark_collected
+      actions in views.py for the actual transitions.
+    """
+
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         VERIFIED = "verified", "Verified"
@@ -135,6 +166,14 @@ class Harvest(models.Model):
 
 
 class Payment(models.Model):
+    """
+    The amount owed to a farmer for a specific Harvest. Created (pending)
+    when an officer approves a harvest, and completed when the harvest is
+    marked collected. Kept in a one-to-one-ish relationship with Harvest
+    via `update_or_create` on `harvest` in views.py, so re-approving a
+    harvest updates the existing Payment rather than creating a duplicate.
+    """
+
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         COMPLETED = "completed", "Completed"
@@ -154,6 +193,8 @@ class Payment(models.Model):
 
 
 class PriceRecord(models.Model):
+    """Historical snapshot of a PaddyType's guaranteed price on a given date (currently not written to by any view)."""
+
     paddy_type = models.ForeignKey(
         PaddyType, on_delete=models.CASCADE, related_name="price_records"
     )
@@ -162,6 +203,8 @@ class PriceRecord(models.Model):
 
 
 class Notification(models.Model):
+    """An in-app message shown to a farmer on their dashboard (e.g. harvest status updates), markable as read."""
+
     farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name="notifications")
     message = models.TextField()
     sent_at = models.DateTimeField(auto_now_add=True)

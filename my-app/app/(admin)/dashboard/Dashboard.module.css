@@ -29,14 +29,16 @@
 }
 
 .kpiCard {
-  background-color: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--shadow-sm);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -60,11 +62,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Both gradient stops are the same hue family (primary/primary-hover),
+     so --primary-foreground's contrast holds across the whole gradient —
+     a two-color brand gradient (e.g. primary+accent) would need a
+     different foreground at each end, which a single fill can't do. */
   color: var(--primary-foreground);
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--gradient-brand);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 12px;
-  box-shadow: 0 12px 24px rgba(45, 80, 22, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .kpiValue {
@@ -86,26 +92,55 @@
 
 .chartsGrid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1.5rem;
 }
 
 .chartCard {
-  background-color: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--shadow-sm);
+}
+
+.chartCardLink {
+  color: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.chartCardLink:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.chartCardLink:hover .chartLinkIcon {
+  opacity: 1;
+  transform: translateX(2px);
 }
 
 .chartTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--foreground);
   margin: 0;
+}
+
+.chartLinkIcon {
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
 }
 
 .chartContainer {
@@ -120,11 +155,13 @@
 }
 
 .tableCard {
-  background-color: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--shadow-sm);
 }
 
 .tableHeader {
@@ -168,6 +205,19 @@
   border-bottom: 1px solid var(--card-border);
 }
 
+.userNameRow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.userColorDot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
 .table tr:last-child td {
   border-bottom: none;
 }
@@ -188,4 +238,79 @@
   .chartsGrid, .tablesGrid {
     grid-template-columns: 1fr;
   }
+}
+
+.liveTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.liveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--success);
+  box-shadow: 0 0 0 rgba(76, 175, 80, 0.5);
+  animation: livePulse 2s infinite;
+}
+
+@keyframes livePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(76, 175, 80, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot {
+    animation: none;
+  }
+}
+
+.onlineTotal {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.onlineTotalLabel {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: -0.5rem;
+}
+
+.onlineRoleList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+}
+
+.onlineRoleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.onlineRoleName {
+  color: var(--foreground);
+  flex: 1;
+}
+
+.onlineRoleCount {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.permEmptyMuted {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
 }

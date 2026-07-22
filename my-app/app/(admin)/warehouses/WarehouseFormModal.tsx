@@ -1,3 +1,7 @@
+/**
+ * Modal dialog with the create/edit form for a warehouse. Submits via a
+ * Server Action (createWarehouse/updateWarehouse) using useActionState.
+ */
 "use client";
 
 import React, { useEffect, useMemo, useRef, useActionState } from "react";
@@ -15,6 +19,7 @@ export type DistrictOption = {
   province: { name: string } | null;
 };
 
+/** Subset of warehouse fields needed to pre-fill the form when editing. */
 export type EditableWarehouse = {
   id: number;
   name: string;
@@ -29,6 +34,11 @@ export type EditableWarehouse = {
 
 const initialState: WarehouseFormState = {};
 
+/**
+ * Renders the warehouse form inside a modal overlay. Picks createWarehouse
+ * or updateWarehouse (with the id bound in) based on `mode`, and closes
+ * itself once the save succeeds.
+ */
 export default function WarehouseFormModal({
   mode,
   warehouse,
@@ -45,6 +55,7 @@ export default function WarehouseFormModal({
   const [state, formAction, pending] = useActionState(action, initialState);
   const wasSubmitting = useRef(false);
 
+  // Auto-close the modal once a pending submission resolves without error.
   useEffect(() => {
     if (pending) wasSubmitting.current = true;
     if (!pending && wasSubmitting.current && !state.error) {
@@ -52,6 +63,8 @@ export default function WarehouseFormModal({
     }
   }, [pending, state, onClose]);
 
+  // Group districts under their province name so the <select> can render
+  // them as <optgroup>s instead of one long flat list.
   const districtsByProvince = useMemo(() => {
     const groups = new Map<string, DistrictOption[]>();
     for (const d of districts) {

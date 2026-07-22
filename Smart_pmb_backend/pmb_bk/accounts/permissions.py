@@ -1,7 +1,12 @@
+# DRF permission classes implementing the app's custom RBAC checks.
+# Views declare required permission codenames (e.g. HasPermission("manage_users"))
+# and DRF calls has_permission() on every request to decide whether to allow it.
+# Superusers always bypass these checks.
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
 def _has_codename(user, codename):
+    """True if the user's assigned Role grants the given permission codename."""
     return user.role.permissions.filter(codename=codename).exists()
 
 
@@ -12,6 +17,9 @@ class HasPermission(BasePermission):
         self.codename = codename
 
     def __call__(self):
+        # DRF instantiates permission classes with no args (e.g. `Perm()`
+        # in permission_classes lists), so HasPermission("x") is used as a
+        # ready-made instance that also behaves like a class when called.
         return self
 
     def has_permission(self, request, view):
@@ -27,6 +35,7 @@ class HasAnyPermission(BasePermission):
     """Factory-style DRF permission: HasAnyPermission("manage_users", "manage_roles")."""
 
     def __init__(self, *codenames):
+        # Grants access if the user has ANY one of these codenames.
         self.codenames = codenames
 
     def __call__(self):

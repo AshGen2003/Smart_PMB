@@ -23,6 +23,7 @@ from rest_framework.routers import DefaultRouter
 from accounts.views import (
     AdminOverviewView,
     AdminUserViewSet,
+    OnlineRolesView,
     PermissionListView,
     RoleViewSet,
 )
@@ -37,6 +38,9 @@ from sysops.views import (
     SystemConfigView,
 )
 
+# DRF router auto-generates the standard list/retrieve/create/update/destroy
+# routes (plus any @action endpoints) for each admin-facing ViewSet below,
+# all mounted under /api/... via the include() at the bottom of this file.
 router = DefaultRouter()
 router.register('admin/users', AdminUserViewSet, basename='admin-users')
 router.register('admin/roles', RoleViewSet, basename='admin-roles')
@@ -49,16 +53,20 @@ router.register('admin/alerts', SystemAlertViewSet, basename='admin-alerts')
 router.register('admin/backups', BackupRecordViewSet, basename='admin-backups')
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/auth/', include('accounts.urls')),
-    path('api/', include('farmers.urls')),
+    path('admin/', admin.site.urls),  # Django's built-in admin site
+    path('api/auth/', include('accounts.urls')),  # login/register/refresh/logout/me
+    path('api/', include('farmers.urls')),  # farmer self-service + harvest submission endpoints
     path('api/admin/permissions/', PermissionListView.as_view()),
     path('api/admin/overview/', AdminOverviewView.as_view()),
+    path('api/admin/overview/online/', OnlineRolesView.as_view()),
     path('api/admin/system-config/', SystemConfigView.as_view()),
     path('api/admin/reports/admin-summary/', AdminReportView.as_view()),
     path('api/admin/reports/admin-summary/pdf/', AdminReportPdfView.as_view()),
     path('api/', include(router.urls)),
 ]
 
+# Serve uploaded media files (profile pictures, etc.) directly from Django
+# during local development only; in production this should be handled by
+# the web server / a storage service instead.
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

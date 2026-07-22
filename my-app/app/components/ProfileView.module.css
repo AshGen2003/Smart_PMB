@@ -19,7 +19,7 @@
 }
 
 .identityCard {
-  background: linear-gradient(135deg, var(--primary) 0%, #142c0b 100%);
+  background: var(--gradient-brand);
   border-radius: 14px;
   padding: 1.75rem;
   display: flex;

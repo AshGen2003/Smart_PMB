@@ -1,3 +1,5 @@
+# Registers the farmers app's models with Django's built-in admin site
+# using default admin behavior (no custom list displays/search here).
 from django.contrib import admin
 
 from .models import (

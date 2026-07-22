@@ -1,3 +1,7 @@
+/**
+ * Modal dialog with the create/edit form for a paddy type. Submits via a
+ * Server Action (createPaddyType/updatePaddyType) using useActionState.
+ */
 "use client";
 
 import React, { useEffect, useRef, useActionState } from "react";
@@ -9,6 +13,7 @@ import {
 } from "@/app/actions/pricing";
 import styles from "./Pricing.module.css";
 
+/** Subset of paddy-type fields needed to pre-fill the form when editing. */
 export type EditablePaddyType = {
   id: number;
   type_name: string;
@@ -20,6 +25,11 @@ export type EditablePaddyType = {
 
 const initialState: PaddyTypeFormState = {};
 
+/**
+ * Renders the paddy-type form inside a modal overlay. Picks
+ * createPaddyType or updatePaddyType (with the id bound in) based on
+ * `mode`, and closes itself once the save succeeds.
+ */
 export default function PaddyTypeFormModal({
   mode,
   paddyType,
@@ -34,6 +44,7 @@ export default function PaddyTypeFormModal({
   const [state, formAction, pending] = useActionState(action, initialState);
   const wasSubmitting = useRef(false);
 
+  // Auto-close the modal once a pending submission resolves without error.
   useEffect(() => {
     if (pending) wasSubmitting.current = true;
     if (!pending && wasSubmitting.current && !state.error) {

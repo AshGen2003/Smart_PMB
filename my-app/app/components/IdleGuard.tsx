@@ -1,3 +1,11 @@
+/**
+ * Invisible watchdog component (renders nothing) mounted inside AdminShell
+ * that automatically logs the user out after a period of inactivity.
+ * Listens for mouse/keyboard/click/scroll/touch activity to reset an
+ * idle timer, and periodically checks whether the timer has expired —
+ * including when the tab regains visibility after being backgrounded.
+ * `idleMinutes` is driven by the admin-configurable SystemConfig value.
+ */
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -9,6 +17,7 @@ const DEFAULT_IDLE_MINUTES = 15;
 const CHECK_INTERVAL_MS = 30 * 1000;
 const ACTIVITY_EVENTS = ["mousemove", "keydown", "click", "scroll", "touchstart"] as const;
 
+/** Tracks last-activity time via event listeners and force-logs-out the user once idleMinutes has elapsed. */
 export default function IdleGuard({ idleMinutes }: { idleMinutes?: number }) {
   const lastActiveRef = useRef(0);
   const loggingOutRef = useRef(false);

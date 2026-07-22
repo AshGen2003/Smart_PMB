@@ -1,3 +1,9 @@
+/**
+ * Reusable settings-page sections shared by both the admin settings page
+ * (`(admin)/settings/page.tsx`) and the farmer settings page
+ * (`farmer/settings/page.tsx`): account details form, appearance/theme
+ * toggle, and an admin-only shortcuts card.
+ */
 "use client";
 
 import React from "react";
@@ -12,6 +18,13 @@ import styles from "./SettingsSections.module.css";
 
 const initialState: ProfileState = {};
 
+/**
+ * Form for editing name/NIC/phone and optionally changing password (all
+ * three password fields are optional — leaving them blank keeps the
+ * current password). Email is shown but always disabled, since only an
+ * admin can change a user's email address. Submits via the `updateProfile`
+ * Server Action.
+ */
 export function AccountSettingsForm({
   fullName,
   email,
@@ -157,6 +170,7 @@ export function AccountSettingsForm({
   );
 }
 
+/** Card with a single toggle button for switching between light and dark theme, backed by ThemeProvider's context. */
 export function AppearanceSettings() {
   const { theme, toggleTheme } = useTheme();
 
@@ -187,6 +201,11 @@ export function AppearanceSettings() {
   );
 }
 
+/**
+ * Card with a shortcut link to the user management page. Only rendered by
+ * the admin settings page when the current user has `manage_users` — the
+ * permission check itself lives in the calling page, not here.
+ */
 export function AdminShortcutSettings() {
   return (
     <div className={styles.card}>

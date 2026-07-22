@@ -1,3 +1,8 @@
+/**
+ * Collapsible left navigation for the farmer portal. Unlike the admin
+ * Sidebar, this has a fixed nav list (no permission-based filtering) since
+ * every farmer sees the same two links.
+ */
 "use client";
 
 import React from "react";
@@ -15,6 +20,7 @@ const NAV_ITEMS = [
   { label: "Settings", href: "/farmer/settings", icon: Settings },
 ];
 
+/** Renders the logo, collapse toggle, nav links (highlighting the active route), and a logout form. */
 export default function FarmerSidebar() {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
@@ -63,6 +69,7 @@ export default function FarmerSidebar() {
           );
         })}
 
+        {/* logout is a Server Action: it clears the auth cookies server-side and redirects to /login. */}
         <form
           action={logout}
           className={clsx(styles.navSpacer, !isSidebarOpen && styles.navItemCollapsed)}

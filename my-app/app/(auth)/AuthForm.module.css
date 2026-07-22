@@ -1,8 +1,10 @@
 .card {
   width: 100%;
   max-width: 420px;
-  background-color: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-lg);
   padding: 2.5rem;
   box-shadow: var(--shadow-md);
@@ -147,7 +149,7 @@
   margin-top: 0.5rem;
   border: none;
   border-radius: var(--radius-sm);
-  background-color: var(--primary);
+  background: var(--gradient-brand);
   color: var(--primary-foreground);
   font-size: 0.95rem;
   font-weight: 600;

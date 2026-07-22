@@ -1,3 +1,13 @@
+/**
+ * Fallback dashboard shown to admin/officer users who don't have the
+ * `manage_users` or `monitor_operations` permissions (e.g. narrower roles
+ * such as record_purchases-only officers). Everything here is placeholder
+ * mock data — it's a generic "coming soon" style overview, not a real
+ * data-backed panel.
+ *
+ * Client Component (needs useState/useEffect and browser-only chart
+ * rendering via recharts).
+ */
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -17,7 +27,8 @@ import {
 import { format } from "date-fns";
 import clsx from "clsx";
 
-// Mock Data
+// Mock data — this component is a static placeholder and does not fetch
+// anything from the backend.
 const REVENUE_DATA = [
   { name: 'Jan', value: 4000 },
   { name: 'Feb', value: 3000 },
@@ -47,10 +58,14 @@ const ACTIVE_TICKETS = [
   { id: 'REQ-52', issue: 'Broken Blinds', unit: 'D-101', priority: 'low', status: 'to do' },
 ];
 
+/** Renders placeholder KPI cards, charts (recharts), and tables of mock data. */
 export default function GenericDashboard() {
   const [mounted, setMounted] = useState(false);
   const [currentDate, setCurrentDate] = useState("");
 
+  // Defer rendering the date/charts until after the client has mounted so
+  // the server-rendered HTML (which has no "current date") matches the
+  // first client render, then swap in the real content.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);

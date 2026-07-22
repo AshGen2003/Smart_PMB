@@ -1,3 +1,9 @@
+/**
+ * Shared two-panel layout wrapping every public auth page (login, signup,
+ * confirm-email): a branded marketing panel on one side and the actual
+ * form (`children`) on the other. Used by pages under `(auth)/`, which is
+ * a route group and so contributes nothing to the URL path.
+ */
 import Image from "next/image";
 import { Sprout, Coins, Truck } from "lucide-react";
 import styles from "./AuthLayout.module.css";
@@ -9,6 +15,7 @@ const FEATURES = [
   { icon: Truck, label: "Track collection and delivery status" },
 ];
 
+/** Renders the branded marketing panel plus a form panel (with theme toggle) that hosts `children`. */
 export default function AuthShell({
   children,
 }: {

@@ -1,7 +1,14 @@
+/**
+ * `/payments` — placeholder page for the future Payments & Billing module.
+ * No backend data is wired up yet; this just reserves the route and shows
+ * a "coming soon" style card. Marked "use client" even though it currently
+ * has no interactivity, ready for the eventual client-side logic.
+ */
 "use client";
 
 import React from "react";
 
+/** Renders a static placeholder card; no props, no data fetching. */
 export default function PaymentsPage() {
   return (
     <div>

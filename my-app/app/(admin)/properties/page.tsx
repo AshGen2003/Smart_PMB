@@ -1,7 +1,13 @@
+/**
+ * `/properties` — placeholder page for a future Properties Management
+ * module. No backend data is wired up yet; reserves the route with a
+ * "coming soon" style card.
+ */
 "use client";
 
 import React from "react";
 
+/** Renders a static placeholder card; no props, no data fetching. */
 export default function PropertiesPage() {
   return (
     <div>

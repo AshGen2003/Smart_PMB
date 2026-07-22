@@ -1,3 +1,9 @@
+/**
+ * Modal dialog with the create/edit form for a harvest purchase record.
+ * Submits via a Server Action (createHarvest/updateHarvest) using React's
+ * useActionState so the form works with progressive enhancement and shows
+ * a pending/error state without manual fetch/try-catch wiring.
+ */
 "use client";
 
 import React, { useEffect, useRef, useActionState } from "react";
@@ -9,6 +15,7 @@ export type FarmerOption = { id: number; name: string; registration_no: string }
 export type PaddyTypeOption = { id: number; type_name: string };
 export type WarehouseOption = { id: number; name: string };
 
+/** Subset of harvest fields needed to pre-fill the form when editing. */
 export type EditableHarvest = {
   id: number;
   farmer: number;
@@ -24,6 +31,12 @@ export type EditableHarvest = {
 
 const initialState: HarvestFormState = {};
 
+/**
+ * Renders the harvest form inside a modal overlay. In "create" mode it
+ * posts to `createHarvest`; in "edit" mode it binds the harvest id and
+ * posts to `updateHarvest`. Closes itself automatically once the action
+ * completes successfully.
+ */
 export default function HarvestFormModal({
   mode,
   harvest,
@@ -39,10 +52,17 @@ export default function HarvestFormModal({
   warehouses: WarehouseOption[];
   onClose: () => void;
 }) {
+  // Pick the right Server Action for the mode; updateHarvest needs the
+  // record id bound in ahead of time since <form action> only passes FormData.
   const action = mode === "create" ? createHarvest : updateHarvest.bind(null, harvest!.id);
+  // useActionState wires the form to the Server Action: `state` holds the
+  // last returned value (e.g. { error }), `formAction` goes on the <form>,
+  // and `pending` is true while the action is in flight.
   const [state, formAction, pending] = useActionState(action, initialState);
   const wasSubmitting = useRef(false);
 
+  // Once a submission that was pending finishes without an error, close the
+  // modal automatically (mirrors a successful save-and-close UX).
   useEffect(() => {
     if (pending) wasSubmitting.current = true;
     if (!pending && wasSubmitting.current && !state.error) {

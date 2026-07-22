@@ -1,3 +1,9 @@
+/**
+ * `/farmer/settings` — self-service settings page for the logged-in
+ * farmer: account details and appearance (theme). No admin-only shortcuts
+ * section here (unlike the admin settings page), since farmers never have
+ * manage_users.
+ */
 import { requireUser } from "@/app/lib/dal";
 import {
   AccountSettingsForm,
@@ -5,6 +11,7 @@ import {
 } from "@/app/components/SettingsSections";
 import styles from "../FarmerDashboard.module.css";
 
+/** Server Component: loads the current user and renders the shared settings sections. */
 export default async function FarmerSettingsPage() {
   const user = await requireUser();
 

@@ -1,9 +1,15 @@
+/**
+ * Password `<input>` with a built-in show/hide toggle button. Spreads
+ * any standard input props through (name, required, minLength, etc.) so it
+ * drops into a `<form>` exactly like a plain `<input type="password">`.
+ */
 "use client";
 
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import styles from "./PasswordInput.module.css";
 
+/** Renders the input plus an eye-icon toggle button that flips the input's type between "password" and "text". */
 export function PasswordInput({
   className,
   wrapperClassName,

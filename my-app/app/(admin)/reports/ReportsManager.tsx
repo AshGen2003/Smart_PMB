@@ -1,9 +1,50 @@
+/**
+ * Client Component for PMB officers (`generate_reports` permission):
+ * tabbed stock/transaction reports with client-side CSV export. Data is
+ * fetched server-side by the parent page; this component only renders it
+ * and builds/downloads CSV files in the browser.
+ */
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import clsx from "clsx";
-import { BarChart3, Download, Package, Receipt } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { ArrowRight, BarChart3, Download, Package, Receipt } from "lucide-react";
 import styles from "./Reports.module.css";
+
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: "var(--card-bg)",
+    borderColor: "var(--card-border)",
+    borderRadius: "8px",
+  },
+  labelStyle: { color: "var(--foreground)" },
+  itemStyle: { color: "var(--foreground)" },
+};
+
+// Fixed (not theme-swapped) chart colors, distinct from the brand
+// primary/accent so data marks stay legible against both a light and a
+// dark card surface instead of blending into the surrounding UI chrome.
+const GRADE_COLORS: Record<string, string> = { A: "var(--chart-1)", B: "var(--chart-2)", C: "var(--chart-4)" };
+const PAYMENT_COLORS: Record<string, string> = {
+  pending: "var(--chart-3)",
+  completed: "var(--chart-1)",
+  failed: "var(--chart-4)",
+};
 
 type StockRow = {
   id: number;
@@ -31,8 +72,14 @@ type TransactionRow = {
 export type ReportsData = {
   stock_report: StockRow[];
   transaction_report: TransactionRow[];
+  charts: {
+    grade_distribution: { grade: string; count: number }[];
+    payment_status_breakdown: { status: string; label: string; count: number }[];
+    monthly_purchases: { period: string; quantity_kg: number; amount: number }[];
+  };
 };
 
+/** Builds a CSV string from headers + rows, quoting/escaping any value that contains a comma, quote, or newline. */
 function toCsv(headers: string[], rows: (string | number | null)[][]) {
   const escape = (v: string | number | null) => {
     const s = v === null || v === undefined ? "" : String(v);
@@ -41,6 +88,9 @@ function toCsv(headers: string[], rows: (string | number | null)[][]) {
   return [headers.map(escape).join(","), ...rows.map((r) => r.map(escape).join(","))].join("\n");
 }
 
+// Triggers a browser download of the given CSV text by creating a
+// temporary object URL and clicking a hidden <a download> link — this all
+// happens client-side, no server round-trip needed.
 function downloadCsv(filename: string, csv: string) {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -51,6 +101,7 @@ function downloadCsv(filename: string, csv: string) {
   URL.revokeObjectURL(url);
 }
 
+/** Renders the stock/transaction report tabs with CSV export buttons. */
 export default function ReportsManager({ data }: { data: ReportsData }) {
   const [tab, setTab] = useState<"stock" | "transactions">("stock");
 
@@ -108,6 +159,77 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
             <Receipt size={15} /> Transaction Report
           </button>
         </div>
+      </div>
+
+      <div className={styles.chartsGrid}>
+        <Link href="/approvals" className={clsx(styles.chartCard, styles.chartCardLink)}>
+          <h3 className={styles.chartTitle}>
+            Purchases by Month
+            <ArrowRight size={14} className={styles.chartLinkIcon} />
+          </h3>
+          <div className={styles.chartContainer}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data.charts.monthly_purchases} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--card-border)" />
+                <XAxis dataKey="period" stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
+                <Tooltip {...TOOLTIP_STYLE} formatter={(value) => Number(value).toLocaleString()} />
+                <Line type="monotone" dataKey="quantity_kg" name="Quantity (kg)" stroke="var(--chart-2)" strokeWidth={3} dot={{ fill: "var(--chart-2)", strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Link>
+
+        <Link href="/approvals" className={clsx(styles.chartCard, styles.chartCardLink)}>
+          <h3 className={styles.chartTitle}>
+            Grade Distribution
+            <ArrowRight size={14} className={styles.chartLinkIcon} />
+          </h3>
+          <div className={styles.chartContainer}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={data.charts.grade_distribution}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="count"
+                  nameKey="grade"
+                  stroke="none"
+                >
+                  {data.charts.grade_distribution.map((entry) => (
+                    <Cell key={entry.grade} fill={GRADE_COLORS[entry.grade] ?? "var(--chart-neutral)"} />
+                  ))}
+                </Pie>
+                <Tooltip {...TOOLTIP_STYLE} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </Link>
+
+        <Link href="/approvals" className={clsx(styles.chartCard, styles.chartCardLink)}>
+          <h3 className={styles.chartTitle}>
+            Payment Status
+            <ArrowRight size={14} className={styles.chartLinkIcon} />
+          </h3>
+          <div className={styles.chartContainer}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.charts.payment_status_breakdown} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--card-border)" />
+                <XAxis dataKey="label" stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip {...TOOLTIP_STYLE} />
+                <Bar dataKey="count" name="Payments" radius={[4, 4, 0, 0]}>
+                  {data.charts.payment_status_breakdown.map((entry) => (
+                    <Cell key={entry.status} fill={PAYMENT_COLORS[entry.status] ?? "var(--chart-neutral)"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Link>
       </div>
 
       {tab === "stock" && (

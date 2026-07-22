@@ -69,7 +69,7 @@
   padding: 0.6rem 1.1rem;
   border: none;
   border-radius: 8px;
-  background-color: var(--primary);
+  background: var(--gradient-brand);
   color: var(--primary-foreground);
   font-size: 0.9rem;
   font-weight: 600;
@@ -78,19 +78,25 @@
   align-items: center;
   gap: 0.5rem;
   white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  transition: filter 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .newRoleBtn:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
-/* Container card */
+/* Container card — glass surface floating on the page's ambient gradient. */
 .container {
-  background-color: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: 14px;
   padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--shadow-sm);
 }
 
 .sectionLabel {
@@ -118,7 +124,7 @@
 /* Role card grid */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 1.25rem;
 }
 
@@ -129,26 +135,47 @@
   padding: 1.25rem 1.4rem;
   display: flex;
   flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.roleCard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .tintGreen {
-  background-color: color-mix(in srgb, var(--primary) 10%, var(--card-bg));
-  border-color: color-mix(in srgb, var(--primary) 22%, transparent);
+  background-color: #e3f5e6;
+  border-color: #bfe4c6;
 }
 
 .tintGold {
-  background-color: color-mix(in srgb, var(--accent) 16%, var(--card-bg));
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background-color: #fdf3d5;
+  border-color: #f3dfa0;
 }
 
 .tintBlue {
-  background-color: color-mix(in srgb, #3b82f6 10%, var(--card-bg));
-  border-color: color-mix(in srgb, #3b82f6 25%, transparent);
+  background-color: #e4edfb;
+  border-color: #bcd6f5;
 }
 
 .tintNeutral {
   background-color: var(--card-bg);
   border-color: var(--card-border);
+}
+
+:root[data-theme='dark'] .tintGreen {
+  background-color: rgba(76, 175, 80, 0.14);
+  border-color: rgba(76, 175, 80, 0.3);
+}
+
+:root[data-theme='dark'] .tintGold {
+  background-color: rgba(255, 179, 0, 0.14);
+  border-color: rgba(255, 179, 0, 0.3);
+}
+
+:root[data-theme='dark'] .tintBlue {
+  background-color: rgba(99, 179, 237, 0.14);
+  border-color: rgba(99, 179, 237, 0.32);
 }
 
 .roleCardHeader {
@@ -171,11 +198,11 @@
 }
 
 .tintGreen .roleIcon {
-  color: var(--primary-text);
+  color: #1e5128;
 }
 
 .tintGold .roleIcon {
-  color: #a97a15;
+  color: #92680a;
 }
 
 .tintBlue .roleIcon {
@@ -184,6 +211,18 @@
 
 .tintNeutral .roleIcon {
   color: var(--text-muted);
+}
+
+:root[data-theme='dark'] .tintGreen .roleIcon {
+  color: #4caf50;
+}
+
+:root[data-theme='dark'] .tintGold .roleIcon {
+  color: #ffb300;
+}
+
+:root[data-theme='dark'] .tintBlue .roleIcon {
+  color: #63b3ed;
 }
 
 .roleName {
@@ -313,7 +352,7 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 1.25rem 1.5rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #142c0b 100%);
+  background: var(--gradient-brand);
   border-radius: 14px 14px 0 0;
 }
 
@@ -457,7 +496,7 @@
   padding: 0.6rem 1.2rem;
   border: none;
   border-radius: 8px;
-  background-color: var(--primary);
+  background: var(--gradient-brand);
   color: var(--primary-foreground);
   font-size: 0.9rem;
   font-weight: 600;

@@ -41,8 +41,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',
-    'corsheaders',
+    'rest_framework_simplejwt.token_blacklist',  # tracks/revokes refresh tokens (used by logout/force-logout)
+    'corsheaders',  # allows the separately-hosted Next.js frontend to call this API cross-origin
     'accounts',
     'farmers',
     'sysops',
@@ -57,6 +57,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'accounts.middleware.UpdateLastActivityMiddleware',
 ]
 
 ROOT_URLCONF = 'pmb_bk.urls'
@@ -134,11 +135,20 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 
+# Tells Django to use the custom email-based User model (accounts.models.User)
+# instead of its own built-in username-based one.
 AUTH_USER_MODEL = 'accounts.User'
 
+# Comma-separated list of allowed frontend origins, read from the
+# environment (e.g. the Next.js dev server / production domain).
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv())
+# Required so the browser will send/receive the httpOnly auth cookies the
+# frontend stores the JWT pair in.
 CORS_ALLOW_CREDENTIALS = True
 
+# DRF defaults: every endpoint authenticates via JWT (the Authorization:
+# Bearer header the frontend attaches) and requires login unless a view
+# explicitly opts out with permission_classes = [AllowAny].
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -154,8 +164,12 @@ REST_FRAMEWORK = {
     },
 }
 
+# Base URL of the Next.js frontend, used to build links embedded in
+# outgoing emails (e.g. the email-confirmation link in accounts/emails.py).
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 
+# Defaults to printing emails to the console in development; set real SMTP
+# credentials via environment variables for production email delivery.
 EMAIL_BACKEND = config(
     'EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend'
 )
@@ -166,11 +180,16 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@smartpmb.local')
 
+# Secret used to sign/verify JWTs; kept separate from SECRET_KEY so it can
+# be rotated independently without invalidating Django's other signed data
+# (sessions, password reset tokens, etc.).
 JWT_SIGNING_KEY = config('JWT_SIGNING_KEY')
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    # Issues a new refresh token on every use, and blacklists the one it
+    # replaced — limits how long a stolen refresh token stays useful.
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'ALGORITHM': 'HS256',

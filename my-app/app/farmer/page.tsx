@@ -1,9 +1,15 @@
+/**
+ * `/farmer` — the farmer portal's home dashboard: harvest/earnings KPIs,
+ * current guaranteed paddy prices, notifications, and recent harvest
+ * history. Farmer-only (access is enforced by app/farmer/layout.tsx).
+ */
 import { format } from "date-fns";
 import clsx from "clsx";
 import { Sprout, Wallet, Coins, MapPin } from "lucide-react";
 import { getCurrentUser } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import { markNotificationRead } from "@/app/actions/farmer";
+import FarmerCharts from "./FarmerCharts";
 import styles from "./FarmerDashboard.module.css";
 
 const HARVEST_BADGE: Record<string, string> = {
@@ -45,8 +51,18 @@ type DashboardPayload = {
     sent_at: string;
     is_read: boolean;
   }[];
+  charts: {
+    status_breakdown: { status: string; label: string; count: number }[];
+    harvest_trend: { period: string; quantity_kg: number }[];
+  };
 };
 
+/**
+ * Server Component: fetches the farmer's dashboard payload (KPIs, paddy
+ * prices, notifications, harvests) in one request and renders it. Shows a
+ * fallback message if the request fails — e.g. the account exists but its
+ * farmer profile record hasn't been created/linked yet.
+ */
 export default async function FarmerDashboardPage() {
   const user = await getCurrentUser();
   const res = await apiFetch("/api/farmer/dashboard/");
@@ -136,6 +152,8 @@ export default async function FarmerDashboardPage() {
         </div>
       </div>
 
+      <FarmerCharts data={data.charts} />
+
       <div className={styles.gridTwo}>
         <div className={styles.card}>
           <div className={styles.cardHeader}>
@@ -182,6 +200,8 @@ export default async function FarmerDashboardPage() {
                       {format(new Date(n.sent_at), "MMM d, yyyy p")}
                     </span>
                   </div>
+                  {/* Binding the notification id to the Server Action lets this
+                      work as a plain <form> post — no client-side JS handler needed. */}
                   {!n.is_read && (
                     <form action={markNotificationRead.bind(null, n.id)}>
                       <button type="submit" className={styles.markReadBtn}>

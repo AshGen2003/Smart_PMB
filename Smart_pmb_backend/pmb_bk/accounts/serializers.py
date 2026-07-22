@@ -1,3 +1,6 @@
+# Serializers for the accounts app: JWT login (with failed-login lockout
+# logic), farmer self-registration, self-service profile editing, and the
+# admin-facing user/role/permission management endpoints.
 import random
 from datetime import timedelta
 
@@ -14,8 +17,23 @@ from .models import Permission, Role, User
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Extends simplejwt's default login serializer to:
+      1. embed the user's role/permissions/name/email as extra JWT claims
+         (so the frontend can render role-aware UI without an extra API
+         call), and
+      2. enforce account lockout after repeated failed login attempts,
+         with thresholds read at runtime from SystemConfig via
+         sysops.utils.get_config_value, and
+      3. block login for accounts that haven't confirmed their email yet.
+    Every attempt (success, failure, lockout) is written to the AuthLog via
+    sysops.utils.log_auth.
+    """
+
     @classmethod
     def get_token(cls, user):
+        # Bake role/permission info directly into the JWT payload so the
+        # frontend can read it client-side without a round trip to /me/.
         token = super().get_token(user)
         token["role"] = user.role.slug
         token["role_name"] = user.role.name
@@ -31,6 +49,9 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         email = attrs.get(self.username_field)
         user = User.objects.filter(email__iexact=email).first() if email else None
 
+        # If the account is currently locked, reject immediately without
+        # even checking the password, so we don't leak whether the
+        # password was correct while locked, and don't reset the lock.
         if user and user.locked_until and user.locked_until > timezone.now():
             minutes_left = max(
                 1, int((user.locked_until - timezone.now()).total_seconds() // 60) + 1
@@ -49,6 +70,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         try:
             data = super().validate(attrs)
         except AuthenticationFailed:
+            # Wrong password (or unknown email). If it's a known user,
+            # bump their failure counter and, once it crosses the
+            # configured threshold, lock the account for
+            # login_lockout_minutes and reset the counter so the next
+            # attempt after the lockout window starts counting fresh.
             if user:
                 threshold = get_config_value("login_lockout_threshold")
                 lockout_minutes = get_config_value("login_lockout_minutes")
@@ -65,9 +91,13 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                         user=user,
                     )
             elif request:
+                # Unknown email: still log the attempt, but there's no
+                # user record to attach a lockout counter to.
                 log_auth(request, "login_failed", email=email or "")
             raise
 
+        # Successful login: clear any lingering failure count/lockout from
+        # past attempts.
         if user.failed_login_attempts or user.locked_until:
             user.failed_login_attempts = 0
             user.locked_until = None
@@ -84,6 +114,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class RegisterFarmerSerializer(serializers.Serializer):
+    """Validates and creates a new farmer's User account plus matching Farmer profile in one transaction."""
+
     email = serializers.EmailField()
     password = serializers.CharField(min_length=8, write_only=True)
     name = serializers.CharField(max_length=100)
@@ -93,8 +125,6 @@ class RegisterFarmerSerializer(serializers.Serializer):
     land_size = serializers.DecimalField(
         max_digits=10, decimal_places=2, required=False, allow_null=True
     )
-    bank_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    bank_account = serializers.CharField(max_length=50, required=False, allow_blank=True)
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -115,8 +145,14 @@ class RegisterFarmerSerializer(serializers.Serializer):
         district = District.objects.select_related("province").get(
             pk=validated_data["district_id"]
         )
+        # Human-friendly registration number, e.g. "FRM-2026-483920".
+        # Not guaranteed globally unique (random suffix), but collisions
+        # are astronomically unlikely at this scale.
         registration_no = f"FRM-{timezone.now().year}-{random.randint(100000, 999999)}"
 
+        # Wrap both creates in one transaction: if creating the Farmer
+        # profile fails, the User account must not be left dangling
+        # without one.
         with transaction.atomic():
             user = User.objects.create_user(
                 email=validated_data["email"],
@@ -134,14 +170,14 @@ class RegisterFarmerSerializer(serializers.Serializer):
                 province=district.province,
                 land_size=validated_data.get("land_size"),
                 contact_number=validated_data.get("contact_number", ""),
-                bank_name=validated_data.get("bank_name", ""),
-                bank_account=validated_data.get("bank_account", ""),
             )
 
         return {"user": user, "farmer": farmer}
 
 
 class SelfProfileSerializer(serializers.Serializer):
+    """Handles the logged-in user's self-service profile edits, including an optional password change."""
+
     full_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     nic = serializers.CharField(max_length=20, required=False, allow_blank=True)
     phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
@@ -154,6 +190,9 @@ class SelfProfileSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
+        # Changing the password requires re-confirming the current one,
+        # even though the user is already authenticated, as a safeguard
+        # against a hijacked session changing the password silently.
         new_password = attrs.get("new_password")
         current_password = attrs.get("current_password")
         if new_password:
@@ -188,12 +227,16 @@ class SelfProfileSerializer(serializers.Serializer):
 
 
 class RoleMiniSerializer(serializers.ModelSerializer):
+    """Compact Role representation (no permissions list) for nesting inside user records."""
+
     class Meta:
         model = Role
         fields = ["id", "name", "slug"]
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
+    """Read-only representation of a User for the admin user list/detail views, with computed NIC and lock-status fields."""
+
     role = RoleMiniSerializer(read_only=True)
     nic = serializers.SerializerMethodField()
     is_locked = serializers.SerializerMethodField()
@@ -207,6 +250,9 @@ class AdminUserSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "date_joined"]
 
     def get_nic(self, obj):
+        # NIC lives on the Farmer profile, not the User itself, so pull it
+        # through the reverse relation when one exists (staff/officer
+        # accounts have no farmer_profile).
         farmer = getattr(obj, "farmer_profile", None)
         return farmer.nic if farmer else None
 
@@ -215,6 +261,8 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
 
 class AdminUserWriteSerializer(serializers.ModelSerializer):
+    """Handles admin-driven create/update of a User account, including an optional password reset."""
+
     password = serializers.CharField(
         write_only=True, required=False, allow_blank=True, min_length=8
     )
@@ -225,6 +273,8 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
     def validate(self, attrs):
+        # Password is mandatory when creating a new user, but optional on
+        # update (omitting it just leaves the existing password in place).
         if self.instance is None and not attrs.get("password"):
             raise serializers.ValidationError(
                 {"password": "Password is required for new users."}
@@ -234,7 +284,7 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop("password")
         user = User(**validated_data)
-        user.set_password(password)
+        user.set_password(password)  # hash before saving
         user.save()
         return user
 
@@ -249,12 +299,16 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
 
 
 class PermissionSerializer(serializers.ModelSerializer):
+    """Plain read-only representation of a Permission."""
+
     class Meta:
         model = Permission
         fields = ["codename", "label", "description"]
 
 
 class RoleSerializer(serializers.ModelSerializer):
+    """Read-only Role representation with its permission codenames and how many users currently hold it."""
+
     permissions = serializers.SerializerMethodField()
     user_count = serializers.SerializerMethodField()
 
@@ -278,6 +332,8 @@ class RoleSerializer(serializers.ModelSerializer):
 
 
 class RoleWriteSerializer(serializers.ModelSerializer):
+    """Handles admin-driven create/update of a Role, accepting a plain list of permission codenames to assign."""
+
     permissions = serializers.ListField(
         child=serializers.CharField(), required=False, write_only=True
     )
@@ -288,6 +344,8 @@ class RoleWriteSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
     def validate_name(self, value):
+        # Case-insensitive uniqueness check, excluding this instance
+        # itself so a no-op rename during update doesn't false-positive.
         qs = Role.objects.filter(name__iexact=value.strip())
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
@@ -296,6 +354,8 @@ class RoleWriteSerializer(serializers.ModelSerializer):
         return value.strip()
 
     def validate_permissions(self, codenames):
+        # Translate the incoming codename strings into actual Permission
+        # instances, rejecting the request if any codename doesn't exist.
         permissions = list(Permission.objects.filter(codename__in=codenames))
         found = {p.codename for p in permissions}
         missing = set(codenames) - found
@@ -316,6 +376,8 @@ class RoleWriteSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+        # None means "permissions weren't part of this update" (leave
+        # unchanged); an empty list explicitly clears all permissions.
         if permissions is not None:
             instance.permissions.set(permissions)
         return instance

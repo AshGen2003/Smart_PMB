@@ -1,3 +1,10 @@
+/**
+ * Server Actions for managing dynamic roles and their attached permission
+ * sets. Roles are what get assigned to users (actions/users.ts) and are
+ * what lib/dal.ts's `requirePermission`/`requireRole` checks against — so
+ * editing a role's permissions here changes what its holders can access
+ * app-wide (after their JWT is refreshed with the updated claims).
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -8,10 +15,23 @@ export type RoleFormState = {
   error?: string;
 };
 
+// A role form submits its selected permissions as a set of same-named
+// checkbox inputs; FormData.getAll() collects every "permissions" value
+// into an array of the checked codenames.
 function permissionsFromFormData(formData: FormData): string[] {
   return formData.getAll("permissions").map(String);
 }
 
+/**
+ * Creates a new role with a name, description, and set of permissions.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Role fields: name, description, and one or more
+ *   "permissions" checkbox values.
+ * @returns `{ error }` on failure. On success, revalidates both "/roles"
+ *   (the role list) and "/residents" (the user list, since it displays
+ *   each user's role) and returns `{}`.
+ */
 export async function createRole(
   _prevState: RoleFormState,
   formData: FormData
@@ -37,6 +57,16 @@ export async function createRole(
   return {};
 }
 
+/**
+ * Updates an existing role's name, description, and/or permission set.
+ *
+ * @param roleId ID of the role to update (bound ahead of the
+ *   useActionState-managed args by the calling form).
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Updated role fields.
+ * @returns `{ error }` on failure, otherwise `{}` after revalidating
+ *   "/roles" and "/residents".
+ */
 export async function updateRole(
   roleId: number,
   _prevState: RoleFormState,
@@ -63,6 +93,11 @@ export async function updateRole(
   return {};
 }
 
+/**
+ * Permanently deletes a role. Django is expected to reject this (via the
+ * error response surfaced through `firstErrorMessage`) if any user is still
+ * assigned to the role, rather than this action checking that beforehand.
+ */
 export async function deleteRole(roleId: number): Promise<{ error?: string }> {
   const res = await apiFetch(`/api/admin/roles/${roleId}/`, {
     method: "DELETE",

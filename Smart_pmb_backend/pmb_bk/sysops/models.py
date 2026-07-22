@@ -1,8 +1,18 @@
+# Data models for the sysops app: system-administration records that
+# aren't part of the core paddy-purchasing domain. AuditLog tracks who did
+# what (created via sysops.utils.log_audit from admin/officer views).
+# AuthLog tracks login/logout/lockout events (via sysops.utils.log_auth).
+# SystemAlert holds operational warnings for the admin to review.
+# BackupRecord tracks database backups triggered from the admin UI.
+# SystemConfig is a runtime-editable key/value settings store (see
+# sysops/utils.py for the known keys and their defaults).
 from django.conf import settings
 from django.db import models
 
 
 class AuditLog(models.Model):
+    """A record of one admin/officer action (e.g. "create_user", "approve_harvest") for accountability/traceability."""
+
     # SET_NULL (not CASCADE) — deleting the actor shouldn't erase the record
     # that they did something; "system"/unknown actor is a valid, expected state.
     user = models.ForeignKey(
@@ -20,6 +30,8 @@ class AuditLog(models.Model):
 
 
 class AuthLog(models.Model):
+    """A record of one authentication-related event: successful/failed login, account lockout, or logout."""
+
     class Action(models.TextChoices):
         LOGIN_SUCCESS = "login_success", "Login Success"
         LOGIN_FAILED = "login_failed", "Login Failed"
@@ -40,6 +52,8 @@ class AuthLog(models.Model):
 
 
 class SystemAlert(models.Model):
+    """An operational warning/notice raised for admin attention (e.g. low stock, system issue), trackable through open/acknowledged/resolved."""
+
     class Level(models.TextChoices):
         INFO = "info", "Info"
         WARNING = "warning", "Warning"
@@ -66,6 +80,8 @@ class SystemAlert(models.Model):
 
 
 class BackupRecord(models.Model):
+    """Log entry for one database backup run (via Django's `dumpdata`), recording where the snapshot was written and its outcome."""
+
     class Status(models.TextChoices):
         COMPLETED = "completed", "Completed"
         FAILED = "failed", "Failed"
@@ -86,6 +102,14 @@ class BackupRecord(models.Model):
 
 
 class SystemConfig(models.Model):
+    """
+    A single runtime-editable setting, stored as a key/string-value pair
+    (e.g. key="idle_logout_minutes", value="15"). Rows only exist for
+    settings an admin has actually changed from their default — see
+    sysops.utils.get_config_value for how defaults are applied when no
+    row exists yet.
+    """
+
     key = models.CharField(max_length=100, unique=True)
     value = models.CharField(max_length=500)
     category = models.CharField(max_length=50, blank=True)

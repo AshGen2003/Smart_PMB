@@ -1,3 +1,8 @@
+/**
+ * Sticky top navigation bar for the public marketing/landing page. Not
+ * part of the admin or farmer shells — used only on the unauthenticated
+ * home page (login/signup links plus in-page anchor navigation).
+ */
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -8,10 +13,13 @@ import clsx from "clsx";
 import { useTheme } from "./ThemeProvider";
 import styles from "../LandingPage.module.css";
 
+/** Renders the brand logo, anchor links, theme toggle, and login/signup buttons; adds a background once the page is scrolled. */
 export default function LandingNav() {
   const { theme, toggleTheme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
 
+  // Track scroll position purely for styling — adds a solid background/
+  // shadow to the nav once the page has scrolled past the hero section.
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
