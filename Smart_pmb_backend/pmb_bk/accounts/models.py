@@ -114,3 +114,25 @@ class User(AbstractUser):
     @property
     def is_online(self):
         return bool(self.last_activity) and timezone.now() - self.last_activity <= ONLINE_WINDOW
+
+
+class Message(models.Model):
+    """
+    A message between two users, surfaced via the notification bell in the
+    navbar. `recipient` being null means a "request to admin" — not
+    addressed to one specific staff member, but visible to any staff
+    (non-farmer) account, since any of them may be the one to triage it.
+    Farmers may only create messages with recipient=null (see
+    MessageCreateSerializer); only staff can address a message to a
+    specific user.
+    """
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sent_messages")
+    recipient = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="received_messages", null=True, blank=True
+    )
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at"]

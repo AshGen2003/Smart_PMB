@@ -6,6 +6,7 @@
  */
 import { requireAnyPermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
+import { PREVIEW_OFFICER_REPORTS } from "@/app/lib/previewSampleData";
 import ReportsManager, { type ReportsData } from "./ReportsManager";
 import AdminReportPanel, { type AdminReportData } from "./AdminReportPanel";
 
@@ -18,6 +19,13 @@ export default async function ReportsPage() {
   const user = await requireAnyPermission("manage_users", "generate_reports");
   // Admin report takes priority when the user has both permissions.
   const showAdminReport = user.permissions.includes("manage_users");
+
+  // Preview never fetches real data — see previewSampleData.ts. Portal
+  // Preview never offers the Admin role itself, so only the officer report
+  // sample is needed here.
+  if (user.previewing) {
+    return <ReportsManager data={PREVIEW_OFFICER_REPORTS} />;
+  }
 
   if (showAdminReport) {
     const res = await apiFetch("/api/admin/reports/admin-summary/");

@@ -104,9 +104,20 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
           </h3>
           <div className={styles.chartContainer}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.role_breakdown} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+              <BarChart data={data.role_breakdown} margin={{ top: 20, right: 30, left: 0, bottom: 30 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--card-border)" />
-                <XAxis dataKey="name" stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
+                <XAxis
+                  dataKey="name"
+                  stroke="var(--text-muted)"
+                  tick={{ fill: "var(--text-muted)" }}
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={0}
+                  angle={-35}
+                  textAnchor="end"
+                  height={60}
+                />
                 <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip {...TOOLTIP_STYLE} />
                 <Bar dataKey="user_count" name="Users" radius={[4, 4, 0, 0]}>
@@ -119,7 +130,7 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
           </div>
         </Link>
 
-        <OnlineRolesPanel />
+        <OnlineRolesPanel roleOrder={data.role_breakdown} />
       </div>
 
       <div className={styles.tablesGrid}>

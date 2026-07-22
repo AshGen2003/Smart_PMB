@@ -19,6 +19,48 @@ const HARVEST_BADGE: Record<string, string> = {
   rejected: "badge-danger",
 };
 
+// Shown instead of a real API call while an admin is using Portal Preview:
+// the admin's own account has no Farmer profile row, so the real
+// /api/farmer/dashboard/ request would always 404 — this keeps the preview
+// showing a representative farmer dashboard instead of an error state.
+const SAMPLE_FARMER_DASHBOARD = {
+  farmer: {
+    registration_no: "FRM-2026-000000",
+    land_size: "3.5",
+    status: "active",
+    district: "Colombo",
+    province: "Western",
+  },
+  kpis: { total_harvests: 8, pending_payments: 1, total_earnings: 154200 },
+  paddy_types: [
+    { id: 1, type_name: "Nadu", variety: "Long grain", guaranteed_price: "115.00" },
+    { id: 2, type_name: "Samba", variety: "Short grain", guaranteed_price: "128.00" },
+  ],
+  harvests: [
+    { id: 1, paddy_type_name: "Nadu", quantity_kg: "620.00", harvest_date: "2026-07-10", status: "collected" },
+    { id: 2, paddy_type_name: "Samba", quantity_kg: "480.00", harvest_date: "2026-07-17", status: "verified" },
+    { id: 3, paddy_type_name: "Nadu", quantity_kg: "300.00", harvest_date: "2026-07-21", status: "pending" },
+  ],
+  notifications: [
+    { id: 1, message: "This is sample data — Portal Preview shows what a farmer sees, not a real account.", sent_at: new Date().toISOString(), is_read: false },
+  ],
+  charts: {
+    status_breakdown: [
+      { status: "pending", label: "Pending", count: 1 },
+      { status: "verified", label: "Verified", count: 1 },
+      { status: "collected", label: "Collected", count: 6 },
+      { status: "rejected", label: "Rejected", count: 0 },
+    ],
+    harvest_trend: [
+      { period: "Jun 22", quantity_kg: 540 },
+      { period: "Jun 29", quantity_kg: 610 },
+      { period: "Jul 06", quantity_kg: 480 },
+      { period: "Jul 13", quantity_kg: 700 },
+      { period: "Jul 20", quantity_kg: 620 },
+    ],
+  },
+};
+
 type DashboardPayload = {
   farmer: {
     registration_no: string;
@@ -65,23 +107,29 @@ type DashboardPayload = {
  */
 export default async function FarmerDashboardPage() {
   const user = await getCurrentUser();
-  const res = await apiFetch("/api/farmer/dashboard/");
 
-  if (!res.ok) {
-    return (
-      <div className={styles.dashboard}>
-        <div className={styles.card}>
-          <h1 className={styles.title}>Almost there</h1>
-          <p className={styles.subtitle}>
-            We couldn&apos;t find your farmer profile yet. Please contact
-            support if this persists.
-          </p>
+  let data: DashboardPayload;
+  if (user?.previewing) {
+    data = SAMPLE_FARMER_DASHBOARD;
+  } else {
+    const res = await apiFetch("/api/farmer/dashboard/");
+
+    if (!res.ok) {
+      return (
+        <div className={styles.dashboard}>
+          <div className={styles.card}>
+            <h1 className={styles.title}>Almost there</h1>
+            <p className={styles.subtitle}>
+              We couldn&apos;t find your farmer profile yet. Please contact
+              support if this persists.
+            </p>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  const data = (await res.json()) as DashboardPayload;
+    data = (await res.json()) as DashboardPayload;
+  }
   const { farmer, kpis, paddy_types: paddyTypes, harvests, notifications } = data;
 
   return (
@@ -201,8 +249,10 @@ export default async function FarmerDashboardPage() {
                     </span>
                   </div>
                   {/* Binding the notification id to the Server Action lets this
-                      work as a plain <form> post — no client-side JS handler needed. */}
-                  {!n.is_read && (
+                      work as a plain <form> post — no client-side JS handler needed.
+                      Hidden during Portal Preview since preview is read-only and
+                      the sample notification's id isn't a real row anyway. */}
+                  {!n.is_read && !user?.previewing && (
                     <form action={markNotificationRead.bind(null, n.id)}>
                       <button type="submit" className={styles.markReadBtn}>
                         Mark read

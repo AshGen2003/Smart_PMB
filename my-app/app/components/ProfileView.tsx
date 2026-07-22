@@ -1,11 +1,12 @@
 /**
  * Shared "My Profile" view used by both the admin profile page
  * (`(admin)/profile/page.tsx`) and the farmer profile page
- * (`farmer/profile/page.tsx`): avatar uploader, identity card, and either
- * a farmer-specific details panel or a permissions list, followed by the
- * account settings form.
+ * (`farmer/profile/page.tsx`): avatar uploader, identity card, a
+ * read-only personal details card, and either a farmer-specific details
+ * panel or a permissions list. This is purely a "view your info" page —
+ * editing (name/NIC/phone/password) lives on Settings, not here, so the
+ * two pages don't duplicate the same form.
  */
-import { AccountSettingsForm } from "./SettingsSections";
 import { ProfilePictureUploader } from "./ProfilePictureUploader";
 import styles from "./ProfileView.module.css";
 
@@ -58,7 +59,9 @@ export function ProfileView({
     <div className={styles.page}>
       <div>
         <h1 className={styles.title}>My Profile</h1>
-        <p className={styles.subtitle}>View your account details and manage your credentials.</p>
+        <p className={styles.subtitle}>
+          View your personal details. To edit your name, contact info, or password, go to Settings.
+        </p>
       </div>
 
       <div className={styles.identityCard}>
@@ -70,6 +73,28 @@ export function ProfileView({
           <div className={styles.name}>{fullName || "—"}</div>
           <div className={styles.email}>{email}</div>
           <span className={styles.roleBadge}>{roleName}</span>
+        </div>
+      </div>
+
+      <div className={styles.detailsCard}>
+        <h2 className={styles.detailsTitle}>Personal details</h2>
+        <div className={styles.detailsGrid}>
+          <div className={styles.detailItem}>
+            <span className={styles.detailLabel}>Full name</span>
+            <span className={styles.detailValue}>{fullName || "—"}</span>
+          </div>
+          <div className={styles.detailItem}>
+            <span className={styles.detailLabel}>Email</span>
+            <span className={styles.detailValue}>{email}</span>
+          </div>
+          <div className={styles.detailItem}>
+            <span className={styles.detailLabel}>NIC</span>
+            <span className={styles.detailValue}>{nic || "—"}</span>
+          </div>
+          <div className={styles.detailItem}>
+            <span className={styles.detailLabel}>Phone number</span>
+            <span className={styles.detailValue}>{phoneNumber || "—"}</span>
+          </div>
         </div>
       </div>
 
@@ -117,13 +142,6 @@ export function ProfileView({
           )}
         </div>
       )}
-
-      <AccountSettingsForm
-        fullName={fullName}
-        email={email}
-        nic={nic}
-        phoneNumber={phoneNumber}
-      />
     </div>
   );
 }

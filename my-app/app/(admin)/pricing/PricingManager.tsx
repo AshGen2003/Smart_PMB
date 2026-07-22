@@ -26,7 +26,15 @@ export type PaddyTypeRow = {
 const TINTS = [styles.tintGreen, styles.tintGold, styles.tintNeutral];
 
 /** Renders the search bar, summary stat cards, and the paddy-type card grid; owns the create/edit modal and delete-confirmation flow. */
-export default function PricingManager({ paddyTypes }: { paddyTypes: PaddyTypeRow[] }) {
+export default function PricingManager({
+  paddyTypes,
+  canWrite = true,
+}: {
+  paddyTypes: PaddyTypeRow[];
+  // False for viewers who can only see prices (e.g. Portal Preview) — hides
+  // the create/edit/delete affordances.
+  canWrite?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState<
     { mode: "create" } | { mode: "edit"; paddyType: EditablePaddyType } | null
@@ -77,13 +85,15 @@ export default function PricingManager({ paddyTypes }: { paddyTypes: PaddyTypeRo
             />
           </div>
 
-          <button
-            type="button"
-            className={styles.newBtn}
-            onClick={() => setModal({ mode: "create" })}
-          >
-            <Plus size={16} /> New paddy type
-          </button>
+          {canWrite && (
+            <button
+              type="button"
+              className={styles.newBtn}
+              onClick={() => setModal({ mode: "create" })}
+            >
+              <Plus size={16} /> New paddy type
+            </button>
+          )}
         </div>
       </div>
 
@@ -135,36 +145,38 @@ export default function PricingManager({ paddyTypes }: { paddyTypes: PaddyTypeRo
 
                 {p.description && <p className={styles.description}>{p.description}</p>}
 
-                <div className={styles.cardActions}>
-                  <button
-                    type="button"
-                    className={styles.editBtn}
-                    onClick={() =>
-                      setModal({
-                        mode: "edit",
-                        paddyType: {
-                          id: p.id,
-                          type_name: p.type_name,
-                          variety: p.variety,
-                          description: p.description,
-                          guaranteed_price: p.guaranteed_price,
-                          is_active: p.is_active,
-                        },
-                      })
-                    }
-                  >
-                    <Pencil size={14} /> Edit
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.deleteIconBtn}
-                    aria-label="Delete paddy type"
-                    disabled={isPending}
-                    onClick={() => handleDelete(p)}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                {canWrite && (
+                  <div className={styles.cardActions}>
+                    <button
+                      type="button"
+                      className={styles.editBtn}
+                      onClick={() =>
+                        setModal({
+                          mode: "edit",
+                          paddyType: {
+                            id: p.id,
+                            type_name: p.type_name,
+                            variety: p.variety,
+                            description: p.description,
+                            guaranteed_price: p.guaranteed_price,
+                            is_active: p.is_active,
+                          },
+                        })
+                      }
+                    >
+                      <Pencil size={14} /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.deleteIconBtn}
+                      aria-label="Delete paddy type"
+                      disabled={isPending}
+                      onClick={() => handleDelete(p)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

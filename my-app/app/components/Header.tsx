@@ -1,7 +1,7 @@
 /**
  * Top header bar shared by both AdminShell and FarmerShell: mobile sidebar
- * toggle, breadcrumb-ish page name, theme toggle, notification icon
- * (placeholder — not wired to real notifications), and a profile dropdown
+ * toggle, breadcrumb-ish page name, theme toggle, the notification bell
+ * (real inbox + compose, see NotificationBell.tsx), and a profile dropdown
  * menu with links to profile/settings and a logout button.
  */
 "use client";
@@ -9,10 +9,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Moon, Sun, Bell, LogOut, Settings, User } from "lucide-react";
+import { Menu, Moon, Sun, LogOut, Settings, User } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useLayout } from "./LayoutProvider";
 import { logout } from "@/app/actions/auth";
+import NotificationBell from "./NotificationBell";
 import styles from "./Header.module.css";
 
 interface HeaderProps {
@@ -21,6 +22,8 @@ interface HeaderProps {
   profileHref?: string;
   settingsHref?: string;
   profilePictureUrl?: string | null;
+  isFarmer?: boolean;
+  previewing?: boolean;
 }
 
 /**
@@ -34,6 +37,8 @@ export default function Header({
   profileHref = "/profile",
   settingsHref = "/settings",
   profilePictureUrl,
+  isFarmer = false,
+  previewing = false,
 }: HeaderProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
@@ -78,9 +83,7 @@ export default function Header({
           {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
         </button>
 
-        <button className={styles.iconBtn} aria-label="Notifications">
-          <Bell size={20} />
-        </button>
+        <NotificationBell isFarmer={isFarmer} previewing={previewing} />
 
         <div className={styles.profileWrap} ref={menuRef}>
           <button

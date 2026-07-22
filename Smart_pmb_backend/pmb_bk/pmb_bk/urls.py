@@ -23,6 +23,11 @@ from rest_framework.routers import DefaultRouter
 from accounts.views import (
     AdminOverviewView,
     AdminUserViewSet,
+    MessageCreateView,
+    MessageHistoryView,
+    MessageInboxView,
+    MessageMarkReadView,
+    MessageRecipientsView,
     OnlineRolesView,
     PermissionListView,
     RoleViewSet,
@@ -62,6 +67,11 @@ urlpatterns = [
     path('api/admin/system-config/', SystemConfigView.as_view()),
     path('api/admin/reports/admin-summary/', AdminReportView.as_view()),
     path('api/admin/reports/admin-summary/pdf/', AdminReportPdfView.as_view()),
+    path('api/messages/', MessageCreateView.as_view()),
+    path('api/messages/inbox/', MessageInboxView.as_view()),
+    path('api/messages/history/', MessageHistoryView.as_view()),
+    path('api/messages/recipients/', MessageRecipientsView.as_view()),
+    path('api/messages/<int:pk>/read/', MessageMarkReadView.as_view()),
     path('api/', include(router.urls)),
 ]
 

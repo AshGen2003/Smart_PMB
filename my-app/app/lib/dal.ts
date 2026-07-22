@@ -12,6 +12,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { verifyAccessToken } from "./jwt";
+import { apiFetch } from "./api";
 
 // The application's view of "who is logged in", derived from the JWT
 // payload. Kept separate from AccessTokenPayload (lib/jwt.ts) so callers
@@ -23,7 +24,33 @@ export type AppUser = {
   role: string;
   roleName: string;
   permissions: string[];
+  // Set only while an admin is using Portal Preview (see
+  // actions/preview.ts) — `role`/`roleName`/`permissions` above are already
+  // swapped to the previewed role's when this is present, so every existing
+  // page that reads those fields "just works" in preview without needing
+  // its own preview-awareness. Real identity (id/email) is left untouched.
+  previewing?: { slug: string; name: string };
 };
+
+export const PREVIEW_COOKIE = "preview_role";
+
+/**
+ * If a Portal Preview cookie is set (and the real user is allowed to use
+ * Portal Preview at all), fetches that role's current name/permissions from
+ * Django. Returns `null` whenever preview isn't active or can't be resolved
+ * (e.g. the cookie names a role that's since been deleted) — callers treat
+ * that the same as "not previewing".
+ */
+const getPreviewRole = cache(async (): Promise<{ slug: string; name: string; permissions: string[] } | null> => {
+  const cookieStore = await cookies();
+  const slug = cookieStore.get(PREVIEW_COOKIE)?.value;
+  if (!slug) return null;
+
+  const res = await apiFetch("/api/admin/roles/");
+  if (!res.ok) return null;
+  const roles: { slug: string; name: string; permissions: string[] }[] = await res.json();
+  return roles.find((r) => r.slug === slug) ?? null;
+});
 
 /**
  * Resolves the current request's authenticated user, or `null` if there is
@@ -50,13 +77,31 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
   const payload = await verifyAccessToken(token);
   if (!payload) return null;
 
-  return {
+  const realPermissions = payload.permissions ?? [];
+  const user: AppUser = {
     id: payload.sub,
     email: payload.email,
     fullName: payload.full_name || null,
     role: payload.role,
     roleName: payload.role_name,
-    permissions: payload.permissions ?? [],
+    permissions: realPermissions,
+  };
+
+  // Only holders of manage_roles can start a preview (see actions/preview.ts
+  // enterPreview), so this re-checks that here too rather than trusting the
+  // cookie alone — a permission change or role swap since the cookie was
+  // set shouldn't silently keep granting preview powers.
+  if (!realPermissions.includes("manage_roles")) return user;
+
+  const previewRole = await getPreviewRole();
+  if (!previewRole) return user;
+
+  return {
+    ...user,
+    role: previewRole.slug,
+    roleName: previewRole.name,
+    permissions: previewRole.permissions,
+    previewing: { slug: previewRole.slug, name: previewRole.name },
   };
 });
 

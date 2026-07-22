@@ -13,7 +13,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from farmers.models import District, Farmer
 from sysops.utils import get_config_value, log_auth
 
-from .models import Permission, Role, User
+from .models import Message, Permission, Role, User
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -381,3 +381,69 @@ class RoleWriteSerializer(serializers.ModelSerializer):
         if permissions is not None:
             instance.permissions.set(permissions)
         return instance
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    """Read representation of a Message, shown in the notification bell's inbox list."""
+
+    sender_name = serializers.CharField(source="sender.full_name", read_only=True)
+    sender_role = serializers.CharField(source="sender.role.name", read_only=True)
+    recipient_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Message
+        fields = [
+            "id",
+            "sender",
+            "sender_name",
+            "sender_role",
+            "recipient",
+            "recipient_name",
+            "body",
+            "created_at",
+            "is_read",
+        ]
+
+    def get_recipient_name(self, obj):
+        return obj.recipient.full_name if obj.recipient else None
+
+
+class MessageCreateSerializer(serializers.ModelSerializer):
+    """
+    Write-only serializer for composing a message. `sender` is set by the
+    view from the authenticated request, never accepted from the client.
+    """
+
+    class Meta:
+        model = Message
+        fields = ["recipient", "body"]
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        if attrs.get("recipient") is not None and request.user.role.slug == "farmer":
+            # Farmers can only send a request to the admin/officer team
+            # (recipient=None) — not message a specific user directly.
+            raise serializers.ValidationError(
+                "Farmers can only send a request to the admin team, not message a specific user."
+            )
+        return attrs
+
+    def validate_body(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Message cannot be empty.")
+        return value
+
+
+class MessageRecipientSerializer(serializers.ModelSerializer):
+    """
+    Minimal user representation for the "message a user" recipient picker
+    — open to any staff (non-farmer) account, not just manage_users
+    holders, since PMB Officers need to message farmers too.
+    """
+
+    role_name = serializers.CharField(source="role.name", read_only=True)
+
+    class Meta:
+        model = User
+        fields = ["id", "full_name", "email", "role_name"]
