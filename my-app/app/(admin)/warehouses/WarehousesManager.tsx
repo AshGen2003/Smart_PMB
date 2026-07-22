@@ -1,3 +1,8 @@
+/**
+ * Client Component for the warehouses page: a searchable card grid showing
+ * stock-fill progress bars, plus create/edit/delete via a modal form and
+ * Server Actions.
+ */
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
@@ -10,6 +15,7 @@ import WarehouseFormModal, {
 } from "./WarehouseFormModal";
 import styles from "./Warehouses.module.css";
 
+/** Shape of a warehouse row as returned by `GET /api/admin/warehouses/`. */
 export type WarehouseRow = {
   id: number;
   name: string;
@@ -40,6 +46,7 @@ const STATUS_TINT: Record<WarehouseRow["status"], string> = {
   under_maintenance: styles.tintBlue,
 };
 
+/** Renders the search bar and the warehouse card grid; owns the create/edit modal and delete-confirmation flow. */
 export default function WarehousesManager({
   warehouses,
   districts,
@@ -110,6 +117,8 @@ export default function WarehousesManager({
         {filtered.length > 0 ? (
           <div className={styles.grid}>
             {filtered.map((w) => {
+              // Fill percentage for the stock progress bar; guard against
+              // divide-by-zero for warehouses with no capacity set.
               const pct = Number(w.capacity) > 0 ? (Number(w.current_stock) / Number(w.capacity)) * 100 : 0;
               return (
                 <div key={w.id} className={clsx(styles.card, STATUS_TINT[w.status])}>

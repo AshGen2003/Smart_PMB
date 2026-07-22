@@ -1,3 +1,5 @@
+# Outbound email helpers for the accounts app. Currently just the
+# account-confirmation email sent after farmer self-registration.
 from django.conf import settings
 from django.core.mail import send_mail
 
@@ -5,6 +7,7 @@ from .tokens import make_email_confirmation_token
 
 
 def send_confirmation_email(user):
+    """Email the user a signed confirmation link pointing at the frontend's confirm-email page."""
     token = make_email_confirmation_token(user.id)
     confirm_url = f"{settings.FRONTEND_URL}/confirm-email?token={token}"
 

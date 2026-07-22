@@ -1,7 +1,18 @@
+/**
+ * `/farmer/profile` — the logged-in farmer's own profile page, including
+ * farmer-specific details (registration number, land size, district) that
+ * the shared ProfileView component renders only when `farmerDetails` is
+ * passed in.
+ */
 import { requireUser } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import { ProfileView, type FarmerProfileDetails } from "@/app/components/ProfileView";
 
+/**
+ * Server Component: loads the current user's session info plus extended
+ * profile fields and farmer details (pulled from the dashboard endpoint's
+ * `farmer` key), then renders the shared ProfileView component.
+ */
 export default async function FarmerProfilePage() {
   const user = await requireUser();
 

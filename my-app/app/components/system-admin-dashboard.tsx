@@ -1,3 +1,12 @@
+/**
+ * Self-contained mock/demo of a system administration console (user
+ * records, role creation/assignment, audit log) built entirely with local
+ * React state and hard-coded seed data — it does not call apiFetch() or
+ * any Server Action, so nothing here is persisted to the backend. Styled
+ * with Tailwind utility classes rather than the CSS Modules used elsewhere
+ * in this app. Not currently imported/rendered by any page in this
+ * project; kept as a reference/prototype for a future real admin console.
+ */
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
@@ -156,6 +165,7 @@ const initialLogs: AuditLog[] = [
   },
 ];
 
+/** Turns a display name into a URL/id-safe slug, e.g. "Depot Supervisor" -> "depot-supervisor". */
 function slugify(value: string) {
   return value
     .trim()
@@ -164,6 +174,7 @@ function slugify(value: string) {
     .replace(/(^-|-$)/g, "");
 }
 
+/** Formats the current time for a new audit log entry, e.g. "Jul 16, 14:05". */
 function formatLogTime() {
   return new Intl.DateTimeFormat("en-LK", {
     month: "short",
@@ -173,6 +184,7 @@ function formatLogTime() {
   }).format(new Date());
 }
 
+/** Maps a user's status to Tailwind border/background/text classes for the status badge. */
 function statusClasses(status: UserRecord["status"]) {
   if (status === "Active") {
     return "border-[#b7dbc1] bg-[#e9f7ee] text-[#0f5a2a]";
@@ -185,6 +197,7 @@ function statusClasses(status: UserRecord["status"]) {
   return "border-[#f1b8a9] bg-[#fff0ec] text-[#8b2d16]";
 }
 
+/** Maps an audit log's severity to Tailwind background/text classes for the severity badge. */
 function severityClasses(severity: AuditLog["severity"]) {
   if (severity === "High") {
     return "bg-[#8b2d16] text-white";
@@ -197,6 +210,11 @@ function severityClasses(severity: AuditLog["severity"]) {
   return "bg-[#dff1e5] text-[#0f5a2a]";
 }
 
+/**
+ * Renders the full mock console: sidebar nav, stat cards, a searchable
+ * user-records table, role-creation/assignment forms, a role registry, and
+ * a filterable audit log — all backed by the local state declared below.
+ */
 export function SystemAdminDashboard() {
   const [roles, setRoles] = useState<Role[]>(initialRoles);
   const [users, setUsers] = useState<UserRecord[]>(initialUsers);
@@ -245,6 +263,8 @@ export function SystemAdminDashboard() {
   const activeUsers = users.filter((user) => user.status === "Active").length;
   const reviewItems = users.filter((user) => user.status !== "Active").length;
 
+  // Prepends a new synthetic audit log entry (id/time generated locally)
+  // whenever a mock action (create role, assign role) happens.
   const addAuditLog = (entry: Omit<AuditLog, "id" | "time">) => {
     setLogs((currentLogs) => [
       {

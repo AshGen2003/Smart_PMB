@@ -51,11 +51,13 @@
 }
 
 .container {
-  background-color: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: 14px;
   padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--shadow-sm);
 }
 
 .sectionHeader {
@@ -141,7 +143,7 @@
   padding: 0.6rem 1.1rem;
   border: none;
   border-radius: 8px;
-  background-color: var(--primary);
+  background: var(--gradient-brand);
   color: var(--primary-foreground);
   font-size: 0.9rem;
   font-weight: 600;
@@ -184,4 +186,94 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.chartCard {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: 14px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.chartCardLink {
+  color: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.chartCardLink:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.chartCardLink:hover .chartLinkIcon {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.chartTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.chartLinkIcon {
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.chartContainer {
+  height: 280px;
+  width: 100%;
+}
+
+.inlineChartLink {
+  display: block;
+  color: inherit;
+  border-radius: 10px;
+  padding: 0.75rem;
+  margin-left: -0.75rem;
+  margin-right: -0.75rem;
+  border: 1px solid transparent;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.inlineChartLink:hover {
+  border-color: var(--card-border);
+  background-color: var(--sidebar-hover);
+}
+
+.inlineChartLink:hover .chartLinkIcon {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.inlineChartLinkLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
 }

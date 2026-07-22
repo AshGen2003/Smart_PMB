@@ -1,3 +1,8 @@
+/**
+ * Server Actions for managing warehouses — the physical collection points
+ * that harvest records (actions/approvals.ts) can be assigned to. All
+ * mutations revalidate the "/warehouses" page.
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -8,6 +13,9 @@ export type WarehouseFormState = {
   error?: string;
 };
 
+// Maps a <form> submission to the JSON body Django's warehouse endpoint
+// expects. Empty optional fields (established_date, district) are
+// normalized to null rather than an empty string/NaN.
 function payloadFromFormData(formData: FormData) {
   return {
     name: String(formData.get("name") ?? "").trim(),
@@ -21,6 +29,14 @@ function payloadFromFormData(formData: FormData) {
   };
 }
 
+/**
+ * Creates a new warehouse.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Warehouse fields — see payloadFromFormData.
+ * @returns `{ error }` on failure, otherwise `{}` after revalidating
+ *   "/warehouses".
+ */
 export async function createWarehouse(
   _prevState: WarehouseFormState,
   formData: FormData
@@ -39,6 +55,16 @@ export async function createWarehouse(
   return {};
 }
 
+/**
+ * Updates an existing warehouse's details.
+ *
+ * @param warehouseId ID of the warehouse to update (bound ahead of the
+ *   useActionState-managed args by the calling form).
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Updated warehouse fields.
+ * @returns `{ error }` on failure, otherwise `{}` after revalidating
+ *   "/warehouses".
+ */
 export async function updateWarehouse(
   warehouseId: number,
   _prevState: WarehouseFormState,
@@ -58,6 +84,10 @@ export async function updateWarehouse(
   return {};
 }
 
+/**
+ * Permanently deletes a warehouse. Django is expected to reject this if
+ * harvest records still reference it, surfaced via `firstErrorMessage`.
+ */
 export async function deleteWarehouse(warehouseId: number): Promise<{ error?: string }> {
   const res = await apiFetch(`/api/admin/warehouses/${warehouseId}/`, {
     method: "DELETE",

@@ -1,3 +1,8 @@
+/**
+ * Client Component for the pricing page: a searchable card grid of paddy
+ * types with guaranteed prices, plus create/edit/delete via a modal form
+ * and Server Actions.
+ */
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
@@ -7,6 +12,7 @@ import { deletePaddyType } from "@/app/actions/pricing";
 import PaddyTypeFormModal, { type EditablePaddyType } from "./PaddyTypeFormModal";
 import styles from "./Pricing.module.css";
 
+/** Shape of a paddy type row as returned by `GET /api/admin/paddy-types/`. */
 export type PaddyTypeRow = {
   id: number;
   type_name: string;
@@ -16,8 +22,10 @@ export type PaddyTypeRow = {
   is_active: boolean;
 };
 
+// Cycles a few background tint classes across the cards purely for visual variety.
 const TINTS = [styles.tintGreen, styles.tintGold, styles.tintNeutral];
 
+/** Renders the search bar, summary stat cards, and the paddy-type card grid; owns the create/edit modal and delete-confirmation flow. */
 export default function PricingManager({ paddyTypes }: { paddyTypes: PaddyTypeRow[] }) {
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState<
@@ -26,6 +34,7 @@ export default function PricingManager({ paddyTypes }: { paddyTypes: PaddyTypeRo
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // Client-side filter by type name or variety (case-insensitive substring match).
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return paddyTypes;
@@ -39,6 +48,8 @@ export default function PricingManager({ paddyTypes }: { paddyTypes: PaddyTypeRo
   const highest = prices.length ? Math.max(...prices) : 0;
   const lowest = prices.length ? Math.min(...prices) : 0;
 
+  // Confirms with the user, then calls the deletePaddyType Server Action
+  // inside a transition so the UI doesn't block while it runs.
   function handleDelete(paddyType: PaddyTypeRow) {
     if (!window.confirm(`Delete "${paddyType.type_name}"? This cannot be undone.`)) return;
 

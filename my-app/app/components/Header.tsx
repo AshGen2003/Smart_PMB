@@ -1,3 +1,9 @@
+/**
+ * Top header bar shared by both AdminShell and FarmerShell: mobile sidebar
+ * toggle, breadcrumb-ish page name, theme toggle, notification icon
+ * (placeholder — not wired to real notifications), and a profile dropdown
+ * menu with links to profile/settings and a logout button.
+ */
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -17,6 +23,11 @@ interface HeaderProps {
   profilePictureUrl?: string | null;
 }
 
+/**
+ * `profileHref`/`settingsHref` default to the admin routes (`/profile`,
+ * `/settings`); FarmerShell overrides them to the farmer-portal
+ * equivalents so the same Header works for both shells.
+ */
 export default function Header({
   userName = "Admin User",
   roleLabel,
@@ -35,6 +46,7 @@ export default function Header({
   // Simple breadcrumb logic based on pathname
   const routeName = pathname === "/" ? "Dashboard" : pathname.replace("/", "");
 
+  // Close the profile dropdown when the user clicks anywhere outside it.
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {

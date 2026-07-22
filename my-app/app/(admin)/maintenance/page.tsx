@@ -1,3 +1,9 @@
+/**
+ * `/maintenance` — system maintenance console: audit trail, login activity,
+ * alerts, backups, and global system settings. Requires `view_audit_logs`
+ * to view; the settings/backup/alert-resolution controls are additionally
+ * gated behind `manage_system` (read-only for users without it).
+ */
 import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import MaintenanceManager, {
@@ -8,6 +14,11 @@ import MaintenanceManager, {
   type SystemConfigData,
 } from "./MaintenanceManager";
 
+/**
+ * Server Component: gates access, fetches all maintenance data (audit
+ * logs, auth logs, alerts, backups, system config) in parallel, and falls
+ * back to sane config defaults if that endpoint fails.
+ */
 export default async function MaintenancePage() {
   const user = await requirePermission("view_audit_logs");
   const canManage = user.permissions.includes("manage_system");
@@ -24,6 +35,8 @@ export default async function MaintenancePage() {
   const authLogs = authRes.ok ? ((await authRes.json()) as AuthLogRow[]) : [];
   const alerts = alertsRes.ok ? ((await alertsRes.json()) as AlertRow[]) : [];
   const backups = backupsRes.ok ? ((await backupsRes.json()) as BackupRow[]) : [];
+  // If the system-config endpoint fails, fall back to reasonable defaults
+  // rather than leaving the settings form empty/broken.
   const config = configRes.ok
     ? ((await configRes.json()) as SystemConfigData)
     : {

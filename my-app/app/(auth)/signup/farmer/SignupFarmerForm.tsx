@@ -1,3 +1,10 @@
+/**
+ * Farmer self-registration form: personal details, credentials, district
+ * (location), and optional land size. Submits via the `signupFarmer`
+ * Server Action, which creates the account and sends a confirmation email
+ * (see `(auth)/confirm-email/page.tsx`) rather than logging the user in
+ * immediately.
+ */
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -17,6 +24,7 @@ export type DistrictOption = {
 
 const initialState: SignupState = {};
 
+/** Renders the full multi-field signup form and groups the district `<select>` options by province. */
 export default function SignupFarmerForm({
   districts,
 }: {
@@ -28,6 +36,8 @@ export default function SignupFarmerForm({
   );
   const [showPassword, setShowPassword] = useState(false);
 
+  // Group districts under their province name so the <select> can render
+  // them as <optgroup>s instead of one long flat list.
   const districtsByProvince = useMemo(() => {
     const groups = new Map<string, DistrictOption[]>();
     for (const d of districts) {
@@ -203,34 +213,6 @@ export default function SignupFarmerForm({
               min="0"
               className={styles.input}
               placeholder="2.5"
-            />
-          </div>
-        </div>
-
-        <div className={styles.row2}>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="bankName">
-              Bank name <span className={styles.optional}>(optional)</span>
-            </label>
-            <input
-              id="bankName"
-              name="bankName"
-              type="text"
-              className={styles.input}
-              placeholder="Bank of Ceylon"
-            />
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="bankAccount">
-              Bank account <span className={styles.optional}>(optional)</span>
-            </label>
-            <input
-              id="bankAccount"
-              name="bankAccount"
-              type="text"
-              className={styles.input}
-              placeholder="000123456789"
             />
           </div>
         </div>

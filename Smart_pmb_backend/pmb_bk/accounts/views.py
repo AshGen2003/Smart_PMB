@@ -1,5 +1,12 @@
+# API views for authentication (login/logout/refresh), farmer
+# self-registration, email confirmation, the logged-in user's own profile,
+# and admin-facing management of users/roles/permissions. Login and token
+# refresh are handled by djangorestframework_simplejwt; everything else is
+# plain DRF APIViews/ViewSets guarded by the custom permission classes in
+# accounts/permissions.py.
 from django.core import signing
 from django.db.models import Count
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -13,7 +20,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from sysops.utils import log_audit, log_auth
 
 from .emails import send_confirmation_email
-from .models import Permission, Role, User
+from .models import ONLINE_WINDOW, Permission, Role, User
 from .permissions import HasPermission, RoleAccessPermission
 from .serializers import (
     AdminUserSerializer,
@@ -29,6 +36,12 @@ from .tokens import read_email_confirmation_token
 
 
 class LoginView(TokenObtainPairView):
+    """
+    Login endpoint: exchanges email+password for a JWT access+refresh
+    token pair. Delegates the actual credential/lockout checking to
+    CustomTokenObtainPairSerializer. Rate-limited via the "login" throttle
+    scope to slow down brute-force attempts.
+    """
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
@@ -36,6 +49,7 @@ class LoginView(TokenObtainPairView):
 
 
 class RegisterFarmerView(APIView):
+    """Public self-registration endpoint for new farmers; creates a User + Farmer profile and emails a confirmation link."""
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -55,6 +69,7 @@ class RegisterFarmerView(APIView):
 
 
 class ConfirmEmailView(APIView):
+    """Consumes the signed token from the confirmation email and marks the account's email as confirmed."""
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -88,6 +103,7 @@ class ConfirmEmailView(APIView):
 
 
 class LogoutView(APIView):
+    """Logs the user out by blacklisting their refresh token so it can no longer be used to mint new access tokens."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -96,15 +112,20 @@ class LogoutView(APIView):
             try:
                 RefreshToken(refresh).blacklist()
             except Exception:
+                # Token may already be invalid/expired/blacklisted; logout
+                # should still succeed either way from the client's view.
                 pass
         log_auth(request, "logout", user=request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class MeView(APIView):
+    """Lets the logged-in user view (GET) and edit (PATCH) their own profile, including changing their password."""
     permission_classes = [IsAuthenticated]
 
     def _profile_picture_url(self, request, user):
+        # Build a full absolute URL (not just the relative media path) so
+        # the frontend can use it directly as an <img src>.
         if not user.profile_picture:
             return None
         return request.build_absolute_uri(user.profile_picture.url)
@@ -134,6 +155,9 @@ class MeView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
+        # Issue a fresh token pair so any claims baked into the JWT (full
+        # name, etc.) reflect the just-saved changes immediately, without
+        # requiring the frontend to force a re-login.
         token = CustomTokenObtainPairSerializer.get_token(user)
 
         return Response(
@@ -156,10 +180,17 @@ class MeView(APIView):
 
 
 class AdminUserViewSet(viewsets.ModelViewSet):
+    """
+    Admin CRUD over all user accounts (requires "manage_users"), plus two
+    extra actions for account-security intervention: forcibly unlocking a
+    locked-out account and revoking all of a user's active sessions. Every
+    mutation is recorded to the audit log via sysops.utils.log_audit.
+    """
     permission_classes = [HasPermission("manage_users")]
     queryset = User.objects.all().select_related("role").order_by("-date_joined")
 
     def get_queryset(self):
+        # Optional ?role=<slug> filter for the admin user list screen.
         qs = super().get_queryset()
         role = self.request.query_params.get("role")
         if role:
@@ -167,6 +198,9 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         return qs
 
     def get_serializer_class(self):
+        # Reads use a serializer that nests role details and computed
+        # fields (is_locked); writes use a flatter serializer that accepts
+        # a plain role id and an optional password.
         if self.action in ("create", "update", "partial_update"):
             return AdminUserWriteSerializer
         return AdminUserSerializer
@@ -174,6 +208,8 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.id == request.user.id:
+            # Prevent an admin from locking themselves out by deleting
+            # their own account through this endpoint.
             return Response(
                 {"detail": "You cannot delete your own account."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -193,6 +229,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], permission_classes=[HasPermission("manage_system")])
     def unlock(self, request, pk=None):
+        """Admin override to lift a login lockout early instead of waiting for it to expire."""
         user = self.get_object()
         user.failed_login_attempts = 0
         user.locked_until = None
@@ -205,17 +242,25 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         permission_classes=[HasPermission("manage_system")],
     )
     def force_logout(self, request, pk=None):
+        """Blacklists every outstanding refresh token for this user, ending all of their active sessions immediately."""
         user = self.get_object()
         for outstanding in OutstandingToken.objects.filter(user=user):
             try:
                 RefreshToken(outstanding.token).blacklist()
             except Exception:
+                # Ignore tokens that are already invalid/expired/blacklisted.
                 pass
         log_audit(request.user, "force_logout", "accounts", user.email)
         return Response({"detail": "Session revoked."})
 
 
 class RoleViewSet(viewsets.ModelViewSet):
+    """
+    Admin CRUD over Roles and the permissions assigned to them. Access is
+    gated by RoleAccessPermission (read access is broader than write
+    access — see that class's docstring). System-seeded roles cannot be
+    deleted, nor can any role still assigned to at least one user.
+    """
     permission_classes = [RoleAccessPermission]
     queryset = Role.objects.all().prefetch_related("permissions").order_by("name")
 
@@ -235,11 +280,15 @@ class RoleViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.is_system:
+            # Built-in roles (admin/officer/farmer) are load-bearing for
+            # the seed data and default-role logic in managers.py.
             return Response(
                 {"detail": "System roles cannot be deleted."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if instance.users.exists():
+            # Deleting a role out from under assigned users would break
+            # the required (non-nullable) User.role foreign key.
             return Response(
                 {"detail": "This role is still assigned to one or more users."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -251,6 +300,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 
 
 class PermissionListView(APIView):
+    """Read-only catalogue of all Permission codenames, used to populate the role-editing UI's permission checklist."""
     permission_classes = [RoleAccessPermission]
 
     def get(self, request):
@@ -259,6 +309,7 @@ class PermissionListView(APIView):
 
 
 class AdminOverviewView(APIView):
+    """Aggregate stats for the admin dashboard: user/role counts, per-role membership breakdown, and recently joined users."""
     permission_classes = [HasPermission("manage_users")]
 
     def get(self, request):
@@ -292,6 +343,36 @@ class AdminOverviewView(APIView):
                         "is_active": u.is_active,
                     }
                     for u in recent_users
+                ],
+            }
+        )
+
+
+class OnlineRolesView(APIView):
+    """
+    Per-role breakdown of users currently "online" (their last authenticated
+    request fell within models.ONLINE_WINDOW). Deliberately small/cheap so
+    the frontend can poll it every few seconds for a near-real-time count
+    without the cost of the full AdminOverviewView payload.
+    """
+    permission_classes = [HasPermission("manage_users")]
+
+    def get(self, request):
+        cutoff = timezone.now() - ONLINE_WINDOW
+        online = User.objects.filter(last_activity__gte=cutoff)
+        role_counts = (
+            online.values("role__name", "role__slug")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+
+        return Response(
+            {
+                "generated_at": timezone.now(),
+                "online_total": online.count(),
+                "roles": [
+                    {"name": r["role__name"], "slug": r["role__slug"], "count": r["count"]}
+                    for r in role_counts
                 ],
             }
         )

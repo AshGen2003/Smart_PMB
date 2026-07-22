@@ -1,3 +1,7 @@
+# Builds the data set behind the "Admin Report": a snapshot of users,
+# roles, recent security activity, audit trail, and backup history. Used
+# by both AdminReportView (JSON) and AdminReportPdfView (PDF, via pdf.py)
+# in views.py, so the two always show identical numbers.
 from datetime import timedelta
 
 from django.db.models import Count
@@ -9,6 +13,7 @@ from .models import AuditLog, AuthLog, BackupRecord
 
 
 def build_admin_report_data():
+    """Assemble the admin report's data dict: user/role stats, 30-day login security counts, and recent log/backup entries."""
     now = timezone.now()
     since_30d = now - timedelta(days=30)
 
@@ -31,6 +36,9 @@ def build_admin_report_data():
         "account_locked": auth_30d.filter(action="account_locked").count(),
     }
 
+    # Only the 20 most recent entries are included in the report — this is
+    # a summary snapshot, not a full export (the full logs are browsable
+    # via AuditLogViewSet/AuthLogViewSet).
     recent_audit = [
         {
             "created_at": log.created_at,
@@ -53,7 +61,26 @@ def build_admin_report_data():
     ]
 
     backups = BackupRecord.objects.all()
-    last_backup = backups.first()
+    last_backup = backups.first()  # BackupRecord.Meta orders by -created_at, so first() is the most recent
+
+    # Daily success/failed login counts for the last 14 days, oldest first —
+    # the time series behind the admin report's login-activity chart.
+    since_14d = now - timedelta(days=14)
+    daily_counts = {}
+    for log in AuthLog.objects.filter(
+        created_at__gte=since_14d, action__in=["login_success", "login_failed"]
+    ):
+        day = log.created_at.date()
+        bucket = daily_counts.setdefault(day, {"success": 0, "failed": 0})
+        bucket["success" if log.action == "login_success" else "failed"] += 1
+    login_activity_trend = [
+        {
+            "date": (since_14d.date() + timedelta(days=i)).strftime("%b %d"),
+            "success": daily_counts.get(since_14d.date() + timedelta(days=i), {}).get("success", 0),
+            "failed": daily_counts.get(since_14d.date() + timedelta(days=i), {}).get("failed", 0),
+        }
+        for i in range(15)
+    ]
 
     return {
         "generated_at": now,
@@ -63,6 +90,7 @@ def build_admin_report_data():
         },
         "roles": role_rows,
         "security": security,
+        "login_activity_trend": login_activity_trend,
         "recent_audit": recent_audit,
         "recent_auth": recent_auth,
         "backups": {

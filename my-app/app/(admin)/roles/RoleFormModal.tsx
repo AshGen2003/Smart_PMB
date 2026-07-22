@@ -1,3 +1,8 @@
+/**
+ * Modal dialog with the create/edit form for a role, including a checklist
+ * of every assignable permission codename. Submits via a Server Action
+ * (createRole/updateRole) using useActionState.
+ */
 "use client";
 
 import React, { useActionState, useEffect, useRef } from "react";
@@ -5,12 +10,14 @@ import { Loader2, ShieldCheck, X } from "lucide-react";
 import { createRole, updateRole, type RoleFormState } from "@/app/actions/roles";
 import styles from "./Roles.module.css";
 
+/** A single permission the role checklist can toggle on/off. */
 export type PermissionOption = {
   codename: string;
   label: string;
   description: string;
 };
 
+/** Subset of role fields needed to pre-fill the form when editing. */
 export type EditableRole = {
   id: number;
   name: string;
@@ -20,6 +27,13 @@ export type EditableRole = {
 
 const initialState: RoleFormState = {};
 
+/**
+ * Renders the role form (name, description, permission checkboxes) inside
+ * a modal overlay. Picks createRole or updateRole (with the id bound in)
+ * based on `mode`, and closes itself once the save succeeds. All checked
+ * "permissions" checkboxes share the `name="permissions"` attribute so the
+ * submitted FormData carries them as a repeated field.
+ */
 export default function RoleFormModal({
   mode,
   role,
@@ -35,6 +49,7 @@ export default function RoleFormModal({
   const [state, formAction, pending] = useActionState(action, initialState);
   const wasSubmitting = useRef(false);
 
+  // Auto-close the modal once a pending submission resolves without error.
   useEffect(() => {
     if (pending) wasSubmitting.current = true;
     if (!pending && wasSubmitting.current && !state.error) {

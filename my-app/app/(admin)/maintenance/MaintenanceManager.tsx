@@ -1,3 +1,9 @@
+/**
+ * Client Component for the maintenance console: tabbed views for alerts,
+ * audit log, login activity, backups, and system settings. `canManage`
+ * (manage_system permission) toggles whether mutation controls (resolve
+ * alert, run backup, save settings) are shown/enabled.
+ */
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
@@ -73,10 +79,12 @@ const AUTH_ACTION_LABEL: Record<AuthLogRow["action"], string> = {
   logout: "Logout",
 };
 
+/** Formats an ISO date string for display, e.g. "Jul 16, 2026 3:45 PM". */
 function fmt(dateStr: string) {
   return format(new Date(dateStr), "MMM d, yyyy h:mm a");
 }
 
+/** Formats a byte count as a human-readable KB/MB string for backup sizes. */
 function formatBytes(bytes: number) {
   if (!bytes) return "0 KB";
   const kb = bytes / 1024;
@@ -93,6 +101,7 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
+/** Renders the tab bar plus the active tab's table/form; owns the shared error/success/pending state for all mutation actions. */
 export default function MaintenanceManager({
   auditLogs,
   authLogs,
@@ -118,6 +127,9 @@ export default function MaintenanceManager({
     [alerts]
   );
 
+  // Shared wrapper for alert/backup/settings Server Actions: clears
+  // previous banners, runs the action in a transition, and shows either
+  // the returned error or a caller-supplied success message.
   function runAction(fn: () => Promise<{ error?: string }>, successMsg?: string) {
     setError(null);
     setSuccess(null);
@@ -407,6 +419,13 @@ export default function MaintenanceManager({
   );
 }
 
+/**
+ * Global system settings form (idle logout timeout, login lockout policy,
+ * maintenance-mode banner toggle). Inputs are disabled for users without
+ * `manage_system` so they can view but not change the values; `onSave`
+ * hands the (string-encoded) form values up to the parent's runAction/
+ * updateSystemConfig Server Action.
+ */
 function SettingsForm({
   config,
   canManage,

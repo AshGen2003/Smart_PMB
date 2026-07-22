@@ -158,7 +158,7 @@
 .navPrimaryBtn:hover {
   filter: brightness(1.1);
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(45, 80, 22, 0.25);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
 }
 
 .navPrimaryBtnArrow {
@@ -450,7 +450,7 @@
 .blobPrimary {
   width: 420px;
   height: 420px;
-  background: var(--primary);
+  background: var(--gradient-brand);
   top: -120px;
   right: -140px;
 }
@@ -585,9 +585,9 @@
   width: 46px;
   height: 46px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-  color: var(--primary-foreground);
-  box-shadow: 0 8px 18px -6px rgba(45, 80, 22, 0.5);
+  background: var(--accent);
+  color: var(--accent-foreground);
+  box-shadow: var(--shadow-sm);
   margin-bottom: 1.1rem;
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -625,7 +625,7 @@
   gap: 2.5rem;
   padding: 3rem;
   border-radius: 20px;
-  background: linear-gradient(135deg, var(--primary) 0%, #0f2c19 100%);
+  background: var(--gradient-brand);
   box-shadow: var(--shadow-md);
 }
 

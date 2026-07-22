@@ -1,3 +1,9 @@
+/**
+ * Top-level shell for every page in the `(admin)` route group: sidebar +
+ * header + idle-logout watcher + optional maintenance-mode banner, with
+ * `children` rendered as the page content. Mounted once by
+ * `(admin)/layout.tsx` and reused for every admin/officer page.
+ */
 "use client";
 
 import React from "react";
@@ -18,6 +24,12 @@ interface AdminShellProps {
   maintenanceMode?: boolean;
 }
 
+/**
+ * Reads sidebar open/collapsed state from LayoutProvider's context and
+ * arranges the sidebar, header, maintenance banner, and page content.
+ * Split out from AdminShell so it can call `useLayout()`, which requires
+ * being inside the LayoutProvider that AdminShell renders.
+ */
 function LayoutWrapper({
   children,
   userName,
@@ -60,6 +72,12 @@ function LayoutWrapper({
   );
 }
 
+/**
+ * Wraps LayoutWrapper in a LayoutProvider so sidebar open/collapsed state
+ * is available via context. `permissions` is forwarded to the Sidebar to
+ * decide which nav links to show; `idleMinutes` configures the auto-logout
+ * timer; `maintenanceMode` toggles the system-wide banner.
+ */
 export default function AdminShell({
   children,
   userName,

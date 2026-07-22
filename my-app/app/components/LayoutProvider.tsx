@@ -1,3 +1,9 @@
+/**
+ * React context that tracks the admin/farmer shell's sidebar open/collapsed
+ * state (desktop) and open/closed state (mobile overlay). Both AdminShell
+ * and FarmerShell wrap their content in a LayoutProvider so the Sidebar,
+ * Header, and shell layout can all read/toggle the same state.
+ */
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
@@ -12,6 +18,12 @@ interface LayoutContextType {
 
 const LayoutContext = createContext<LayoutContextType | undefined>(undefined);
 
+/**
+ * Provides sidebar state to descendants. On mount, defaults the desktop
+ * sidebar to open only on wide viewports (>1024px) and auto-closes the
+ * mobile overlay sidebar whenever the viewport is resized past the mobile
+ * breakpoint (>768px), so it doesn't stay stuck open after a resize.
+ */
 export function LayoutProvider({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -51,6 +63,7 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Hook for consuming the layout context; throws if called outside a LayoutProvider so misuse fails loudly during development. */
 export function useLayout() {
   const context = useContext(LayoutContext);
   if (context === undefined) {

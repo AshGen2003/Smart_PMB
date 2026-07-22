@@ -1,7 +1,22 @@
+/**
+ * Presentational panel shown on the admin dashboard for users with the
+ * `manage_users` permission. Purely renders the KPI cards, charts, and
+ * tables from data fetched by the parent page
+ * (`(admin)/dashboard/page.tsx`) — it does no fetching of its own.
+ *
+ * Client Component: recharts renders via the browser (ResizeObserver etc.),
+ * so it can't run as a plain Server Component.
+ */
+"use client";
+
+import Link from "next/link";
 import clsx from "clsx";
-import { ShieldCheck, UserCheck, Users } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ArrowRight, ShieldCheck, UserCheck, Users } from "lucide-react";
+import OnlineRolesPanel from "./OnlineRolesPanel";
 import styles from "./Dashboard.module.css";
 
+/** Shape of the payload returned by `GET /api/admin/overview/`. */
 type AdminOverviewData = {
   total_users: number;
   active_users: number;
@@ -17,7 +32,37 @@ type AdminOverviewData = {
   }[];
 };
 
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: "var(--card-bg)",
+    borderColor: "var(--card-border)",
+    borderRadius: "8px",
+  },
+  labelStyle: { color: "var(--foreground)" },
+  itemStyle: { color: "var(--foreground)" },
+};
+
+// One fixed color per role slot, shared between the bar chart, the "Users
+// by Role" table bullet, and the "Recent Accounts" table bullet (the
+// latter looked up by role name) so a role's bar and any table row
+// belonging to it are identifiable at a glance.
+const ROLE_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-neutral)",
+];
+
+/** Renders KPI cards, role-breakdown charts, and role-breakdown/recent-accounts tables. */
 export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }) {
+  // Looks up a role's fixed color by name, for the table bullets below.
+  const roleColorOf = (roleName: string) => {
+    const index = data.role_breakdown.findIndex((r) => r.name === roleName);
+    return ROLE_COLORS[(index < 0 ? 0 : index) % ROLE_COLORS.length];
+  };
+
   return (
     <div className={styles.dashboard}>
       <div className={styles.header}>
@@ -51,6 +96,32 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
         </div>
       </div>
 
+      <div className={styles.chartsGrid}>
+        <Link href="/roles" className={clsx(styles.chartCard, styles.chartCardLink)}>
+          <h3 className={styles.chartTitle}>
+            Users by Role
+            <ArrowRight size={14} className={styles.chartLinkIcon} />
+          </h3>
+          <div className={styles.chartContainer}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.role_breakdown} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--card-border)" />
+                <XAxis dataKey="name" stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip {...TOOLTIP_STYLE} />
+                <Bar dataKey="user_count" name="Users" radius={[4, 4, 0, 0]}>
+                  {data.role_breakdown.map((r, index) => (
+                    <Cell key={r.slug} fill={ROLE_COLORS[index % ROLE_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Link>
+
+        <OnlineRolesPanel />
+      </div>
+
       <div className={styles.tablesGrid}>
         <div className={styles.tableCard}>
           <div className={styles.tableHeader}>
@@ -65,9 +136,18 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
               </tr>
             </thead>
             <tbody>
-              {data.role_breakdown.map((r) => (
+              {data.role_breakdown.map((r, i) => (
                 <tr key={r.slug}>
-                  <td>{r.name}</td>
+                  <td>
+                    <div className={styles.userNameRow}>
+                      <span
+                        className={styles.userColorDot}
+                        style={{ backgroundColor: ROLE_COLORS[i % ROLE_COLORS.length] }}
+                        aria-hidden
+                      />
+                      {r.name}
+                    </div>
+                  </td>
                   <td>{r.user_count}</td>
                 </tr>
               ))}
@@ -92,9 +172,18 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
               {data.recent_users.map((u) => (
                 <tr key={u.id}>
                   <td>
-                    <div>{u.full_name || u.email}</div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                      {u.email}
+                    <div className={styles.userNameRow}>
+                      <span
+                        className={styles.userColorDot}
+                        style={{ backgroundColor: roleColorOf(u.role_name) }}
+                        aria-hidden
+                      />
+                      <div>
+                        <div>{u.full_name || u.email}</div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                          {u.email}
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td>{u.role_name}</td>

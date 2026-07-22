@@ -1,7 +1,13 @@
+/**
+ * `/profile` — the logged-in admin/officer's own profile page. Available to
+ * any authenticated non-farmer user (no specific permission required
+ * beyond being logged in).
+ */
 import { requireUser } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import { ProfileView } from "@/app/components/ProfileView";
 
+/** Server Component: loads the current user's session info and extended profile fields, then renders the shared ProfileView component. */
 export default async function AdminProfilePage() {
   const user = await requireUser();
 

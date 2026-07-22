@@ -12,8 +12,40 @@
   justify-content: space-between;
   padding: 3rem;
   overflow: hidden;
-  background: linear-gradient(175deg, var(--primary) 0%, #142c0b 100%);
+  /* Layered "mesh gradient": a soft sheen top-left and a warm accent glow
+     bottom-right on top of the base brand gradient, so the panel reads as
+     a designed backdrop rather than a flat color fill — all still driven
+     by theme tokens, so it adapts correctly in light/dark. */
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.18), transparent 42%),
+    radial-gradient(circle at 88% 85%, var(--accent) 0%, transparent 48%),
+    linear-gradient(160deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: #ffffff;
+}
+
+.brandPanel::before,
+.brandPanel::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(2px);
+}
+
+.brandPanel::before {
+  width: 240px;
+  height: 240px;
+  top: -80px;
+  right: -60px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.brandPanel::after {
+  width: 320px;
+  height: 320px;
+  bottom: -140px;
+  left: -80px;
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .brandTop {
@@ -97,11 +129,14 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent);
+  color: #ffffff;
 }
 
 .brandFooter {
@@ -118,6 +153,10 @@
   justify-content: center;
   padding: 2rem 1.5rem;
   position: relative;
+  /* Same ambient gradient wash used behind the glass cards on the
+     dashboard/system pages, so the form side doesn't read as a flat,
+     disconnected panel next to the branded gradient side. */
+  background: var(--gradient-page);
 }
 
 .themeToggle {

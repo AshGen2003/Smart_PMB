@@ -1,3 +1,9 @@
+/**
+ * Client Component for the roles page: a searchable card grid of roles
+ * with their assigned permissions, plus create/edit/delete via a modal
+ * form and Server Actions. A role can only be deleted if it's not a
+ * built-in system role and has no users currently assigned to it.
+ */
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
@@ -16,6 +22,7 @@ import { deleteRole } from "@/app/actions/roles";
 import RoleFormModal, { type EditableRole, type PermissionOption } from "./RoleFormModal";
 import styles from "./Roles.module.css";
 
+/** Shape of a role row as returned by `GET /api/admin/roles/`. */
 export type RoleRow = {
   id: number;
   name: string;
@@ -26,9 +33,12 @@ export type RoleRow = {
   user_count: number;
 };
 
+// Cycle a few tint classes and decorative icons across the role cards for
+// visual variety; system roles always get the shield icon.
 const TINTS = [styles.tintGreen, styles.tintGold, styles.tintBlue, styles.tintNeutral];
 const DECORATIVE_ICONS = [Briefcase, UserCog, Eye];
 
+/** Renders the search bar and the role card grid; owns the create/edit modal and delete-confirmation flow. */
 export default function RolesManager({
   roles,
   permissions,
@@ -49,6 +59,8 @@ export default function RolesManager({
     return roles.filter((r) => r.name.toLowerCase().includes(q));
   }, [roles, query]);
 
+  // Permission codenames (e.g. "manage_users") are stored on the role;
+  // look up the human-readable label from the master permissions list.
   const labelFor = (codename: string) =>
     permissions.find((p) => p.codename === codename)?.label ?? codename;
 
@@ -98,6 +110,8 @@ export default function RolesManager({
         {filtered.length > 0 ? (
           <div className={styles.grid}>
             {filtered.map((r, i) => {
+              // System roles (e.g. built-in Admin) can never be deleted; other
+              // roles can only be deleted once no users are assigned to them.
               const canDelete = !r.is_system && r.user_count === 0;
               const tint = TINTS[i % TINTS.length];
               const Icon = r.is_system

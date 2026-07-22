@@ -62,8 +62,6 @@ create table public.farmers (
     province_id         int             references public.provinces(province_id),
     land_size           decimal(10,2),
     contact_number      varchar(20),
-    bank_account        varchar(50),
-    bank_name           varchar(100),
     registered_date     date            not null default current_date,
     status              farmer_status   not null default 'active'
 );

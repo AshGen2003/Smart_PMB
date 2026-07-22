@@ -1,3 +1,9 @@
+/**
+ * Top-level shell for every page under `app/farmer/`: farmer sidebar +
+ * header, with `children` rendered as the page content. Mounted once by
+ * `farmer/layout.tsx`. This is the farmer-portal counterpart to
+ * AdminShell — note it has no IdleGuard or maintenance banner.
+ */
 "use client";
 
 import React from "react";
@@ -13,6 +19,7 @@ interface FarmerShellProps {
   profilePictureUrl?: string | null;
 }
 
+/** Reads sidebar open/collapsed state from LayoutProvider and arranges the farmer sidebar, header, and page content. */
 function LayoutWrapper({ children, userName, profilePictureUrl }: FarmerShellProps) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
@@ -43,6 +50,7 @@ function LayoutWrapper({ children, userName, profilePictureUrl }: FarmerShellPro
   );
 }
 
+/** Wraps LayoutWrapper in a LayoutProvider so sidebar open/collapsed state is available via context. */
 export default function FarmerShell({
   children,
   userName,

@@ -1,11 +1,36 @@
-import { FileDown } from "lucide-react";
+/**
+ * Presentational panel shown to admins (`manage_users` permission) on the
+ * reports page: a governance-focused summary (users/roles, security
+ * activity, audit log, backups) plus a link to download the same report as
+ * a PDF via the /api/reports/admin-pdf route handler.
+ *
+ * Client Component: recharts renders via the browser (ResizeObserver etc.),
+ * so it can't run as a plain Server Component.
+ */
+"use client";
+
+import Link from "next/link";
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ArrowRight, FileDown } from "lucide-react";
 import styles from "./Reports.module.css";
 
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: "var(--card-bg)",
+    borderColor: "var(--card-border)",
+    borderRadius: "8px",
+  },
+  labelStyle: { color: "var(--foreground)" },
+  itemStyle: { color: "var(--foreground)" },
+};
+
+/** Shape of the payload returned by `GET /api/admin/reports/admin-summary/`. */
 export type AdminReportData = {
   generated_at: string;
   users: { total: number; active: number };
   roles: { name: string; user_count: number; permission_count: number }[];
   security: { login_success: number; login_failed: number; account_locked: number };
+  login_activity_trend: { date: string; success: number; failed: number }[];
   recent_audit: {
     created_at: string;
     actor: string;
@@ -27,6 +52,7 @@ export type AdminReportData = {
   };
 };
 
+/** Formats an ISO date string for display, e.g. "Jul 16, 2026, 3:45 PM". */
 function fmt(dateStr: string) {
   return new Date(dateStr).toLocaleString("en-US", {
     year: "numeric",
@@ -37,11 +63,14 @@ function fmt(dateStr: string) {
   });
 }
 
+/** Renders the users/roles, security, audit log, login activity, and backups sections. */
 export default function AdminReportPanel({ data }: { data: AdminReportData }) {
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>Admin Report</h1>
+        {/* Route Handler proxies this to the Django backend and streams back a PDF,
+            since httpOnly auth cookies aren't readable by client-side fetch. */}
         <a href="/api/reports/admin-pdf" className={styles.pdfBtn}>
           <FileDown size={16} /> Download PDF
         </a>
@@ -66,6 +95,29 @@ export default function AdminReportPanel({ data }: { data: AdminReportData }) {
               <span className={styles.kpiLabel}>Roles</span>
             </div>
           </div>
+
+          <Link
+            href="/roles"
+            className={styles.inlineChartLink}
+            style={{ marginTop: "1.25rem" }}
+          >
+            <span className={styles.inlineChartLinkLabel}>
+              Users &amp; permissions by role
+              <ArrowRight size={14} className={styles.chartLinkIcon} />
+            </span>
+            <div className={styles.chartContainer}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.roles} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--card-border)" />
+                  <XAxis dataKey="name" stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip {...TOOLTIP_STYLE} />
+                  <Bar dataKey="user_count" name="Users" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="permission_count" name="Permissions" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Link>
 
           <div className={styles.tableWrap} style={{ marginTop: "1.25rem" }}>
             <table className={styles.table}>
@@ -106,6 +158,19 @@ export default function AdminReportPanel({ data }: { data: AdminReportData }) {
               <span className={styles.kpiValue}>{data.security.account_locked}</span>
               <span className={styles.kpiLabel}>Accounts locked</span>
             </div>
+          </div>
+
+          <div className={styles.chartContainer} style={{ marginTop: "1.25rem" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data.login_activity_trend} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--card-border)" />
+                <XAxis dataKey="date" stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip {...TOOLTIP_STYLE} />
+                <Line type="monotone" dataKey="success" name="Successful logins" stroke="var(--chart-1)" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="failed" name="Failed logins" stroke="var(--chart-4)" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
 

@@ -1,3 +1,9 @@
+/**
+ * Modal dialog with the create/edit form for a user account. Submits via a
+ * Server Action (createUser/updateUser) using useActionState. In edit
+ * mode, the password field is optional — leaving it blank keeps the
+ * user's current password.
+ */
 "use client";
 
 import React, { useActionState, useEffect, useRef } from "react";
@@ -13,6 +19,7 @@ export type RoleOption = {
   slug: string;
 };
 
+/** Subset of user fields needed to pre-fill the form when editing. */
 export type EditableUser = {
   id: string;
   email: string;
@@ -23,6 +30,11 @@ export type EditableUser = {
 
 const initialState: UserFormState = {};
 
+/**
+ * Renders the user form inside a modal overlay. Picks createUser or
+ * updateUser (with the id bound in) based on `mode`, and closes itself
+ * once the save succeeds.
+ */
 export default function UserFormModal({
   mode,
   user,
@@ -38,6 +50,7 @@ export default function UserFormModal({
   const [state, formAction, pending] = useActionState(action, initialState);
   const wasSubmitting = useRef(false);
 
+  // Auto-close the modal once a pending submission resolves without error.
   useEffect(() => {
     if (pending) wasSubmitting.current = true;
     if (!pending && wasSubmitting.current && !state.error) {

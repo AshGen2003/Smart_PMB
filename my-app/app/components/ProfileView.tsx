@@ -1,7 +1,15 @@
+/**
+ * Shared "My Profile" view used by both the admin profile page
+ * (`(admin)/profile/page.tsx`) and the farmer profile page
+ * (`farmer/profile/page.tsx`): avatar uploader, identity card, and either
+ * a farmer-specific details panel or a permissions list, followed by the
+ * account settings form.
+ */
 import { AccountSettingsForm } from "./SettingsSections";
 import { ProfilePictureUploader } from "./ProfilePictureUploader";
 import styles from "./ProfileView.module.css";
 
+/** Farmer-only fields (registration number, land size, location) shown instead of a permissions list when present. */
 export type FarmerProfileDetails = {
   registration_no: string;
   land_size: string | null;
@@ -10,6 +18,7 @@ export type FarmerProfileDetails = {
   province: string | null;
 };
 
+/** Converts a permission codename like "manage_users" into a display label like "Manage Users". */
 function formatPermission(codename: string) {
   return codename
     .split("_")
@@ -17,6 +26,13 @@ function formatPermission(codename: string) {
     .join(" ");
 }
 
+/**
+ * Renders the profile page. When `farmerDetails` is provided (farmer
+ * users), shows a farmer-details card instead of the permissions list that
+ * admin/officer users see — the two are mutually exclusive since only
+ * farmers have farmerDetails and only admin/officer roles carry meaningful
+ * permissions.
+ */
 export function ProfileView({
   fullName,
   email,

@@ -1,3 +1,10 @@
+/**
+ * Client Component for the user management table: search/filter by role,
+ * create/edit users via a modal, and per-row actions (unlock account,
+ * force logout, delete). The unlock/force-logout actions are only shown to
+ * users with `manage_system` (see `canManageSystem`), since they affect
+ * another account's active sessions.
+ */
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
@@ -8,6 +15,7 @@ import { deleteUser, forceLogoutUser, unlockUser } from "@/app/actions/users";
 import UserFormModal, { type EditableUser, type RoleOption } from "./UserFormModal";
 import styles from "./Users.module.css";
 
+/** Shape of a user row as returned by `GET /api/admin/users/`. */
 export type AdminUserRow = {
   id: string;
   email: string;
@@ -19,6 +27,11 @@ export type AdminUserRow = {
   is_locked: boolean;
 };
 
+/**
+ * Renders the searchable/filterable user table plus the create/edit modal.
+ * `currentUserId` is used to prevent a user from deleting/force-logging-out
+ * themself; `canManageSystem` gates the unlock/force-logout controls.
+ */
 export default function UsersManager({
   users,
   roles,
@@ -39,6 +52,8 @@ export default function UsersManager({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // Client-side filter combining the role dropdown and free-text search
+  // (name, email, or NIC) — both must match for a row to be shown.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return users.filter((u) => {
@@ -189,6 +204,7 @@ export default function UsersManager({
                           <Unlock size={16} />
                         </button>
                       )}
+                      {/* Can't force-logout your own account from this screen. */}
                       {canManageSystem && u.id !== currentUserId && (
                         <button
                           type="button"

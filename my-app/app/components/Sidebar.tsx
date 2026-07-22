@@ -1,3 +1,11 @@
+/**
+ * Collapsible left navigation for the admin/officer shell. Each nav item
+ * can declare a required `permission` (single codename) or `permissions`
+ * (any-of list); items with neither are shown to everyone. This is purely
+ * a UI convenience — the actual access control happens server-side via
+ * requirePermission()/requireAnyPermission() on each page, so hiding a
+ * link here doesn't by itself protect the route.
+ */
 "use client";
 
 import React from "react";
@@ -23,6 +31,11 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+// Full set of possible sidebar links. `permission` gates a link behind a
+// single codename; `permissions` gates it behind any one of several
+// codenames (e.g. Approvals is visible to either monitor_operations or
+// record_purchases holders). No permission field = visible to all admin/
+// officer roles (e.g. Dashboard, Settings).
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Users", href: "/residents", icon: Users, permission: "manage_users" },
@@ -52,10 +65,12 @@ const NAV_ITEMS = [
   { label: "Settings", href: "/settings", icon: Settings },
 ] as const;
 
+/** Renders the logo, collapse toggle, and the nav links visible to the current user's permission set, highlighting the active route. */
 export default function Sidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
 
+  // Filter the full nav list down to what this user's permissions allow.
   const items = NAV_ITEMS.filter((item) => {
     if ("permissions" in item) return item.permissions.some((p) => permissions.includes(p));
     if ("permission" in item) return permissions.includes(item.permission);

@@ -1,3 +1,8 @@
+/**
+ * Client Component driving the approvals table: tab-filters harvests by
+ * status, and (when `canWrite` is true) lets the user create/edit harvest
+ * records and run the approve/reject/collect/delete Server Actions.
+ */
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
@@ -25,6 +30,7 @@ import HarvestFormModal, {
 } from "./HarvestFormModal";
 import styles from "./Approvals.module.css";
 
+/** Shape of a harvest record as returned by `GET /api/admin/harvests/`. */
 export type HarvestRow = {
   id: number;
   farmer: number;
@@ -50,6 +56,13 @@ const TABS: { key: HarvestRow["status"]; label: string }[] = [
   { key: "rejected", label: "Rejected" },
 ];
 
+/**
+ * Renders the status-tabbed harvest table (pending/verified/collected/
+ * rejected) with per-row action buttons. `harvests`, `farmers`,
+ * `paddyTypes`, and `warehouses` are pre-fetched server-side by the parent
+ * page. `canWrite` controls whether create/edit/approve/reject/delete
+ * controls are rendered at all.
+ */
 export default function ApprovalsManager({
   harvests,
   farmers,
@@ -68,6 +81,9 @@ export default function ApprovalsManager({
     { mode: "create" } | { mode: "edit"; harvest: EditableHarvest } | null
   >(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // useTransition marks the Server Action calls below as non-urgent so the
+  // UI (tab switching etc.) stays responsive while an action is in flight;
+  // isPending drives the disabled state on action buttons.
   const [isPending, startTransition] = useTransition();
 
   const filtered = useMemo(
@@ -75,12 +91,16 @@ export default function ApprovalsManager({
     [harvests, tab]
   );
 
+  // Count of harvests per status, used for the badge next to each tab.
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
     for (const h of harvests) map[h.status] = (map[h.status] ?? 0) + 1;
     return map;
   }, [harvests]);
 
+  // Shared wrapper for the approve/reject/collect/delete Server Actions:
+  // clears any previous error, runs the action inside a transition, and
+  // surfaces a returned error message if the action failed.
   function runAction(fn: () => Promise<{ error?: string }>) {
     setActionError(null);
     startTransition(async () => {

@@ -68,7 +68,7 @@
   padding: 0.6rem 1.1rem;
   border: none;
   border-radius: 8px;
-  background-color: var(--primary);
+  background: var(--gradient-brand);
   color: var(--primary-foreground);
   font-size: 0.9rem;
   font-weight: 600;
@@ -311,7 +311,7 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 1.25rem 1.5rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #142c0b 100%);
+  background: var(--gradient-brand);
   border-radius: 14px 14px 0 0;
 }
 
@@ -446,7 +446,7 @@
   padding: 0.6rem 1.2rem;
   border: none;
   border-radius: 8px;
-  background-color: var(--primary);
+  background: var(--gradient-brand);
   color: var(--primary-foreground);
   font-size: 0.9rem;
   font-weight: 600;

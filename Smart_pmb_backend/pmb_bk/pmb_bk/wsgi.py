@@ -13,4 +13,6 @@ from django.core.wsgi import get_wsgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'pmb_bk.settings')
 
+# Entry point used by WSGI servers (e.g. gunicorn) to run this Django/DRF
+# API in production; referenced by WSGI_APPLICATION in settings.py.
 application = get_wsgi_application()
