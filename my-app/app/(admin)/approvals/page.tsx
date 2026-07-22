@@ -5,6 +5,12 @@
  */
 import { requireAnyPermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
+import {
+  PREVIEW_HARVESTS,
+  PREVIEW_FARMER_OPTIONS,
+  PREVIEW_PADDY_TYPE_OPTIONS,
+  PREVIEW_WAREHOUSE_OPTIONS,
+} from "@/app/lib/previewSampleData";
 import ApprovalsManager, { type HarvestRow } from "./ApprovalsManager";
 import type { FarmerOption, PaddyTypeOption, WarehouseOption } from "./HarvestFormModal";
 
@@ -17,8 +23,23 @@ export default async function ApprovalsPage() {
   // Redirects to an unauthorized page if the user has neither permission.
   const user = await requireAnyPermission("monitor_operations", "record_purchases");
   // Only record_purchases holders get write access (approve/reject/edit/delete);
-  // monitor_operations-only users get a read-only view.
-  const canWrite = user.permissions.includes("record_purchases");
+  // monitor_operations-only users get a read-only view. Portal Preview is
+  // always read-only too, regardless of what the previewed role could
+  // normally do — see components/PreviewBanner.tsx.
+  const canWrite = user.permissions.includes("record_purchases") && !user.previewing;
+
+  // Preview shows fake harvest/farmer data only — never real records.
+  if (user.previewing) {
+    return (
+      <ApprovalsManager
+        harvests={PREVIEW_HARVESTS}
+        farmers={PREVIEW_FARMER_OPTIONS}
+        paddyTypes={PREVIEW_PADDY_TYPE_OPTIONS}
+        warehouses={PREVIEW_WAREHOUSE_OPTIONS}
+        canWrite={false}
+      />
+    );
+  }
 
   const [harvestsRes, farmersRes, paddyTypesRes, warehousesRes] = await Promise.all([
     apiFetch("/api/admin/harvests/"),

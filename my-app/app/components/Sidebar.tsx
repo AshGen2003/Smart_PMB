@@ -18,8 +18,6 @@ import clsx from "clsx";
 import {
   LayoutDashboard,
   Users,
-  Building2,
-  CreditCard,
   Wrench,
   BarChart3,
   Settings,
@@ -27,6 +25,8 @@ import {
   Warehouse,
   Coins,
   ClipboardCheck,
+  Eye,
+  MessageSquare,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -39,8 +39,6 @@ import {
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Users", href: "/residents", icon: Users, permission: "manage_users" },
-  { label: "Properties", href: "/properties", icon: Building2 },
-  { label: "Payments", href: "/payments", icon: CreditCard },
   {
     label: "Maintenance",
     href: "/maintenance",
@@ -62,6 +60,8 @@ const NAV_ITEMS = [
   },
   { label: "Reports", href: "/reports", icon: BarChart3, permission: "generate_reports" },
   { label: "Roles", href: "/roles", icon: ShieldCheck, permission: "manage_roles" },
+  { label: "Preview Portal", href: "/preview", icon: Eye, permission: "manage_roles" },
+  { label: "Messages", href: "/messages", icon: MessageSquare },
   { label: "Settings", href: "/settings", icon: Settings },
 ] as const;
 

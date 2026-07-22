@@ -11,6 +11,7 @@ import { LayoutProvider, useLayout } from "./LayoutProvider";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import IdleGuard from "./IdleGuard";
+import PreviewBanner from "./PreviewBanner";
 import styles from "./DashboardShell.module.css";
 import clsx from "clsx";
 
@@ -22,6 +23,7 @@ interface AdminShellProps {
   profilePictureUrl?: string | null;
   idleMinutes?: number;
   maintenanceMode?: boolean;
+  previewing?: { slug: string; name: string };
 }
 
 /**
@@ -38,12 +40,15 @@ function LayoutWrapper({
   profilePictureUrl,
   idleMinutes,
   maintenanceMode,
+  previewing,
 }: AdminShellProps) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
   return (
     <div className={styles.layout}>
-      <IdleGuard idleMinutes={idleMinutes} />
+      {/* Skip the idle-logout watchdog while previewing — it's the real
+          admin's own long-lived session underneath, not a separate login. */}
+      {!previewing && <IdleGuard idleMinutes={idleMinutes} />}
       <div
         className={clsx(
           styles.sidebarArea,
@@ -54,11 +59,13 @@ function LayoutWrapper({
         <Sidebar permissions={permissions} />
       </div>
       <div className={styles.mainWrapper}>
+        {previewing && <PreviewBanner roleName={previewing.name} />}
         <div className={styles.headerArea}>
           <Header
             userName={userName}
             roleLabel={roleLabel}
             profilePictureUrl={profilePictureUrl}
+            previewing={!!previewing}
           />
         </div>
         {maintenanceMode && (
@@ -86,6 +93,7 @@ export default function AdminShell({
   profilePictureUrl,
   idleMinutes,
   maintenanceMode,
+  previewing,
 }: AdminShellProps) {
   return (
     <LayoutProvider>
@@ -96,6 +104,7 @@ export default function AdminShell({
         profilePictureUrl={profilePictureUrl}
         idleMinutes={idleMinutes}
         maintenanceMode={maintenanceMode}
+        previewing={previewing}
       >
         {children}
       </LayoutWrapper>

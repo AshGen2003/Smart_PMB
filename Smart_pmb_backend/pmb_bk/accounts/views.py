@@ -5,10 +5,12 @@
 # plain DRF APIViews/ViewSets guarded by the custom permission classes in
 # accounts/permissions.py.
 from django.core import signing
-from django.db.models import Count
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import status, viewsets
+from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -20,12 +22,15 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from sysops.utils import log_audit, log_auth
 
 from .emails import send_confirmation_email
-from .models import ONLINE_WINDOW, Permission, Role, User
+from .models import ONLINE_WINDOW, Message, Permission, Role, User
 from .permissions import HasPermission, RoleAccessPermission
 from .serializers import (
     AdminUserSerializer,
     AdminUserWriteSerializer,
     CustomTokenObtainPairSerializer,
+    MessageCreateSerializer,
+    MessageRecipientSerializer,
+    MessageSerializer,
     PermissionSerializer,
     RegisterFarmerSerializer,
     RoleSerializer,
@@ -376,3 +381,101 @@ class OnlineRolesView(APIView):
                 ],
             }
         )
+
+
+# Messages relevant to a given user: their own direct messages, plus —
+# for staff (non-farmer) accounts — every unaddressed "request to admin"
+# (recipient=None), since those aren't meant for one specific staff member.
+# Shared by MessageInboxView and MessageMarkReadView so the two can't drift.
+def _visible_messages(user):
+    qs = Message.objects.select_related("sender", "sender__role", "recipient")
+    if user.role.slug == "farmer":
+        return qs.filter(recipient=user)
+    return qs.filter(Q(recipient=user) | Q(recipient__isnull=True))
+
+
+class MessageInboxView(generics.ListAPIView):
+    """
+    GET /api/messages/inbox/ — messages for the notification bell. Capped
+    to the most recent 50 so a long-lived shared admin inbox can't blow up
+    the payload. For a full, paginated history see MessageHistoryView.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = MessageSerializer
+
+    def get_queryset(self):
+        return _visible_messages(self.request.user)[:50]
+
+
+class MessageHistoryPagination(PageNumberPagination):
+    page_size = 20
+
+
+class MessageHistoryView(generics.ListAPIView):
+    """
+    GET /api/messages/history/ — full, paginated message history behind
+    the notification bell's "View all" link. Same visibility rules as the
+    inbox (see `_visible_messages`) but without the 50-item cap, and with
+    an optional `?unread=1` filter for the history page's "Unread only" tab.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = MessageSerializer
+    pagination_class = MessageHistoryPagination
+
+    def get_queryset(self):
+        qs = _visible_messages(self.request.user)
+        if self.request.query_params.get("unread") == "1":
+            qs = qs.filter(is_read=False)
+        return qs
+
+
+class MessageCreateView(generics.CreateAPIView):
+    """
+    POST /api/messages/ — send a message. `sender` is always the
+    authenticated user; `recipient` is either a specific user (staff only)
+    or null (a request to the admin/officer team, allowed for anyone).
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = MessageCreateSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(sender=self.request.user)
+
+
+class MessageMarkReadView(APIView):
+    """
+    POST /api/messages/<pk>/read/ — marks a message read. Scoped through
+    `_visible_messages` so a user can only mark messages they're actually
+    allowed to see; a shared (recipient=null) request-to-admin message is
+    marked read for everyone once any staff member has seen it.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        message = get_object_or_404(_visible_messages(request.user), pk=pk)
+        message.is_read = True
+        message.save(update_fields=["is_read"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MessageRecipientsView(generics.ListAPIView):
+    """
+    GET /api/messages/recipients/ — user picker for composing a direct
+    message. Open to any staff (non-farmer) account rather than gated on
+    manage_users, since PMB Officers need to message farmers too; farmers
+    get an empty list since they can only message the admin team, not a
+    specific user (see MessageCreateSerializer).
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = MessageRecipientSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role.slug == "farmer":
+            return User.objects.none()
+        return User.objects.exclude(id=user.id).select_related("role").order_by("full_name")

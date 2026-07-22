@@ -28,6 +28,7 @@ export default async function FarmerLayout({
     <FarmerShell
       userName={user.fullName ?? user.email}
       profilePictureUrl={me?.profile_picture ?? null}
+      previewing={user.previewing}
     >
       {children}
     </FarmerShell>

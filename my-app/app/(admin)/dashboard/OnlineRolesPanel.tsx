@@ -32,8 +32,23 @@ const ROLE_COLORS = [
 const POLL_INTERVAL_MS = 10_000;
 
 /** Renders the live online-user-by-role card, polling for fresh counts every POLL_INTERVAL_MS. */
-export default function OnlineRolesPanel() {
+export default function OnlineRolesPanel({
+  roleOrder,
+}: {
+  // The same role list (in the same order) that the "Users by Role"
+  // bar chart/table use to assign colors, so a role's color here matches
+  // its color everywhere else on the dashboard — the online endpoint's own
+  // response is sorted by online-count instead, which would otherwise give
+  // the same role a different color depending on how many of its users
+  // happen to be online right now.
+  roleOrder: { name: string; slug: string }[];
+}) {
   const [data, setData] = useState<OnlineRolesData | null>(null);
+
+  const colorForSlug = (slug: string) => {
+    const index = roleOrder.findIndex((r) => r.slug === slug);
+    return ROLE_COLORS[(index < 0 ? 0 : index) % ROLE_COLORS.length];
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -73,11 +88,11 @@ export default function OnlineRolesPanel() {
 
       <div className={styles.onlineRoleList}>
         {data && data.roles.length > 0 ? (
-          data.roles.map((r, i) => (
+          data.roles.map((r) => (
             <div key={r.slug} className={styles.onlineRoleRow}>
               <span
                 className={styles.userColorDot}
-                style={{ backgroundColor: ROLE_COLORS[i % ROLE_COLORS.length] }}
+                style={{ backgroundColor: colorForSlug(r.slug) }}
                 aria-hidden
               />
               <span className={styles.onlineRoleName}>{r.name}</span>

@@ -8,6 +8,7 @@
  */
 import { requireUser } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
+import { PREVIEW_OFFICER_DASHBOARD } from "@/app/lib/previewSampleData";
 import AdminOverviewPanel from "./AdminOverviewPanel";
 import GenericDashboard from "./GenericDashboard";
 import OfficerDashboardPanel from "./OfficerDashboardPanel";
@@ -29,6 +30,17 @@ export default async function DashboardPage() {
   // without hitting the admin/officer-only endpoints.
   if (!showOfficerPanel && !showAdminPanel) {
     return <GenericDashboard />;
+  }
+
+  // Preview never fetches real data — see previewSampleData.ts. Portal
+  // Preview never offers the Admin role itself (the admin is the one doing
+  // the previewing), so only the officer sample dashboard is needed here.
+  if (user.previewing) {
+    return showOfficerPanel ? (
+      <OfficerDashboardPanel data={PREVIEW_OFFICER_DASHBOARD} />
+    ) : (
+      <GenericDashboard />
+    );
   }
 
   // Only fetch the endpoint(s) relevant to this user's role; run them in

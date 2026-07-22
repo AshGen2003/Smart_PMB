@@ -149,7 +149,13 @@ class FarmerListView(generics.ListAPIView):
 
 
 class WarehouseViewSet(viewsets.ModelViewSet):
-    """Admin CRUD over Warehouse records, requires "manage_warehouses"."""
+    """
+    Admin CRUD over Warehouse records. Requires "manage_warehouses" for
+    every action, including list/retrieve — Portal Preview never calls this
+    endpoint (it renders fake sample data client-side instead, see the
+    frontend's previewSampleData.ts), so no permission needs loosening here
+    just to support it.
+    """
 
     permission_classes = [HasPermission("manage_warehouses")]
     queryset = Warehouse.objects.select_related("district", "province").order_by("name")

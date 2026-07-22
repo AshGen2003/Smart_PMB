@@ -53,6 +53,7 @@ export default async function AdminLayout({
       profilePictureUrl={me?.profile_picture ?? null}
       idleMinutes={config?.idle_logout_minutes}
       maintenanceMode={config?.maintenance_mode ?? false}
+      previewing={user.previewing}
     >
       {children}
     </AdminShell>

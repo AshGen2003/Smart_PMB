@@ -50,9 +50,13 @@ const STATUS_TINT: Record<WarehouseRow["status"], string> = {
 export default function WarehousesManager({
   warehouses,
   districts,
+  canWrite = true,
 }: {
   warehouses: WarehouseRow[];
   districts: DistrictOption[];
+  // False for viewers who can only see warehouses (Portal Preview, or a
+  // future read-only role) — hides the create/edit/delete affordances.
+  canWrite?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState<
@@ -99,13 +103,15 @@ export default function WarehousesManager({
             />
           </div>
 
-          <button
-            type="button"
-            className={styles.newBtn}
-            onClick={() => setModal({ mode: "create" })}
-          >
-            <Plus size={16} /> New warehouse
-          </button>
+          {canWrite && (
+            <button
+              type="button"
+              className={styles.newBtn}
+              onClick={() => setModal({ mode: "create" })}
+            >
+              <Plus size={16} /> New warehouse
+            </button>
+          )}
         </div>
       </div>
 
@@ -154,39 +160,41 @@ export default function WarehousesManager({
                     </p>
                   )}
 
-                  <div className={styles.cardActions}>
-                    <button
-                      type="button"
-                      className={styles.editBtn}
-                      onClick={() =>
-                        setModal({
-                          mode: "edit",
-                          warehouse: {
-                            id: w.id,
-                            name: w.name,
-                            code: w.code,
-                            capacity: w.capacity,
-                            status: w.status,
-                            contact_number: w.contact_number,
-                            established_date: w.established_date,
-                            district: w.district,
-                            location: w.location,
-                          },
-                        })
-                      }
-                    >
-                      <Pencil size={14} /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.deleteIconBtn}
-                      aria-label="Delete warehouse"
-                      disabled={isPending}
-                      onClick={() => handleDelete(w)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                  {canWrite && (
+                    <div className={styles.cardActions}>
+                      <button
+                        type="button"
+                        className={styles.editBtn}
+                        onClick={() =>
+                          setModal({
+                            mode: "edit",
+                            warehouse: {
+                              id: w.id,
+                              name: w.name,
+                              code: w.code,
+                              capacity: w.capacity,
+                              status: w.status,
+                              contact_number: w.contact_number,
+                              established_date: w.established_date,
+                              district: w.district,
+                              location: w.location,
+                            },
+                          })
+                        }
+                      >
+                        <Pencil size={14} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.deleteIconBtn}
+                        aria-label="Delete warehouse"
+                        disabled={isPending}
+                        onClick={() => handleDelete(w)}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
