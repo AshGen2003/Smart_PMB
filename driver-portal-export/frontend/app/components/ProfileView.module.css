@@ -1,0 +1,203 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 640px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--foreground);
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0.35rem 0 0;
+}
+
+.identityCard {
+  background: var(--gradient-brand);
+  border-radius: 14px;
+  padding: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.avatarUploadForm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.avatarButton {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatarButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.avatarOverlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.avatarButton:hover .avatarOverlay,
+.avatarButton:focus-visible .avatarOverlay,
+.avatarButton:disabled .avatarOverlay {
+  opacity: 1;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.avatarError {
+  font-size: 0.75rem;
+  color: #fecaca;
+  margin: 0;
+  max-width: 120px;
+  text-align: center;
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.email {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.75);
+  margin-top: 0.15rem;
+}
+
+.roleBadge {
+  display: inline-block;
+  margin-top: 0.6rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.detailsCard {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+}
+
+.detailsTitle {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 1.1rem;
+  color: var(--foreground);
+}
+
+.detailsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+.detailItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detailLabel {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.detailValue {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.permGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.permBadge {
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background-color: color-mix(in srgb, var(--primary) 12%, var(--card-bg));
+  color: var(--primary-text);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.emptyState {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  margin: 0;
+}
