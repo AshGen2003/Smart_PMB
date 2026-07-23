@@ -1,9 +1,9 @@
 /**
  * Notification bell shown in the navbar (Header.tsx): polls the current
  * user's message inbox, shows an unread-count badge, and lets them
- * compose a new message from the same dropdown — a farmer can only send a
- * "request" to the admin/officer team, while staff (admin/officer) can
- * message any specific user.
+ * compose a new message from the same dropdown — a farmer or driver can
+ * only send a "request" to the admin/officer team, while staff
+ * (admin/officer) can message any specific user.
  *
  * Client Component: polling + a dropdown need `useEffect`/`useState`, so
  * this can't be a Server Component.
@@ -52,10 +52,16 @@ function formatTime(iso: string) {
  * app/api/messages/inbox/route.ts for why preview never calls it.
  */
 export default function NotificationBell({
-  isFarmer,
+  restrictedCompose,
+  messagesHref,
   previewing = false,
 }: {
-  isFarmer: boolean;
+  // True for farmer/driver accounts: compose can only send a request to
+  // the admin team (recipient=null), not pick a specific user.
+  restrictedCompose: boolean;
+  // Where the "View all" link goes — differs per portal (/messages,
+  // /farmer/messages, /driver/messages).
+  messagesHref: string;
   previewing?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -99,7 +105,7 @@ export default function NotificationBell({
   // Lazily load the recipient picker the first time a staff member opens
   // the dropdown, rather than on every page load.
   useEffect(() => {
-    if (previewing || isFarmer || !open || recipients) return;
+    if (previewing || restrictedCompose || !open || recipients) return;
     let cancelled = false;
 
     fetch("/api/messages/recipients", { cache: "no-store" })
@@ -114,7 +120,7 @@ export default function NotificationBell({
     return () => {
       cancelled = true;
     };
-  }, [previewing, isFarmer, open, recipients]);
+  }, [previewing, restrictedCompose, open, recipients]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -137,7 +143,7 @@ export default function NotificationBell({
   async function handleSend() {
     const trimmed = body.trim();
     if (!trimmed) return;
-    if (!isFarmer && !recipientId) {
+    if (!restrictedCompose && !recipientId) {
       setSendError("Choose who to send this to.");
       return;
     }
@@ -150,7 +156,7 @@ export default function NotificationBell({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          recipient: isFarmer ? null : recipientId,
+          recipient: restrictedCompose ? null : recipientId,
           body: trimmed,
         }),
       });
@@ -191,7 +197,7 @@ export default function NotificationBell({
             Messages
             {!previewing && (
               <Link
-                href={isFarmer ? "/farmer/messages" : "/messages"}
+                href={messagesHref}
                 className={styles.viewAllLink}
                 onClick={() => setOpen(false)}
               >
@@ -244,13 +250,13 @@ export default function NotificationBell({
 
               <div className={styles.composeArea}>
                 <p className={styles.composeLabel}>
-                  {isFarmer ? "Send a request to Admin" : "Message a user"}
+                  {restrictedCompose ? "Send a request to Admin" : "Message a user"}
                 </p>
 
                 {sendError && <div className={styles.composeError}>{sendError}</div>}
                 {sendSuccess && <div className={styles.composeSuccess}>Sent.</div>}
 
-                {!isFarmer && (
+                {!restrictedCompose && (
                   <select
                     className={styles.recipientSelect}
                     value={recipientId}
@@ -267,7 +273,7 @@ export default function NotificationBell({
 
                 <textarea
                   className={styles.composeInput}
-                  placeholder={isFarmer ? "Describe what you need help with…" : "Write a message…"}
+                  placeholder={restrictedCompose ? "Describe what you need help with…" : "Write a message…"}
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                   rows={3}

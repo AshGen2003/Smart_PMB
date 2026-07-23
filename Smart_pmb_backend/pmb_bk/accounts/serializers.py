@@ -235,26 +235,50 @@ class RoleMiniSerializer(serializers.ModelSerializer):
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
-    """Read-only representation of a User for the admin user list/detail views, with computed NIC and lock-status fields."""
+    """
+    Read-only representation of a User for the admin user list/detail
+    views — every column on the `accounts_user` table that's meaningful to
+    show an admin, plus a couple of computed convenience fields (nic,
+    phone, is_locked). `password` is deliberately excluded (never
+    serialized out), and `is_staff`/`is_superuser` are Django's own
+    admin-site escape hatches, unrelated to this app's Role/Permission
+    RBAC — omitted so this screen can't be used to grant them.
+    """
 
     role = RoleMiniSerializer(read_only=True)
     nic = serializers.SerializerMethodField()
+    phone_number = serializers.SerializerMethodField()
     is_locked = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
-            "id", "email", "full_name", "nic", "role", "is_active",
-            "date_joined", "is_locked",
+            "id", "email", "full_name", "nic", "phone_number", "role",
+            "is_active", "email_confirmed", "date_joined", "last_login",
+            "last_activity", "is_locked",
         ]
-        read_only_fields = ["id", "date_joined"]
+        read_only_fields = ["id", "date_joined", "last_login", "last_activity"]
 
     def get_nic(self, obj):
-        # NIC lives on the Farmer profile, not the User itself, so pull it
-        # through the reverse relation when one exists (staff/officer
-        # accounts have no farmer_profile).
+        # Farmers' authoritative NIC is captured on the Farmer profile at
+        # registration (User.nic is left blank there); staff/officer
+        # accounts have no farmer_profile at all and only ever get a NIC
+        # via their own Settings page, which writes straight to User.nic.
+        # Prefer the farmer profile's value when there is one, otherwise
+        # fall back to the User's own field.
         farmer = getattr(obj, "farmer_profile", None)
-        return farmer.nic if farmer else None
+        if farmer and farmer.nic:
+            return farmer.nic
+        return obj.nic or None
+
+    def get_phone_number(self, obj):
+        # Same split as nic: a farmer's initial contact number is set on
+        # the Farmer profile at registration, while User.phone_number is
+        # only ever populated via self-service Settings.
+        farmer = getattr(obj, "farmer_profile", None)
+        if farmer and farmer.contact_number:
+            return farmer.contact_number
+        return obj.phone_number or None
 
     def get_is_locked(self, obj):
         return bool(obj.locked_until and obj.locked_until > timezone.now())
@@ -269,7 +293,10 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "full_name", "role", "is_active", "password"]
+        fields = [
+            "id", "email", "full_name", "nic", "phone_number", "role",
+            "is_active", "email_confirmed", "password",
+        ]
         read_only_fields = ["id"]
 
     def validate(self, attrs):
@@ -290,6 +317,18 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", None)
+        # nic/phone_number are read back from the Farmer profile when one
+        # exists (see AdminUserSerializer.get_nic/get_phone_number) — write
+        # through to it here too, or an admin editing a farmer's NIC/phone
+        # from this form would silently appear to do nothing on the list.
+        farmer = getattr(instance, "farmer_profile", None)
+        if farmer:
+            if "nic" in validated_data:
+                farmer.nic = validated_data["nic"] or farmer.nic
+            if "phone_number" in validated_data:
+                farmer.contact_number = validated_data["phone_number"]
+            farmer.save(update_fields=["nic", "contact_number"])
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         if password:
@@ -420,11 +459,12 @@ class MessageCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request = self.context["request"]
-        if attrs.get("recipient") is not None and request.user.role.slug == "farmer":
-            # Farmers can only send a request to the admin/officer team
-            # (recipient=None) — not message a specific user directly.
+        if attrs.get("recipient") is not None and request.user.role.slug in ("farmer", "driver"):
+            # Farmers and drivers can only send a request to the admin/
+            # officer team (recipient=None) — not message a specific user
+            # directly like staff can.
             raise serializers.ValidationError(
-                "Farmers can only send a request to the admin team, not message a specific user."
+                "You can only send a request to the admin team, not message a specific user."
             )
         return attrs
 

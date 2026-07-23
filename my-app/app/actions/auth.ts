@@ -82,9 +82,11 @@ export async function login(
   // Bust the root layout's cached render so the header/nav (which shows
   // login state) reflects the newly authenticated user on next navigation.
   revalidatePath("/", "layout");
-  // Farmers land on their own portal; every other role (admin, PMB
-  // officers, etc.) lands on the shared admin dashboard.
-  redirect(payload?.role === "farmer" ? "/farmer" : "/dashboard");
+  // Farmers and drivers land on their own portal; every other role
+  // (admin, PMB officers, etc.) lands on the shared admin dashboard.
+  const home =
+    payload?.role === "farmer" ? "/farmer" : payload?.role === "driver" ? "/driver" : "/dashboard";
+  redirect(home);
 }
 
 // SignupState mirrors FormState — kept as a separate type since farmer

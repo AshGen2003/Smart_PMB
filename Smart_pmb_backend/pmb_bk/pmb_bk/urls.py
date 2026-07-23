@@ -32,7 +32,20 @@ from accounts.views import (
     PermissionListView,
     RoleViewSet,
 )
-from farmers.views import OfficerHarvestViewSet, PaddyTypeViewSet, WarehouseViewSet
+from farmers.views import (
+    DeliveryViewSet,
+    DriverFuelRecordViewSet,
+    DriverMaintenanceRecordViewSet,
+    DriverOptionsView,
+    FuelRecordViewSet,
+    MaintenanceRecordViewSet,
+    OfficerHarvestViewSet,
+    PaddyTypeViewSet,
+    RouteViewSet,
+    TransportationDashboardView,
+    VehicleViewSet,
+    WarehouseViewSet,
+)
 from sysops.views import (
     AdminReportPdfView,
     AdminReportView,
@@ -56,6 +69,13 @@ router.register('admin/audit-logs', AuditLogViewSet, basename='admin-audit-logs'
 router.register('admin/auth-logs', AuthLogViewSet, basename='admin-auth-logs')
 router.register('admin/alerts', SystemAlertViewSet, basename='admin-alerts')
 router.register('admin/backups', BackupRecordViewSet, basename='admin-backups')
+router.register('admin/vehicles', VehicleViewSet, basename='admin-vehicles')
+router.register('admin/routes', RouteViewSet, basename='admin-routes')
+router.register('admin/deliveries', DeliveryViewSet, basename='admin-deliveries')
+router.register('admin/fuel-records', FuelRecordViewSet, basename='admin-fuel-records')
+router.register('admin/maintenance-records', MaintenanceRecordViewSet, basename='admin-maintenance-records')
+router.register('driver/fuel-records', DriverFuelRecordViewSet, basename='driver-fuel-records')
+router.register('driver/maintenance-records', DriverMaintenanceRecordViewSet, basename='driver-maintenance-records')
 
 urlpatterns = [
     path('admin/', admin.site.urls),  # Django's built-in admin site
@@ -67,6 +87,8 @@ urlpatterns = [
     path('api/admin/system-config/', SystemConfigView.as_view()),
     path('api/admin/reports/admin-summary/', AdminReportView.as_view()),
     path('api/admin/reports/admin-summary/pdf/', AdminReportPdfView.as_view()),
+    path('api/admin/transportation/dashboard/', TransportationDashboardView.as_view()),
+    path('api/admin/drivers/', DriverOptionsView.as_view()),
     path('api/messages/', MessageCreateView.as_view()),
     path('api/messages/inbox/', MessageInboxView.as_view()),
     path('api/messages/history/', MessageHistoryView.as_view()),

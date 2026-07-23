@@ -236,3 +236,83 @@ export const PREVIEW_OFFICER_REPORTS = {
     ],
   },
 };
+
+const PREVIEW_VEHICLES = [
+  { id: 1, registration_no: "WP-DEMO-01", vehicle_type: "lorry" as const, model: "Tata 407", manufacture_year: 2021, size: "14ft", capacity_kg: 8000, status: "active" as const },
+  { id: 2, registration_no: "WP-DEMO-02", vehicle_type: "van" as const, model: "Toyota Hiace", manufacture_year: 2019, size: "6-wheeler", capacity_kg: 2000, status: "active" as const },
+  { id: 3, registration_no: "WP-DEMO-03", vehicle_type: "tractor" as const, model: "Mahindra 275", manufacture_year: 2017, size: "Standard", capacity_kg: 3000, status: "maintenance" as const },
+];
+
+// Drivers are User accounts (role "driver"), not a Transportation-owned
+// model — this mirrors the lightweight {id, name} shape DriverOptionsView
+// returns, just enough to populate the Delivery form's picker.
+const PREVIEW_DRIVERS = [
+  { id: "demo-driver-1", name: "Sample Driver A" },
+  { id: "demo-driver-2", name: "Sample Driver B" },
+];
+
+const PREVIEW_ROUTES = [
+  { id: 1, origin: "Anuradhapura Central Store", destination: "Colombo Rice Mill", distance_km: "205.0", estimated_time: "4h 30m" },
+  { id: 2, origin: "Polonnaruwa Storage Facility", destination: "Kandy Rice Mill", distance_km: "140.5", estimated_time: "3h 10m" },
+];
+
+export const PREVIEW_TRANSPORTATION = {
+  vehicles: PREVIEW_VEHICLES,
+  drivers: PREVIEW_DRIVERS,
+  routes: PREVIEW_ROUTES,
+  warehouses: PREVIEW_WAREHOUSES.map((w) => ({ id: w.id, name: w.name })),
+  deliveries: [
+    {
+      id: 1,
+      vehicle: 1,
+      vehicle_registration: "WP-DEMO-01",
+      driver: "demo-driver-1",
+      driver_name: "Sample Driver A",
+      route: 1,
+      route_label: "Anuradhapura Central Store → Colombo Rice Mill",
+      warehouse: 1,
+      warehouse_name: "Anuradhapura Central Store",
+      approved_by: null,
+      approved_by_name: "Sample data",
+      scheduled_date: "2026-07-20",
+      status: "in_transit" as const,
+      assignment_status: "accepted" as const,
+      latest_location: { latitude: 7.8731, longitude: 80.7718, recorded_at: "2026-07-20T09:00:00Z" },
+    },
+    {
+      id: 2,
+      vehicle: 2,
+      vehicle_registration: "WP-DEMO-02",
+      driver: "demo-driver-2",
+      driver_name: "Sample Driver B",
+      route: 2,
+      route_label: "Polonnaruwa Storage Facility → Kandy Rice Mill",
+      warehouse: 2,
+      warehouse_name: "Polonnaruwa Storage Facility",
+      approved_by: null,
+      approved_by_name: "Sample data",
+      scheduled_date: "2026-07-25",
+      status: "scheduled" as const,
+      assignment_status: "pending" as const,
+      latest_location: null,
+    },
+  ],
+  fuelRecords: [
+    { id: 1, vehicle: 1, vehicle_registration: "WP-DEMO-01", fuel_type: "diesel", quantity_litres: "60.00", cost: "24000.00", fuel_date: "2026-07-18" },
+  ],
+  maintenanceRecords: [
+    { id: 1, vehicle: 3, vehicle_registration: "WP-DEMO-03", service_date: "2026-07-15", description: "Sample data — routine service", cost: "12000.00", next_service_date: "2026-10-15" },
+  ],
+  stats: {
+    vehicles_total: PREVIEW_VEHICLES.length,
+    vehicles_active: PREVIEW_VEHICLES.filter((v) => v.status === "active").length,
+    drivers_total: PREVIEW_DRIVERS.length,
+    // Driver B is the one "in transit" delivery's driver — mirrors the
+    // real dashboard's "not currently on an in-transit delivery" logic.
+    drivers_available: PREVIEW_DRIVERS.length - 1,
+    deliveries_scheduled: 1,
+    deliveries_in_transit: 1,
+    fuel_cost_total: 24000,
+    maintenance_cost_total: 12000,
+  },
+};
