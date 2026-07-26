@@ -5,7 +5,7 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { apiFetch } from "@/app/lib/api";
 import { firstErrorMessage } from "@/app/lib/errors";
 
@@ -52,6 +52,7 @@ export async function createWarehouse(
   }
 
   revalidatePath("/warehouses");
+  updateTag("warehouses");
   return {};
 }
 
@@ -81,6 +82,7 @@ export async function updateWarehouse(
   }
 
   revalidatePath("/warehouses");
+  updateTag("warehouses");
   return {};
 }
 
@@ -99,5 +101,6 @@ export async function deleteWarehouse(warehouseId: number): Promise<{ error?: st
   }
 
   revalidatePath("/warehouses");
+  updateTag("warehouses");
   return {};
 }

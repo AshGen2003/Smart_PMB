@@ -7,7 +7,7 @@
  * populate the Delivery form's picker.
  */
 import { requirePermission } from "@/app/lib/dal";
-import { apiFetch } from "@/app/lib/api";
+import { apiFetch, apiFetchCached } from "@/app/lib/api";
 import { PREVIEW_TRANSPORTATION } from "@/app/lib/previewSampleData";
 import TransportationManager, {
   type VehicleRow,
@@ -68,7 +68,11 @@ export default async function TransportationPage() {
     apiFetch("/api/admin/deliveries/"),
     apiFetch("/api/admin/fuel-records/"),
     apiFetch("/api/admin/maintenance-records/"),
-    apiFetch("/api/admin/warehouses/"),
+    // Just reference data for the delivery form's warehouse picker here,
+    // shared with /warehouses and /approvals — see apiFetchCached's
+    // docstring. Everything else on this page is live fleet/delivery state
+    // that must stay fresh.
+    apiFetchCached("/api/admin/warehouses/", 300, ["warehouses"]),
     apiFetch("/api/admin/transportation/dashboard/"),
   ]);
 

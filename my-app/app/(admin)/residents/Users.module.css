@@ -62,14 +62,6 @@
   width: 260px;
 }
 
-.select {
-  padding: 0.55rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid var(--card-border);
-  background-color: var(--card-bg);
-  color: var(--foreground);
-  font-size: 0.9rem;
-}
 
 .primaryBtn {
   padding: 0.6rem 1.1rem;
@@ -263,8 +255,7 @@
   color: var(--text-muted);
 }
 
-.input,
-.select2 {
+.input {
   width: 100%;
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
@@ -276,8 +267,7 @@
   outline: none;
 }
 
-.input:focus,
-.select2:focus {
+.input:focus {
   border-color: var(--primary);
 }
 

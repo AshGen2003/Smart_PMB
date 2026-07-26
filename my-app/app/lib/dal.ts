@@ -77,13 +77,36 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
   const payload = await verifyAccessToken(token);
   if (!payload) return null;
 
-  const realPermissions = payload.permissions ?? [];
+  // The JWT's own role/permissions claims are frozen at login time —
+  // refreshing the access token just carries them forward unchanged
+  // (simplejwt's stock TokenRefreshView, unmodified here), so if an admin
+  // edits this user's role after they logged in (e.g. via the Preview
+  // Portal's quick-toggle checklist), the token alone would keep granting
+  // or denying access based on stale data for its whole lifetime.
+  // /api/auth/me/ reads role+permissions fresh from the DB on every call —
+  // the same thing Django's own request-time authorization already does
+  // (see accounts/authentication.py) — so prefer that live value here too.
+  // Falls back to the token's baked-in claim only if the request itself
+  // fails (e.g. a transient network hiccup), rather than let a flaky
+  // /me/ call sign everyone out.
+  let role = payload.role;
+  let roleName = payload.role_name;
+  let realPermissions = payload.permissions ?? [];
+
+  const meRes = await apiFetch("/api/auth/me/");
+  if (meRes.ok) {
+    const me: { role: string; role_name: string; permissions: string[] } = await meRes.json();
+    role = me.role;
+    roleName = me.role_name;
+    realPermissions = me.permissions ?? [];
+  }
+
   const user: AppUser = {
     id: payload.sub,
     email: payload.email,
     fullName: payload.full_name || null,
-    role: payload.role,
-    roleName: payload.role_name,
+    role,
+    roleName,
     permissions: realPermissions,
   };
 

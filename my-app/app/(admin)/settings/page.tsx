@@ -1,9 +1,11 @@
 /**
  * `/settings` — self-service settings page for the logged-in admin/officer:
  * account details, appearance (theme), and an admin-only shortcuts panel.
- * Available to any authenticated non-farmer user.
+ * Requires `view_settings` — granted to every role by default (see the
+ * accounts/0015 migration), toggleable per role from /roles or the Preview
+ * Portal's quick-toggle checklist.
  */
-import { requireUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import {
   AccountSettingsForm,
   AdminShortcutSettings,
@@ -13,7 +15,7 @@ import styles from "../residents/Users.module.css";
 
 /** Server Component: loads the current user and conditionally renders the manage_users-only shortcuts panel. */
 export default async function SettingsPage() {
-  const user = await requireUser();
+  const user = await requirePermission("view_settings");
 
   return (
     <div className={styles.page}>

@@ -4,7 +4,7 @@
  * section here (unlike the admin settings page), since farmers never have
  * manage_users.
  */
-import { requireUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import {
   AccountSettingsForm,
   AppearanceSettings,
@@ -13,7 +13,7 @@ import styles from "../FarmerDashboard.module.css";
 
 /** Server Component: loads the current user and renders the shared settings sections. */
 export default async function FarmerSettingsPage() {
-  const user = await requireUser();
+  const user = await requirePermission("view_settings");
 
   return (
     <div className={styles.dashboard}>

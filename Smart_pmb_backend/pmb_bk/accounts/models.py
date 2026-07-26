@@ -119,16 +119,25 @@ class User(AbstractUser):
 class Message(models.Model):
     """
     A message between two users, surfaced via the notification bell in the
-    navbar. `recipient` being null means a "request to admin" — not
-    addressed to one specific staff member, but visible to any staff
-    (non-farmer) account, since any of them may be the one to triage it.
-    Farmers may only create messages with recipient=null (see
+    navbar. `recipient` being null means a "request" addressed to a whole
+    role rather than one specific staff member — `target_role` says which
+    (Admin or PMB Officer) — and is visible only to accounts with that
+    role, since any of them may be the one to triage it. Farmers/drivers
+    may only create messages with recipient=null + a target_role (see
     MessageCreateSerializer); only staff can address a message to a
-    specific user.
+    specific user, in which case target_role stays unset.
     """
+
+    class TargetRole(models.TextChoices):
+        ADMIN = "admin", "Admin"
+        PMB_OFFICER = "pmb_officer", "PMB Officer"
+
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sent_messages")
     recipient = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="received_messages", null=True, blank=True
+    )
+    target_role = models.CharField(
+        max_length=20, choices=TargetRole.choices, null=True, blank=True
     )
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)

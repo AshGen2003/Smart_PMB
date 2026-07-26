@@ -18,13 +18,14 @@ from rest_framework.views import APIView
 
 from accounts.permissions import HasPermission
 
-from .models import AuditLog, AuthLog, BackupRecord, SystemAlert
+from .models import AuditLog, AuthLog, BackupRecord, ErrorLog, SystemAlert
 from .pdf import build_admin_report_pdf
 from .reports import build_admin_report_data
 from .serializers import (
     AuditLogSerializer,
     AuthLogSerializer,
     BackupRecordSerializer,
+    ErrorLogSerializer,
     SystemAlertSerializer,
 )
 from .utils import CONFIG_DEFS, get_all_configs, log_audit, set_config_value
@@ -46,6 +47,19 @@ class AuthLogViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     permission_classes = [HasPermission("view_audit_logs")]
     serializer_class = AuthLogSerializer
     queryset = AuthLog.objects.select_related("user")[:LOG_LIMIT]
+
+
+class ErrorLogViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """
+    Read-only, most-recent-first list of ErrorLog entries — unhandled
+    exceptions raised anywhere across the API, captured automatically by
+    sysops/exception_handler.py rather than hand-picked per view. Requires
+    "view_audit_logs", same as the other log listings.
+    """
+
+    permission_classes = [HasPermission("view_audit_logs")]
+    serializer_class = ErrorLogSerializer
+    queryset = ErrorLog.objects.select_related("user")[:LOG_LIMIT]
 
 
 class SystemAlertViewSet(

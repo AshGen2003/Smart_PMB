@@ -11,6 +11,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Skeleton, SkeletonRows } from "@/app/components/Skeleton";
 import styles from "./Dashboard.module.css";
 
 type OnlineRolesData = {
@@ -81,13 +82,24 @@ export default function OnlineRolesPanel({
         </span>
       </h3>
 
-      <div className={styles.onlineTotal}>{data ? data.online_total : "—"}</div>
-      <span className={styles.onlineTotalLabel}>
-        {data?.online_total === 1 ? "user active" : "users active"} in the last few minutes
-      </span>
+      {data ? (
+        <>
+          <div className={styles.onlineTotal}>{data.online_total}</div>
+          <span className={styles.onlineTotalLabel}>
+            {data.online_total === 1 ? "user active" : "users active"} in the last few minutes
+          </span>
+        </>
+      ) : (
+        <>
+          <Skeleton height={32} width={60} />
+          <Skeleton height={12} width={160} className={styles.onlineTotalLabel} />
+        </>
+      )}
 
       <div className={styles.onlineRoleList}>
-        {data && data.roles.length > 0 ? (
+        {data === null ? (
+          <SkeletonRows count={3} />
+        ) : data.roles.length > 0 ? (
           data.roles.map((r) => (
             <div key={r.slug} className={styles.onlineRoleRow}>
               <span

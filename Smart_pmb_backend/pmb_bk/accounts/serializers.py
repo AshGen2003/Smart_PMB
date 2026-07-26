@@ -428,6 +428,7 @@ class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source="sender.full_name", read_only=True)
     sender_role = serializers.CharField(source="sender.role.name", read_only=True)
     recipient_name = serializers.SerializerMethodField()
+    target_role_label = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
@@ -438,6 +439,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "sender_role",
             "recipient",
             "recipient_name",
+            "target_role",
+            "target_role_label",
             "body",
             "created_at",
             "is_read",
@@ -445,6 +448,9 @@ class MessageSerializer(serializers.ModelSerializer):
 
     def get_recipient_name(self, obj):
         return obj.recipient.full_name if obj.recipient else None
+
+    def get_target_role_label(self, obj):
+        return obj.get_target_role_display() if obj.target_role else None
 
 
 class MessageCreateSerializer(serializers.ModelSerializer):
@@ -455,17 +461,27 @@ class MessageCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Message
-        fields = ["recipient", "body"]
+        fields = ["recipient", "target_role", "body"]
 
     def validate(self, attrs):
         request = self.context["request"]
-        if attrs.get("recipient") is not None and request.user.role.slug in ("farmer", "driver"):
-            # Farmers and drivers can only send a request to the admin/
-            # officer team (recipient=None) — not message a specific user
-            # directly like staff can.
+        is_restricted = request.user.role.slug in ("farmer", "driver")
+
+        if attrs.get("recipient") is not None:
+            if is_restricted:
+                # Farmers and drivers can only send a request to a role
+                # (recipient=None + target_role) — not message a specific
+                # user directly like staff can.
+                raise serializers.ValidationError(
+                    "You can only send a request to Admin or PMB Officer, not message a specific user."
+                )
+            # A direct staff-to-user message isn't addressed to a role.
+            attrs["target_role"] = None
+        elif not attrs.get("target_role"):
             raise serializers.ValidationError(
-                "You can only send a request to the admin team, not message a specific user."
+                {"target_role": "Choose who this request should go to."}
             )
+
         return attrs
 
     def validate_body(self, value):

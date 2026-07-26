@@ -3,12 +3,12 @@
  * have no separate profile model (unlike farmers) — just the shared
  * ProfileView component showing their User fields and (empty) permissions.
  */
-import { requireUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import { ProfileView } from "@/app/components/ProfileView";
 
 export default async function DriverProfilePage() {
-  const user = await requireUser();
+  const user = await requirePermission("view_profile");
 
   const meRes = await apiFetch("/api/auth/me/");
   const me = meRes.ok ? await meRes.json() : null;

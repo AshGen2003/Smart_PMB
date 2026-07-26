@@ -34,14 +34,11 @@ interface AdminShellProps {
  */
 function LayoutWrapper({
   children,
-  userName,
-  roleLabel,
   permissions,
-  profilePictureUrl,
   idleMinutes,
   maintenanceMode,
   previewing,
-}: AdminShellProps) {
+}: Omit<AdminShellProps, "userName" | "roleLabel" | "profilePictureUrl">) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
   return (
@@ -61,12 +58,7 @@ function LayoutWrapper({
       <div className={styles.mainWrapper}>
         {previewing && <PreviewBanner roleName={previewing.name} />}
         <div className={styles.headerArea}>
-          <Header
-            userName={userName}
-            roleLabel={roleLabel}
-            profilePictureUrl={profilePictureUrl}
-            previewing={!!previewing}
-          />
+          <Header previewing={!!previewing} />
         </div>
         {maintenanceMode && (
           <div className={styles.maintenanceBanner}>
@@ -83,14 +75,14 @@ function LayoutWrapper({
  * Wraps LayoutWrapper in a LayoutProvider so sidebar open/collapsed state
  * is available via context. `permissions` is forwarded to the Sidebar to
  * decide which nav links to show; `idleMinutes` configures the auto-logout
- * timer; `maintenanceMode` toggles the system-wide banner.
+ * timer; `maintenanceMode` toggles the system-wide banner. `userName`/
+ * `roleLabel`/`profilePictureUrl` are accepted (callers already pass them)
+ * but no longer forwarded anywhere — profile lives in the sidebar as a
+ * plain nav link (see Sidebar.tsx) rather than a header widget.
  */
 export default function AdminShell({
   children,
-  userName,
-  roleLabel,
   permissions,
-  profilePictureUrl,
   idleMinutes,
   maintenanceMode,
   previewing,
@@ -98,10 +90,7 @@ export default function AdminShell({
   return (
     <LayoutProvider>
       <LayoutWrapper
-        userName={userName}
-        roleLabel={roleLabel}
         permissions={permissions}
-        profilePictureUrl={profilePictureUrl}
         idleMinutes={idleMinutes}
         maintenanceMode={maintenanceMode}
         previewing={previewing}

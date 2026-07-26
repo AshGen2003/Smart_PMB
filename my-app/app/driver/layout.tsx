@@ -26,6 +26,7 @@ export default async function DriverLayout({
   return (
     <DriverShell
       userName={user.fullName ?? user.email}
+      permissions={user.permissions}
       profilePictureUrl={me?.profile_picture ?? null}
       previewing={user.previewing}
     >

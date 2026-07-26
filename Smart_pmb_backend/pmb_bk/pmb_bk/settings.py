@@ -91,6 +91,17 @@ DATABASES = {
         'NAME': config('DB_NAME', default='postgres'),
         'USER': config('DB_USER'),
         'PASSWORD': config('DB_PASSWORD'),
+        # CONN_MAX_AGE intentionally left at the default (0, reconnect
+        # every request) — tried 60s to cut down on the remote DB's
+        # connection-setup latency, but Django's dev server spawns an
+        # unbounded thread per request, so each thread parked its own
+        # persistent connection open for the full 60s. That blew straight
+        # through Supabase's session-pooler cap of 15 concurrent
+        # connections and locked the whole app out with
+        # "max clients reached". Safe to revisit behind a real WSGI
+        # server with a small fixed worker count (e.g. gunicorn
+        # --workers 4), or by pointing DB_HOST/DB_PORT at Supabase's
+        # transaction pooler instead of the session pooler.
     }
 }
 
@@ -151,7 +162,9 @@ CORS_ALLOW_CREDENTIALS = True
 # explicitly opts out with permission_classes = [AllowAny].
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # Custom subclass that eagerly loads role/permissions — see
+        # accounts/authentication.py's docstring for why.
+        'accounts.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -162,6 +175,11 @@ REST_FRAMEWORK = {
         # attacker hammering many different accounts from one IP.
         'login': '10/min',
     },
+    # Logs every exception any view raises to ErrorLog (see
+    # sysops/exception_handler.py) before falling back to DRF's normal
+    # response handling — general-purpose error visibility across the
+    # whole API, not just the hand-picked AuditLog actions.
+    'EXCEPTION_HANDLER': 'sysops.exception_handler.custom_exception_handler',
 }
 
 # Base URL of the Next.js frontend, used to build links embedded in

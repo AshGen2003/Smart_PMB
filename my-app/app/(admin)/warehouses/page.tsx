@@ -9,7 +9,7 @@
  * see previewSampleData.ts.
  */
 import { requirePermission } from "@/app/lib/dal";
-import { apiFetch } from "@/app/lib/api";
+import { apiFetchCached } from "@/app/lib/api";
 import { PREVIEW_DISTRICTS, PREVIEW_WAREHOUSES } from "@/app/lib/previewSampleData";
 import WarehousesManager, { type WarehouseRow } from "./WarehousesManager";
 import type { DistrictOption } from "./WarehouseFormModal";
@@ -34,9 +34,13 @@ export default async function WarehousesPage() {
     );
   }
 
+  // Warehouses are also reused as reference data on /approvals and
+  // /transportation; districts are static seed data with no admin-editable
+  // UI at all — see apiFetchCached's docstring. revalidateTag("warehouses")
+  // in actions/warehouses.ts keeps the warehouse list fresh on mutation.
   const [warehousesRes, districtsRes] = await Promise.all([
-    apiFetch("/api/admin/warehouses/"),
-    apiFetch("/api/districts/"),
+    apiFetchCached("/api/admin/warehouses/", 300, ["warehouses"]),
+    apiFetchCached("/api/districts/", 3600, ["districts"]),
   ]);
 
   const warehouses = warehousesRes.ok ? ((await warehousesRes.json()) as WarehouseRow[]) : [];

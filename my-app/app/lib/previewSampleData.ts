@@ -121,6 +121,7 @@ export const PREVIEW_HARVESTS = [
     quality_check: true,
     unit_price: "120.00",
     status: "collected" as const,
+    processed_by_name: "Sample Officer",
   },
   {
     id: 2,
@@ -138,6 +139,7 @@ export const PREVIEW_HARVESTS = [
     quality_check: null,
     unit_price: null,
     status: "pending" as const,
+    processed_by_name: null,
   },
   {
     id: 3,
@@ -155,6 +157,7 @@ export const PREVIEW_HARVESTS = [
     quality_check: true,
     unit_price: "120.00",
     status: "verified" as const,
+    processed_by_name: "Sample Officer",
   },
 ];
 

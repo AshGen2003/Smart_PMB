@@ -161,6 +161,14 @@ class Harvest(models.Model):
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     purchase_date = models.DateField(null=True, blank=True)
 
+    # Which officer/admin last ran approve/reject/collect on this harvest —
+    # set in OfficerHarvestViewSet's action methods, never writable directly.
+    # `related_name="+"` mirrors Delivery.approved_by: no reverse accessor
+    # needed (nobody queries "harvests processed by this user" today).
+    processed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+
     class Meta:
         ordering = ["-harvest_date"]
 

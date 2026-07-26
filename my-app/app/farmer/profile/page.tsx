@@ -4,7 +4,7 @@
  * the shared ProfileView component renders only when `farmerDetails` is
  * passed in.
  */
-import { requireUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import { ProfileView, type FarmerProfileDetails } from "@/app/components/ProfileView";
 
@@ -14,7 +14,7 @@ import { ProfileView, type FarmerProfileDetails } from "@/app/components/Profile
  * `farmer` key), then renders the shared ProfileView component.
  */
 export default async function FarmerProfilePage() {
-  const user = await requireUser();
+  const user = await requirePermission("view_profile");
 
   const [meRes, dashboardRes] = await Promise.all([
     apiFetch("/api/auth/me/"),

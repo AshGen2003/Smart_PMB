@@ -6,8 +6,16 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
 def _has_codename(user, codename):
-    """True if the user's assigned Role grants the given permission codename."""
-    return user.role.permissions.filter(codename=codename).exists()
+    """
+    True if the user's assigned Role grants the given permission codename.
+    Checked against `role.permissions.all()` (in-memory, from the
+    prefetch_related done in accounts/authentication.py) rather than a
+    fresh `.filter(...).exists()` query — a `.filter()` on a prefetched
+    related manager always re-hits the DB, so with the DB hosted remotely,
+    this avoided a separate network round trip per codename checked (views
+    using HasAnyPermission check more than one).
+    """
+    return any(p.codename == codename for p in user.role.permissions.all())
 
 
 class HasPermission(BasePermission):

@@ -2,7 +2,7 @@
  * `/driver/settings` — self-service settings page for the logged-in
  * driver: account details and appearance (theme).
  */
-import { requireUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import {
   AccountSettingsForm,
   AppearanceSettings,
@@ -11,7 +11,7 @@ import styles from "../DriverDashboard.module.css";
 
 /** Server Component: loads the current user and renders the shared settings sections. */
 export default async function DriverSettingsPage() {
-  const user = await requireUser();
+  const user = await requirePermission("view_settings");
 
   return (
     <div className={styles.dashboard}>

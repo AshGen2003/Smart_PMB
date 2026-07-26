@@ -23,12 +23,22 @@ import clsx from "clsx";
 interface FarmerShellProps {
   children: React.ReactNode;
   userName: string;
+  permissions: string[];
   profilePictureUrl?: string | null;
   previewing?: { slug: string; name: string };
 }
 
-/** Reads sidebar open/collapsed state from LayoutProvider and arranges the farmer sidebar, header, and page content. */
-function LayoutWrapper({ children, userName, profilePictureUrl, previewing }: FarmerShellProps) {
+/**
+ * Reads sidebar open/collapsed state from LayoutProvider and arranges the
+ * farmer sidebar, header, and page content. `userName`/`profilePictureUrl`
+ * aren't needed here — profile lives in the sidebar as a plain nav link
+ * (see FarmerSidebar.tsx) rather than a header widget.
+ */
+function LayoutWrapper({
+  children,
+  permissions,
+  previewing,
+}: Omit<FarmerShellProps, "userName" | "profilePictureUrl">) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
   return (
@@ -41,18 +51,13 @@ function LayoutWrapper({ children, userName, profilePictureUrl, previewing }: Fa
           isMobileSidebarOpen && styles.mobileOpen
         )}
       >
-        <FarmerSidebar />
+        <FarmerSidebar permissions={permissions} />
       </div>
       <div className={styles.mainWrapper}>
         {previewing && <PreviewBanner roleName={previewing.name} />}
         <div className={styles.headerArea}>
           <Header
-            userName={userName}
-            roleLabel="Farmer"
-            profileHref="/farmer/profile"
-            settingsHref="/farmer/settings"
             messagesHref="/farmer/messages"
-            profilePictureUrl={profilePictureUrl}
             restrictedCompose
             previewing={!!previewing}
           />
@@ -66,13 +71,12 @@ function LayoutWrapper({ children, userName, profilePictureUrl, previewing }: Fa
 /** Wraps LayoutWrapper in a LayoutProvider so sidebar open/collapsed state is available via context. */
 export default function FarmerShell({
   children,
-  userName,
-  profilePictureUrl,
+  permissions,
   previewing,
 }: FarmerShellProps) {
   return (
     <LayoutProvider>
-      <LayoutWrapper userName={userName} profilePictureUrl={profilePictureUrl} previewing={previewing}>
+      <LayoutWrapper permissions={permissions} previewing={previewing}>
         {children}
       </LayoutWrapper>
     </LayoutProvider>

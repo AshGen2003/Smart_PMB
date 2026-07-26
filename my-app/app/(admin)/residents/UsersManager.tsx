@@ -13,6 +13,7 @@ import clsx from "clsx";
 import { LogOut, Pencil, Plus, Search, Trash2, Unlock } from "lucide-react";
 import { deleteUser, forceLogoutUser, unlockUser } from "@/app/actions/users";
 import UserFormModal, { type EditableUser, type RoleOption } from "./UserFormModal";
+import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./Users.module.css";
 
 /** Shape of a user row as returned by `GET /api/admin/users/`. */
@@ -124,18 +125,12 @@ export default function UsersManager({
             />
           </div>
 
-          <select
-            className={styles.select}
+          <StyledSelect
+            fitContent
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-          >
-            <option value="all">All roles</option>
-            {roles.map((r) => (
-              <option key={r.id} value={r.slug}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+            onChange={setRoleFilter}
+            options={[{ value: "all", label: "All roles" }, ...roles.map((r) => ({ value: r.slug, label: r.name }))]}
+          />
 
           <button
             type="button"

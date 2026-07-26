@@ -97,8 +97,7 @@
   position: relative;
 }
 
-.input,
-.select {
+.input {
   width: 100%;
   padding: 0.65rem 0.85rem;
   border-radius: 8px;
@@ -111,8 +110,7 @@
   transition: border-color 0.2s ease;
 }
 
-.input:focus,
-.select:focus {
+.input:focus {
   border-color: var(--primary);
 }
 

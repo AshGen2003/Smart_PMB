@@ -1,10 +1,17 @@
 /**
  * Landing page at `/dashboard` for admin/officer users. Renders a different
  * dashboard depending on the logged-in user's permissions:
- *  - `manage_users` -> full admin overview panel
- *  - `monitor_operations` (without manage_users) -> officer panel
+ *  - `view_admin_dashboard` -> full admin overview panel
+ *  - `monitor_operations` (without view_admin_dashboard) -> officer panel
  *  - neither -> generic fallback dashboard (e.g. for roles with only
  *    narrow permissions like record_purchases)
+ *
+ * `view_admin_dashboard` is deliberately its own permission rather than
+ * reusing `manage_users` — they used to be the same check, which meant
+ * granting a role Users-tab access (e.g. via the Preview Portal's
+ * quick-toggle checklist) silently switched their dashboard to the admin
+ * view too, an unintended coupling. Only the "admin" role has it by
+ * default (see accounts/migrations/0016).
  */
 import { requireUser } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
@@ -23,7 +30,7 @@ export default async function DashboardPage() {
 
   // Admin panel takes priority over the officer panel when a user happens
   // to have both permissions (e.g. a super-admin role).
-  const showAdminPanel = user.permissions.includes("manage_users");
+  const showAdminPanel = user.permissions.includes("view_admin_dashboard");
   const showOfficerPanel = !showAdminPanel && user.permissions.includes("monitor_operations");
 
   // No relevant permission at all — show the generic dashboard immediately

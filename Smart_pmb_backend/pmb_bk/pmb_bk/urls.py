@@ -52,6 +52,7 @@ from sysops.views import (
     AuditLogViewSet,
     AuthLogViewSet,
     BackupRecordViewSet,
+    ErrorLogViewSet,
     SystemAlertViewSet,
     SystemConfigView,
 )
@@ -67,6 +68,7 @@ router.register('admin/paddy-types', PaddyTypeViewSet, basename='admin-paddy-typ
 router.register('admin/harvests', OfficerHarvestViewSet, basename='admin-harvests')
 router.register('admin/audit-logs', AuditLogViewSet, basename='admin-audit-logs')
 router.register('admin/auth-logs', AuthLogViewSet, basename='admin-auth-logs')
+router.register('admin/error-logs', ErrorLogViewSet, basename='admin-error-logs')
 router.register('admin/alerts', SystemAlertViewSet, basename='admin-alerts')
 router.register('admin/backups', BackupRecordViewSet, basename='admin-backups')
 router.register('admin/vehicles', VehicleViewSet, basename='admin-vehicles')

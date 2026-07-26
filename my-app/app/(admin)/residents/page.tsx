@@ -4,7 +4,7 @@
  * `manage_users` permission.
  */
 import { requirePermission } from "@/app/lib/dal";
-import { apiFetch } from "@/app/lib/api";
+import { apiFetch, apiFetchCached } from "@/app/lib/api";
 import UsersManager, { type AdminUserRow } from "./UsersManager";
 import type { RoleOption } from "./UserFormModal";
 
@@ -17,9 +17,13 @@ import type { RoleOption } from "./UserFormModal";
 export default async function UsersPage() {
   const currentUser = await requirePermission("manage_users");
 
+  // Users are per-account data that changes via this very page (create/
+  // edit/delete/unlock/force-logout) — always fetched fresh. Roles is just
+  // reference data for the filter dropdown and the create/edit form, shared
+  // with /roles's own listing — see apiFetchCached's docstring.
   const [usersRes, rolesRes] = await Promise.all([
     apiFetch("/api/admin/users/"),
-    apiFetch("/api/admin/roles/"),
+    apiFetchCached("/api/admin/roles/", 300, ["roles"]),
   ]);
 
   const users = usersRes.ok ? ((await usersRes.json()) as AdminUserRow[]) : [];

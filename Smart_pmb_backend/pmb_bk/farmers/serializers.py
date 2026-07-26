@@ -114,6 +114,7 @@ class OfficerHarvestSerializer(serializers.ModelSerializer):
     farmer_name = serializers.CharField(source="farmer.name", default=None)
     paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
     warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+    processed_by_name = serializers.CharField(source="processed_by.full_name", default=None)
 
     class Meta:
         model = Harvest
@@ -121,7 +122,7 @@ class OfficerHarvestSerializer(serializers.ModelSerializer):
             "id", "farmer", "farmer_name", "paddy_type", "paddy_type_name",
             "warehouse", "warehouse_name", "quantity_kg", "harvest_date",
             "purchase_date", "grade", "moisture_level", "quality_check",
-            "unit_price", "status",
+            "unit_price", "status", "processed_by_name",
         ]
 
 

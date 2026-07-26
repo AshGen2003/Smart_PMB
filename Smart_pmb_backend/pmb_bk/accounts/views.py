@@ -368,17 +368,21 @@ class OnlineRolesView(APIView):
 
     def get(self, request):
         cutoff = timezone.now() - ONLINE_WINDOW
-        online = User.objects.filter(last_activity__gte=cutoff)
-        role_counts = (
-            online.values("role__name", "role__slug")
+        role_counts = list(
+            User.objects.filter(last_activity__gte=cutoff)
+            .values("role__name", "role__slug")
             .annotate(count=Count("id"))
             .order_by("-count")
         )
+        # Every online user has exactly one role, so the total is just the
+        # sum of the per-role breakdown — no need for a second `.count()`
+        # query against the same filter (the DB is remote, so every avoided
+        # round trip matters here; this endpoint is polled every few seconds).
 
         return Response(
             {
                 "generated_at": timezone.now(),
-                "online_total": online.count(),
+                "online_total": sum(r["count"] for r in role_counts),
                 "roles": [
                     {"name": r["role__name"], "slug": r["role__slug"], "count": r["count"]}
                     for r in role_counts
@@ -387,15 +391,17 @@ class OnlineRolesView(APIView):
         )
 
 
-# Messages relevant to a given user: their own direct messages, plus —
-# for staff (non-farmer) accounts — every unaddressed "request to admin"
-# (recipient=None), since those aren't meant for one specific staff member.
+# Messages relevant to a given user: their own direct messages, plus — for
+# Admin/PMB Officer accounts specifically — every unaddressed request
+# (recipient=None) targeted at *their* role. A request addressed to Admin
+# is only visible to Admins, one addressed to PMB Officer only to PMB
+# Officers — not to every staff account, unlike before target_role existed.
 # Shared by MessageInboxView and MessageMarkReadView so the two can't drift.
 def _visible_messages(user):
     qs = Message.objects.select_related("sender", "sender__role", "recipient")
-    if user.role.slug in ("farmer", "driver"):
-        return qs.filter(recipient=user)
-    return qs.filter(Q(recipient=user) | Q(recipient__isnull=True))
+    if user.role.slug in ("admin", "pmb_officer"):
+        return qs.filter(Q(recipient=user) | Q(recipient__isnull=True, target_role=user.role.slug))
+    return qs.filter(recipient=user)
 
 
 class MessageInboxView(generics.ListAPIView):

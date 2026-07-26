@@ -47,6 +47,9 @@ export type HarvestRow = {
   quality_check: boolean | null;
   unit_price: string | null;
   status: "pending" | "verified" | "collected" | "rejected";
+  // Whoever most recently ran approve/reject/collect on this harvest — null
+  // until the first action, so pending harvests generally show "—".
+  processed_by_name: string | null;
 };
 
 const TABS: { key: HarvestRow["status"]; label: string }[] = [
@@ -159,6 +162,7 @@ export default function ApprovalsManager({
                   <th>Grade</th>
                   <th>Unit price</th>
                   <th>Date</th>
+                  <th>Processed by</th>
                   <th></th>
                 </tr>
               </thead>
@@ -172,6 +176,7 @@ export default function ApprovalsManager({
                     <td>{h.grade ? `Grade ${h.grade}` : "—"}</td>
                     <td>{h.unit_price ? `Rs. ${Number(h.unit_price).toLocaleString()}` : "—"}</td>
                     <td>{h.purchase_date ?? h.harvest_date}</td>
+                    <td>{h.processed_by_name ?? "—"}</td>
                     <td>
                       <div className={styles.rowActions}>
                         {canWrite && (

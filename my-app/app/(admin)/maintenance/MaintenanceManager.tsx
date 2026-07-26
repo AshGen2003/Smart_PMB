@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import clsx from "clsx";
 import {
   AlertTriangle,
+  Bug,
   Check,
   Database,
   History,
@@ -40,6 +41,21 @@ export type AuthLogRow = {
   email: string;
   ip_address: string;
   action: "login_success" | "login_failed" | "account_locked" | "logout";
+  created_at: string;
+};
+
+// General-purpose activity/error monitoring row: one unhandled exception
+// from anywhere in the API, captured automatically (see
+// sysops/exception_handler.py) rather than a hand-picked business action
+// like AuditLog.
+export type ErrorLogRow = {
+  id: number;
+  actor: string;
+  method: string;
+  path: string;
+  exception_type: string;
+  message: string;
+  status_code: number | null;
   created_at: string;
 };
 
@@ -95,6 +111,7 @@ const TABS = [
   { key: "alerts", label: "Alerts", icon: AlertTriangle },
   { key: "audit", label: "Audit Log", icon: ScrollText },
   { key: "auth", label: "Login Activity", icon: History },
+  { key: "errors", label: "Errors", icon: Bug },
   { key: "backups", label: "Backups", icon: Database },
   { key: "settings", label: "Settings", icon: Settings2 },
 ] as const;
@@ -105,6 +122,7 @@ type TabKey = (typeof TABS)[number]["key"];
 export default function MaintenanceManager({
   auditLogs,
   authLogs,
+  errorLogs,
   alerts,
   backups,
   config,
@@ -112,6 +130,7 @@ export default function MaintenanceManager({
 }: {
   auditLogs: AuditLogRow[];
   authLogs: AuthLogRow[];
+  errorLogs: ErrorLogRow[];
   alerts: AlertRow[];
   backups: BackupRow[];
   config: SystemConfigData;
@@ -338,6 +357,59 @@ export default function MaintenanceManager({
             <div className={styles.emptyState}>
               <History size={28} />
               <p>No login activity recorded yet.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "errors" && (
+        <div className={styles.container}>
+          {errorLogs.length > 0 ? (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Actor</th>
+                    <th>Method</th>
+                    <th>Path</th>
+                    <th>Exception</th>
+                    <th>Message</th>
+                    <th>Status</th>
+                    <th>When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {errorLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td>{log.actor}</td>
+                      <td>{log.method || "—"}</td>
+                      <td>{log.path || "—"}</td>
+                      <td>{log.exception_type || "—"}</td>
+                      <td style={{ whiteSpace: "normal" }}>{log.message || "—"}</td>
+                      <td>
+                        {log.status_code ? (
+                          <span
+                            className={clsx(
+                              styles.badge,
+                              log.status_code >= 500 ? styles["badge-critical"] : styles["badge-warning"]
+                            )}
+                          >
+                            {log.status_code}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td>{fmt(log.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className={styles.emptyState}>
+              <Bug size={28} />
+              <p>No errors recorded yet.</p>
             </div>
           )}
         </div>

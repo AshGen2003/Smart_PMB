@@ -17,6 +17,7 @@ from rest_framework.views import APIView
 
 from accounts.models import Message, User
 from accounts.permissions import HasAnyPermission, HasPermission
+from sysops.models import SystemAlert
 from sysops.utils import log_audit
 
 from .pdf import build_officer_report_pdf
@@ -242,6 +243,37 @@ class PaddyTypeViewSet(viewsets.ModelViewSet):
         )
 
 
+def _notify_farmer(harvest, message):
+    """Creates a Notification the farmer sees on their dashboard — so a status change doesn't only show up if they happen to check back."""
+    Notification.objects.create(farmer=harvest.farmer, message=message)
+
+
+def _raise_high_capacity_alert(warehouse, new_stock):
+    """
+    Raises a SystemAlert once a warehouse crosses 90% of its capacity.
+    `alert_type` encodes the warehouse id so this only fires once per
+    warehouse while an alert is still open — resolving/acknowledging it
+    lets a future collection raise a fresh one if the condition persists.
+    """
+    if not warehouse.capacity or new_stock / warehouse.capacity < 0.9:
+        return
+    alert_type = f"high_capacity_warehouse_{warehouse.id}"
+    already_open = SystemAlert.objects.filter(
+        alert_type=alert_type, status=SystemAlert.Status.OPEN
+    ).exists()
+    if already_open:
+        return
+    SystemAlert.objects.create(
+        alert_type=alert_type,
+        level=SystemAlert.Level.WARNING,
+        message=(
+            f"{warehouse.name} is at {new_stock:.0f}/{warehouse.capacity:.0f} kg "
+            f"({new_stock / warehouse.capacity:.0%} capacity) — consider arranging "
+            "transport or offload."
+        ),
+    )
+
+
 class OfficerHarvestViewSet(viewsets.ModelViewSet):
     """
     PMB officer management of Harvest records: CRUD plus the three
@@ -250,9 +282,9 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
     "record_purchases"; creating/editing/actions require "record_purchases".
     """
 
-    queryset = Harvest.objects.select_related("farmer", "paddy_type", "warehouse").order_by(
-        "-harvest_date"
-    )
+    queryset = Harvest.objects.select_related(
+        "farmer", "paddy_type", "warehouse", "processed_by"
+    ).order_by("-harvest_date")
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
@@ -290,7 +322,8 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
             )
 
         harvest.status = Harvest.Status.VERIFIED
-        harvest.save(update_fields=["status"])
+        harvest.processed_by = request.user
+        harvest.save(update_fields=["status", "processed_by"])
 
         amount = harvest.quantity_kg * harvest.unit_price
         # update_or_create keyed on `harvest` ensures at most one Payment
@@ -307,6 +340,11 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
             },
         )
         log_audit(request.user, "approve_harvest", "farmers", f"Harvest #{harvest.id}")
+        _notify_farmer(
+            harvest,
+            f"Your harvest submission of {harvest.quantity_kg} kg was approved "
+            f"(Grade {harvest.grade}, Rs. {harvest.unit_price}/kg). Payment is now pending.",
+        )
         return Response(OfficerHarvestSerializer(harvest).data)
 
     @action(detail=True, methods=["post"])
@@ -318,8 +356,14 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
                 {"detail": "Only pending harvests can be rejected."}, status=400
             )
         harvest.status = Harvest.Status.REJECTED
-        harvest.save(update_fields=["status"])
+        harvest.processed_by = request.user
+        harvest.save(update_fields=["status", "processed_by"])
         log_audit(request.user, "reject_harvest", "farmers", f"Harvest #{harvest.id}")
+        _notify_farmer(
+            harvest,
+            f"Your harvest submission of {harvest.quantity_kg} kg was rejected. "
+            "Contact your PMB officer if you have questions.",
+        )
         return Response(OfficerHarvestSerializer(harvest).data)
 
     @action(detail=True, methods=["post"], url_path="collect")
@@ -339,7 +383,8 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
             )
 
         harvest.status = Harvest.Status.COLLECTED
-        harvest.save(update_fields=["status"])
+        harvest.processed_by = request.user
+        harvest.save(update_fields=["status", "processed_by"])
 
         Payment.objects.filter(harvest=harvest).update(
             status=Payment.Status.COMPLETED, payment_date=timezone.now().date()
@@ -350,11 +395,16 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
             # stock. Note this reads current_stock in Python rather than
             # using an F() expression, so two collections hitting the same
             # warehouse at the exact same moment could in theory race.
-            Warehouse.objects.filter(pk=harvest.warehouse_id).update(
-                current_stock=harvest.warehouse.current_stock + harvest.quantity_kg
-            )
+            new_stock = harvest.warehouse.current_stock + harvest.quantity_kg
+            Warehouse.objects.filter(pk=harvest.warehouse_id).update(current_stock=new_stock)
+            _raise_high_capacity_alert(harvest.warehouse, new_stock)
 
         log_audit(request.user, "collect_harvest", "farmers", f"Harvest #{harvest.id}")
+        _notify_farmer(
+            harvest,
+            f"Your harvest of {harvest.quantity_kg} kg has been collected. "
+            "Payment has been completed.",
+        )
         return Response(OfficerHarvestSerializer(harvest).data)
 
 

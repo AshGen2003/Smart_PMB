@@ -11,6 +11,7 @@ import { Loader2, X } from "lucide-react";
 import clsx from "clsx";
 import { createUser, updateUser, type UserFormState } from "@/app/actions/users";
 import { PasswordInput } from "@/app/components/PasswordInput";
+import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./Users.module.css";
 
 export type RoleOption = {
@@ -153,22 +154,14 @@ export default function UserFormModal({
             <label className={styles.label} htmlFor="role">
               Role
             </label>
-            <select
+            <StyledSelect
               id="role"
               name="role"
               required
-              defaultValue={user?.roleId ?? ""}
-              className={styles.select2}
-            >
-              <option value="" disabled>
-                Select a role
-              </option>
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+              defaultValue={user?.roleId != null ? String(user.roleId) : undefined}
+              placeholder="Select a role"
+              options={roles.map((r) => ({ value: String(r.id), label: r.name }))}
+            />
           </div>
 
           {mode === "edit" && (

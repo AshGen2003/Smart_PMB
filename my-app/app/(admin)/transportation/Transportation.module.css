@@ -246,15 +246,6 @@
   border-color: rgba(239, 68, 68, 0.3);
 }
 
-.statusSelect {
-  padding: 0.3rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid var(--card-border);
-  background-color: var(--card-bg);
-  color: var(--foreground);
-  font-size: 0.8rem;
-}
-
 /* Modal */
 .overlay {
   position: fixed;

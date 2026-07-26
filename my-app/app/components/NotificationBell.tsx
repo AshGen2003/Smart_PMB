@@ -14,6 +14,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, Loader2, Send } from "lucide-react";
 import clsx from "clsx";
+import StyledSelect from "./StyledSelect";
+import { SkeletonRows } from "./Skeleton";
 import styles from "./NotificationBell.module.css";
 
 type MessageRow = {
@@ -23,6 +25,8 @@ type MessageRow = {
   sender_role: string | null;
   recipient: string | null;
   recipient_name: string | null;
+  target_role: "admin" | "pmb_officer" | null;
+  target_role_label: string | null;
   body: string;
   created_at: string;
   is_read: boolean;
@@ -68,6 +72,7 @@ export default function NotificationBell({
   const [messages, setMessages] = useState<MessageRow[] | null>(null);
   const [recipients, setRecipients] = useState<RecipientOption[] | null>(null);
   const [recipientId, setRecipientId] = useState("");
+  const [targetRole, setTargetRole] = useState<"admin" | "pmb_officer">("admin");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -157,6 +162,7 @@ export default function NotificationBell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipient: restrictedCompose ? null : recipientId,
+          target_role: restrictedCompose ? targetRole : undefined,
           body: trimmed,
         }),
       });
@@ -212,7 +218,7 @@ export default function NotificationBell({
             <>
               <div className={styles.list}>
                 {messages === null ? (
-                  <p className={styles.emptyState}>Loading…</p>
+                  <SkeletonRows count={3} />
                 ) : messages.length === 0 ? (
                   <p className={styles.emptyState}>No messages yet.</p>
                 ) : (
@@ -228,7 +234,9 @@ export default function NotificationBell({
                             <span className={styles.messageSenderRole}> · {m.sender_role}</span>
                           )}
                           {m.recipient === null && (
-                            <span className={styles.requestBadge}>Request</span>
+                            <span className={styles.requestBadge}>
+                              Request → {m.target_role_label ?? "Admin"}
+                            </span>
                           )}
                         </span>
                         <span className={styles.messageTime}>{formatTime(m.created_at)}</span>
@@ -250,25 +258,30 @@ export default function NotificationBell({
 
               <div className={styles.composeArea}>
                 <p className={styles.composeLabel}>
-                  {restrictedCompose ? "Send a request to Admin" : "Message a user"}
+                  {restrictedCompose ? "Send a request to" : "Message a user"}
                 </p>
 
                 {sendError && <div className={styles.composeError}>{sendError}</div>}
                 {sendSuccess && <div className={styles.composeSuccess}>Sent.</div>}
 
-                {!restrictedCompose && (
-                  <select
-                    className={styles.recipientSelect}
+                {restrictedCompose ? (
+                  <StyledSelect
+                    compact
+                    value={targetRole}
+                    onChange={(v) => setTargetRole(v as "admin" | "pmb_officer")}
+                    options={[
+                      { value: "admin", label: "Admin" },
+                      { value: "pmb_officer", label: "PMB Officer" },
+                    ]}
+                  />
+                ) : (
+                  <StyledSelect
+                    compact
                     value={recipientId}
-                    onChange={(e) => setRecipientId(e.target.value)}
-                  >
-                    <option value="">Select a user…</option>
-                    {(recipients ?? []).map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.full_name} ({r.role_name})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setRecipientId}
+                    placeholder="Select a user…"
+                    options={(recipients ?? []).map((r) => ({ value: r.id, label: `${r.full_name} (${r.role_name})` }))}
+                  />
                 )}
 
                 <textarea

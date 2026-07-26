@@ -27,6 +27,7 @@ export default async function FarmerLayout({
   return (
     <FarmerShell
       userName={user.fullName ?? user.email}
+      permissions={user.permissions}
       profilePictureUrl={me?.profile_picture ?? null}
       previewing={user.previewing}
     >
