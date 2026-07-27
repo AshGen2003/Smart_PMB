@@ -91,6 +91,9 @@ export default function LandingPage() {
             <Link href="/signup/farmer" className={styles.btnSecondary}>
               Register as a Farmer
             </Link>
+            <Link href="/signup/mill-owner" className={styles.btnSecondary}>
+              Register as a Mill Owner
+            </Link>
           </div>
         </div>
 
@@ -201,6 +204,9 @@ export default function LandingPage() {
                 <Link href="/signup/farmer" className={styles.btnSecondary}>
                   Register as a Farmer
                 </Link>
+                <Link href="/signup/mill-owner" className={styles.btnSecondary}>
+                  Register as a Mill Owner
+                </Link>
               </div>
             </div>
           </Reveal>
@@ -232,6 +238,7 @@ export default function LandingPage() {
               <h4>Access</h4>
               <Link href="/login">Log in</Link>
               <Link href="/signup/farmer">Farmer sign up</Link>
+              <Link href="/signup/mill-owner">Mill owner sign up</Link>
             </div>
           </div>
         </div>

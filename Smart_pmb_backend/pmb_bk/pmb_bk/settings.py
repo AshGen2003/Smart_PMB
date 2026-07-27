@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     'corsheaders',  # allows the separately-hosted Next.js frontend to call this API cross-origin
     'accounts',
     'farmers',
+    'mills',
+    'purchases',
     'sysops',
 ]
 

@@ -24,6 +24,7 @@ interface HeaderProps {
   profilePictureUrl?: string | null;
   isFarmer?: boolean;
   previewing?: boolean;
+  messagesHref?: string;
 }
 
 /**
@@ -39,6 +40,7 @@ export default function Header({
   profilePictureUrl,
   isFarmer = false,
   previewing = false,
+  messagesHref,
 }: HeaderProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
@@ -83,7 +85,7 @@ export default function Header({
           {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
         </button>
 
-        <NotificationBell isFarmer={isFarmer} previewing={previewing} />
+        <NotificationBell isFarmer={isFarmer} previewing={previewing} messagesHref={messagesHref} />
 
         <div className={styles.profileWrap} ref={menuRef}>
           <button

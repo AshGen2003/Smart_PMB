@@ -32,7 +32,14 @@ from accounts.views import (
     PermissionListView,
     RoleViewSet,
 )
-from farmers.views import OfficerHarvestViewSet, PaddyTypeViewSet, WarehouseViewSet
+from farmers.views import (
+    FarmerHarvestViewSet,
+    OfficerHarvestViewSet,
+    PaddyTypeViewSet,
+    WarehouseViewSet,
+)
+from mills.views import LicenseViewSet, MillingReportViewSet, OfficerLicenseViewSet
+from purchases.views import OfficerRiceRequestViewSet, RiceRequestViewSet
 from sysops.views import (
     AdminReportPdfView,
     AdminReportView,
@@ -52,15 +59,23 @@ router.register('admin/roles', RoleViewSet, basename='admin-roles')
 router.register('admin/warehouses', WarehouseViewSet, basename='admin-warehouses')
 router.register('admin/paddy-types', PaddyTypeViewSet, basename='admin-paddy-types')
 router.register('admin/harvests', OfficerHarvestViewSet, basename='admin-harvests')
+router.register('farmer/harvests', FarmerHarvestViewSet, basename='farmer-harvests')
 router.register('admin/audit-logs', AuditLogViewSet, basename='admin-audit-logs')
 router.register('admin/auth-logs', AuthLogViewSet, basename='admin-auth-logs')
 router.register('admin/alerts', SystemAlertViewSet, basename='admin-alerts')
 router.register('admin/backups', BackupRecordViewSet, basename='admin-backups')
+router.register('mill-owner/licenses', LicenseViewSet, basename='mill-owner-licenses')
+router.register('mill-owner/milling-reports', MillingReportViewSet, basename='mill-owner-milling-reports')
+router.register('admin/mill-licenses', OfficerLicenseViewSet, basename='admin-mill-licenses')
+router.register('purchaser/requests', RiceRequestViewSet, basename='purchaser-requests')
+router.register('admin/rice-requests', OfficerRiceRequestViewSet, basename='admin-rice-requests')
 
 urlpatterns = [
     path('admin/', admin.site.urls),  # Django's built-in admin site
     path('api/auth/', include('accounts.urls')),  # login/register/refresh/logout/me
     path('api/', include('farmers.urls')),  # farmer self-service + harvest submission endpoints
+    path('api/', include('mills.urls')),  # mill owner self-service endpoints
+    path('api/', include('purchases.urls')),  # authorized purchaser self-service endpoints
     path('api/admin/permissions/', PermissionListView.as_view()),
     path('api/admin/overview/', AdminOverviewView.as_view()),
     path('api/admin/overview/online/', OnlineRolesView.as_view()),

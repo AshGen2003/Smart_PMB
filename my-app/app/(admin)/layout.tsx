@@ -16,9 +16,10 @@ import { apiFetch } from "@/app/lib/api";
 import AdminShell from "@/app/components/AdminShell";
 
 /**
- * Verifies the visitor is logged in and not a farmer, then wraps the page
- * content in the AdminShell (sidebar + header). Farmers are redirected to
- * their own portal since this layout is only for admin/officer roles.
+ * Verifies the visitor is logged in and not a farmer/mill owner, then wraps
+ * the page content in the AdminShell (sidebar + header). Farmers and mill
+ * owners are redirected to their own portals since this layout is only for
+ * admin/officer roles.
  */
 export default async function AdminLayout({
   children,
@@ -29,10 +30,14 @@ export default async function AdminLayout({
   // redirects to /login if there is no valid session.
   const user = await requireUser();
 
-  // Farmers have their own portal/shell (see app/farmer/layout.tsx) — bounce
-  // them out of the admin area if they land here directly.
+  // Farmers and mill owners have their own portal/shell (see
+  // app/farmer/layout.tsx, app/mill-owner/layout.tsx) — bounce them out of
+  // the admin area if they land here directly.
   if (user.role === "farmer") {
     redirect("/farmer");
+  }
+  if (user.role === "mill_owner") {
+    redirect("/mill-owner");
   }
 
   // Fetch the current user's profile (for the avatar image) and the global

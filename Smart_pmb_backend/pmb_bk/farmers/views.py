@@ -21,6 +21,7 @@ from .models import Farmer, Harvest, Notification, PaddyType, Payment, Warehouse
 from .permissions import IsFarmer
 from .serializers import (
     DistrictSerializer,
+    FarmerHarvestCreateSerializer,
     FarmerOptionSerializer,
     HarvestSerializer,
     NotificationSerializer,
@@ -138,6 +139,41 @@ class NotificationMarkReadView(APIView):
         notification.is_read = True
         notification.save(update_fields=["is_read"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FarmerHarvestViewSet(viewsets.ModelViewSet):
+    """
+    Self-service CRUD for a farmer's own Harvest submissions: list/view
+    their history, submit a new delivery, and withdraw one while it's
+    still pending. No update endpoint — a farmer can't edit a submission
+    after the fact, only withdraw and resubmit; officer-only assessment
+    fields (grade/price/etc.) are exclusively set via OfficerHarvestViewSet.
+    """
+
+    permission_classes = [IsAuthenticated, IsFarmer]
+    http_method_names = ["get", "post", "delete", "head", "options"]
+    serializer_class = HarvestSerializer
+
+    def get_queryset(self):
+        return Harvest.objects.filter(farmer__user=self.request.user).select_related(
+            "paddy_type"
+        )
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return FarmerHarvestCreateSerializer
+        return HarvestSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(farmer=self.request.user.farmer_profile)
+
+    def destroy(self, request, *args, **kwargs):
+        harvest = self.get_object()
+        if harvest.status != Harvest.Status.PENDING:
+            return Response(
+                {"detail": "Only pending harvests can be withdrawn."}, status=400
+            )
+        return super().destroy(request, *args, **kwargs)
 
 
 class FarmerListView(generics.ListAPIView):
@@ -334,9 +370,14 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
 
 
 class OfficerDashboardView(APIView):
-    """Aggregate stats for the PMB officer dashboard: warehouse/stock totals, pending approvals, and recent harvests."""
+    """
+    Aggregate stats for the PMB officer dashboard: warehouse/stock totals,
+    pending approvals, and recent harvests. Also shown to record_purchases
+    holders (e.g. Authorized Purchasers) so they land on real operational
+    data instead of the generic placeholder dashboard.
+    """
 
-    permission_classes = [HasPermission("monitor_operations")]
+    permission_classes = [HasAnyPermission("monitor_operations", "record_purchases")]
 
     def get(self, request):
         warehouses = Warehouse.objects.all()

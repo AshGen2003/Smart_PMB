@@ -33,6 +33,7 @@ from .serializers import (
     MessageSerializer,
     PermissionSerializer,
     RegisterFarmerSerializer,
+    RegisterMillOwnerSerializer,
     RoleSerializer,
     RoleWriteSerializer,
     SelfProfileSerializer,
@@ -59,6 +60,26 @@ class RegisterFarmerView(APIView):
 
     def post(self, request):
         serializer = RegisterFarmerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        user = result["user"]
+
+        send_confirmation_email(user)
+
+        return Response(
+            {
+                "detail": "Account created. Check your email to confirm your account before logging in."
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class RegisterMillOwnerView(APIView):
+    """Public self-registration endpoint for new mill owners; creates a User + Mill profile and emails a confirmation link."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterMillOwnerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         result = serializer.save()
         user = result["user"]

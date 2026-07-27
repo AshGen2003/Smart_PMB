@@ -54,9 +54,12 @@ function formatTime(iso: string) {
 export default function NotificationBell({
   isFarmer,
   previewing = false,
+  messagesHref,
 }: {
   isFarmer: boolean;
   previewing?: boolean;
+  /** Where "View all" links to. Defaults to the farmer/admin routes based on `isFarmer` — pass this explicitly for other one-way-messaging portals (e.g. Mill Owner). */
+  messagesHref?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<MessageRow[] | null>(null);
@@ -191,7 +194,7 @@ export default function NotificationBell({
             Messages
             {!previewing && (
               <Link
-                href={isFarmer ? "/farmer/messages" : "/messages"}
+                href={messagesHref ?? (isFarmer ? "/farmer/messages" : "/messages")}
                 className={styles.viewAllLink}
                 onClick={() => setOpen(false)}
               >

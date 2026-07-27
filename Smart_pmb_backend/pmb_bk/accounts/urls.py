@@ -9,6 +9,7 @@ from . import views
 
 urlpatterns = [
     path("register/farmer/", views.RegisterFarmerView.as_view()),  # farmer self-registration
+    path("register/mill-owner/", views.RegisterMillOwnerView.as_view()),  # mill owner self-registration
     path("confirm-email/", views.ConfirmEmailView.as_view()),  # consumes the emailed confirmation token
     path("login/", views.LoginView.as_view()),  # obtains JWT access+refresh token pair
     path("refresh/", TokenRefreshView.as_view()),  # simplejwt's built-in refresh endpoint

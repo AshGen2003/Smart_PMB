@@ -11,6 +11,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from farmers.models import District, Farmer
+from mills.models import Mill
 from sysops.utils import get_config_value, log_auth
 
 from .models import Message, Permission, Role, User
@@ -173,6 +174,68 @@ class RegisterFarmerSerializer(serializers.Serializer):
             )
 
         return {"user": user, "farmer": farmer}
+
+
+class RegisterMillOwnerSerializer(serializers.Serializer):
+    """Validates and creates a new mill owner's User account plus matching Mill profile in one transaction."""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(min_length=8, write_only=True)
+    mill_name = serializers.CharField(max_length=150)
+    owner_name = serializers.CharField(max_length=100)
+    nic = serializers.CharField(max_length=20)
+    business_reg_no = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    district_id = serializers.IntegerField()
+    capacity_mt_per_day = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True
+    )
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
+        return value
+
+    def validate_nic(self, value):
+        if Mill.objects.filter(nic=value).exists():
+            raise serializers.ValidationError("An account with this NIC already exists.")
+        return value
+
+    def validate_district_id(self, value):
+        if not District.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Select a valid district.")
+        return value
+
+    def create(self, validated_data):
+        district = District.objects.select_related("province").get(
+            pk=validated_data["district_id"]
+        )
+        # Human-friendly registration number, e.g. "MIL-2026-483920", same
+        # scheme as a farmer's registration_no (see RegisterFarmerSerializer).
+        registration_no = f"MIL-{timezone.now().year}-{random.randint(100000, 999999)}"
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                email=validated_data["email"],
+                password=validated_data["password"],
+                full_name=validated_data["owner_name"],
+                role=Role.objects.get(slug="mill_owner"),
+                email_confirmed=False,
+            )
+            mill = Mill.objects.create(
+                user=user,
+                registration_no=registration_no,
+                mill_name=validated_data["mill_name"],
+                owner_name=validated_data["owner_name"],
+                nic=validated_data["nic"],
+                business_reg_no=validated_data.get("business_reg_no", ""),
+                district=district,
+                province=district.province,
+                capacity_mt_per_day=validated_data.get("capacity_mt_per_day"),
+                contact_number=validated_data.get("contact_number", ""),
+            )
+
+        return {"user": user, "mill": mill}
 
 
 class SelfProfileSerializer(serializers.Serializer):

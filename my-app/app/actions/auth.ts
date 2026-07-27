@@ -82,9 +82,12 @@ export async function login(
   // Bust the root layout's cached render so the header/nav (which shows
   // login state) reflects the newly authenticated user on next navigation.
   revalidatePath("/", "layout");
-  // Farmers land on their own portal; every other role (admin, PMB
-  // officers, etc.) lands on the shared admin dashboard.
-  redirect(payload?.role === "farmer" ? "/farmer" : "/dashboard");
+  // Farmers and mill owners land on their own portals; every other role
+  // (admin, PMB officers, authorized purchasers, etc.) lands on the shared
+  // admin dashboard.
+  if (payload?.role === "farmer") redirect("/farmer");
+  if (payload?.role === "mill_owner") redirect("/mill-owner");
+  redirect("/dashboard");
 }
 
 // SignupState mirrors FormState — kept as a separate type since farmer
@@ -141,6 +144,66 @@ export async function signupFarmer(
   };
 
   const res = await fetch(`${API_URL}/api/auth/register/farmer/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  redirect("/login?registered=1");
+}
+
+/**
+ * Registers a new mill owner account via Django's public registration
+ * endpoint. Mirrors signupFarmer above (same validation shape, same
+ * "confirm your email before logging in" flow), just with mill-specific
+ * fields instead of farmer ones.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Submitted registration fields (email, password,
+ *   confirmPassword, millName, ownerName, nic, businessRegNo,
+ *   contactNumber, districtId, capacityMtPerDay).
+ * @returns `{ error }` on validation/registration failure. On success,
+ *   redirects to `/login?registered=1`.
+ */
+export async function signupMillOwner(
+  _prevState: SignupState,
+  formData: FormData
+): Promise<SignupState> {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+  const districtId = Number(formData.get("districtId"));
+
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match." };
+  }
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+  if (!districtId) {
+    return { error: "Please select your district." };
+  }
+
+  const capacityRaw = formData.get("capacityMtPerDay");
+
+  const payload = {
+    email: String(formData.get("email") ?? "").trim(),
+    password,
+    mill_name: String(formData.get("millName") ?? "").trim(),
+    owner_name: String(formData.get("ownerName") ?? "").trim(),
+    nic: String(formData.get("nic") ?? "").trim(),
+    business_reg_no: String(formData.get("businessRegNo") ?? "").trim(),
+    contact_number: String(formData.get("contactNumber") ?? "").trim(),
+    district_id: districtId,
+    capacity_mt_per_day: capacityRaw ? Number(capacityRaw) : null,
+  };
+
+  const res = await fetch(`${API_URL}/api/auth/register/mill-owner/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

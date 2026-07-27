@@ -1,13 +1,17 @@
 /**
- * Server Actions for the farmer self-service portal. Currently just
- * notification handling — actions that let a farmer manage their own
- * in-app notifications (as opposed to admin-side actions in the other
- * files under app/actions/).
+ * Server Actions for the farmer self-service portal: notification handling
+ * and the farmer's own harvest submissions (as opposed to admin/officer-side
+ * actions in the other files under app/actions/).
  */
 "use server";
 
 import { revalidatePath } from "next/cache";
 import { apiFetch } from "@/app/lib/api";
+import { firstErrorMessage } from "@/app/lib/errors";
+
+export type HarvestFormState = {
+  error?: string;
+};
 
 /**
  * Marks a single notification as read for the current farmer.
@@ -26,4 +30,55 @@ export async function markNotificationRead(notificationId: number) {
   // Refresh the farmer portal so the notification's read/unread state
   // (and any unread-count badge) reflects the change.
   revalidatePath("/farmer");
+}
+
+/**
+ * Submits a new harvest delivery for the logged-in farmer. Only paddy type
+ * and quantity are farmer-writable — grade/price/warehouse are filled in
+ * later by an officer during approval.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Must contain `paddy_type` and `quantity_kg`.
+ * @returns `{ error }` if Django rejects the submission, otherwise `{}`
+ *   after revalidating "/farmer/harvests".
+ */
+export async function submitHarvest(
+  _prevState: HarvestFormState,
+  formData: FormData
+): Promise<HarvestFormState> {
+  const res = await apiFetch("/api/farmer/harvests/", {
+    method: "POST",
+    body: JSON.stringify({
+      paddy_type: formData.get("paddy_type") ? Number(formData.get("paddy_type")) : null,
+      quantity_kg: String(formData.get("quantity_kg") ?? ""),
+    }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/farmer/harvests");
+  return {};
+}
+
+/**
+ * Withdraws (deletes) one of the farmer's own harvests. Django only allows
+ * this while the harvest is still "pending".
+ *
+ * @param harvestId ID of the harvest to withdraw.
+ */
+export async function withdrawHarvest(harvestId: number): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/farmer/harvests/${harvestId}/`, {
+    method: "DELETE",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/farmer/harvests");
+  return {};
 }

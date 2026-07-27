@@ -48,6 +48,20 @@ class HarvestSerializer(serializers.ModelSerializer):
         fields = ["id", "paddy_type_name", "quantity_kg", "harvest_date", "status"]
 
 
+class FarmerHarvestCreateSerializer(serializers.ModelSerializer):
+    """
+    Create representation of a Harvest for a farmer submitting their own
+    delivery. Deliberately limited to the two fields a farmer actually
+    knows at submission time — grade/moisture/quality_check/unit_price/
+    warehouse are filled in later by an officer during approval, and
+    `status` defaults to "pending" on the model.
+    """
+
+    class Meta:
+        model = Harvest
+        fields = ["id", "paddy_type", "quantity_kg"]
+
+
 class NotificationSerializer(serializers.ModelSerializer):
     """Read representation of a farmer's Notification."""
 

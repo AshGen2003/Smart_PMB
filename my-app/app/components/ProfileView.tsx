@@ -19,6 +19,16 @@ export type FarmerProfileDetails = {
   province: string | null;
 };
 
+/** Mill-owner-only fields (registration number, mill name, capacity, location) shown instead of a permissions list when present. */
+export type MillProfileDetails = {
+  registration_no: string;
+  mill_name: string;
+  capacity_mt_per_day: string | null;
+  status: string;
+  district_name: string | null;
+  province_name: string | null;
+};
+
 /** Converts a permission codename like "manage_users" into a display label like "Manage Users". */
 function formatPermission(codename: string) {
   return codename
@@ -43,6 +53,7 @@ export function ProfileView({
   phoneNumber,
   profilePictureUrl,
   farmerDetails,
+  millDetails,
 }: {
   fullName: string;
   email: string;
@@ -52,6 +63,7 @@ export function ProfileView({
   phoneNumber?: string;
   profilePictureUrl?: string | null;
   farmerDetails?: FarmerProfileDetails | null;
+  millDetails?: MillProfileDetails | null;
 }) {
   const avatarLetter = fullName.trim().charAt(0).toUpperCase() || "?";
 
@@ -123,6 +135,38 @@ export function ProfileView({
             <div className={styles.detailItem}>
               <span className={styles.detailLabel}>Province</span>
               <span className={styles.detailValue}>{farmerDetails.province ?? "—"}</span>
+            </div>
+          </div>
+        </div>
+      ) : millDetails ? (
+        <div className={styles.detailsCard}>
+          <h2 className={styles.detailsTitle}>Mill details</h2>
+          <div className={styles.detailsGrid}>
+            <div className={styles.detailItem}>
+              <span className={styles.detailLabel}>Registration No.</span>
+              <span className={styles.detailValue}>{millDetails.registration_no}</span>
+            </div>
+            <div className={styles.detailItem}>
+              <span className={styles.detailLabel}>Mill name</span>
+              <span className={styles.detailValue}>{millDetails.mill_name}</span>
+            </div>
+            <div className={styles.detailItem}>
+              <span className={styles.detailLabel}>Status</span>
+              <span className={styles.detailValue}>{millDetails.status}</span>
+            </div>
+            <div className={styles.detailItem}>
+              <span className={styles.detailLabel}>Capacity</span>
+              <span className={styles.detailValue}>
+                {millDetails.capacity_mt_per_day ? `${millDetails.capacity_mt_per_day} MT/day` : "—"}
+              </span>
+            </div>
+            <div className={styles.detailItem}>
+              <span className={styles.detailLabel}>District</span>
+              <span className={styles.detailValue}>{millDetails.district_name ?? "—"}</span>
+            </div>
+            <div className={styles.detailItem}>
+              <span className={styles.detailLabel}>Province</span>
+              <span className={styles.detailValue}>{millDetails.province_name ?? "—"}</span>
             </div>
           </div>
         </div>

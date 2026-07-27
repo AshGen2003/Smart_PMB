@@ -14,6 +14,7 @@ import styles from "./Sidebar.module.css";
 import clsx from "clsx";
 import {
   LayoutDashboard,
+  Sprout,
   MessageSquare,
   Settings,
   LogOut,
@@ -24,6 +25,7 @@ import { logout } from "@/app/actions/auth";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/farmer", icon: LayoutDashboard },
+  { label: "Harvests", href: "/farmer/harvests", icon: Sprout },
   { label: "Messages", href: "/farmer/messages", icon: MessageSquare },
   { label: "Settings", href: "/farmer/settings", icon: Settings },
 ];

@@ -125,7 +125,9 @@ export async function requireUser(): Promise<AppUser> {
 // Where to send a user who is logged in but not allowed on the page they
 // requested — their own dashboard, rather than a generic error page.
 function homeFor(user: AppUser): string {
-  return user.role === "farmer" ? "/farmer" : "/dashboard";
+  if (user.role === "farmer") return "/farmer";
+  if (user.role === "mill_owner") return "/mill-owner";
+  return "/dashboard";
 }
 
 /**
