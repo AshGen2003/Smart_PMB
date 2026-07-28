@@ -120,6 +120,10 @@ function LoginFormInner() {
       <p className={styles.switchLine}>
         Farmer without an account? <Link href="/signup/farmer">Sign up</Link>
       </p>
+      <p className={styles.switchLine}>
+        Authorized purchaser or mill owner?{" "}
+        <Link href="/signup/partner">Apply for a license</Link>
+      </p>
     </div>
   );
 }

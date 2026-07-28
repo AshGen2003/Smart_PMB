@@ -59,6 +59,7 @@ export default function NotificationBell({
   restrictedCompose,
   messagesHref,
   previewing = false,
+  notifyMessages = true,
 }: {
   // True for farmer/driver accounts: compose can only send a request to
   // the admin team (recipient=null), not pick a specific user.
@@ -67,6 +68,9 @@ export default function NotificationBell({
   // /farmer/messages, /driver/messages).
   messagesHref: string;
   previewing?: boolean;
+  // Settings → Notifications → "Message alerts". Off just mutes polling
+  // and the unread badge — compose still works, and /messages is unaffected.
+  notifyMessages?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<MessageRow[] | null>(null);
@@ -81,11 +85,12 @@ export default function NotificationBell({
 
   const unreadCount = messages?.filter((m) => !m.is_read).length ?? 0;
 
-  // Poll the inbox — skipped entirely during Portal Preview, since the
-  // previewed role's inbox has no meaning for the real admin's own
-  // JWT-authenticated account underneath (see route.ts's matching guard).
+  // Poll the inbox — skipped during Portal Preview (the previewed role's
+  // inbox has no meaning for the real admin's own JWT-authenticated account
+  // underneath, see route.ts's matching guard) and while the user has
+  // turned message alerts off in Settings.
   useEffect(() => {
-    if (previewing) return;
+    if (previewing || !notifyMessages) return;
     let cancelled = false;
 
     async function poll() {
@@ -105,7 +110,7 @@ export default function NotificationBell({
       cancelled = true;
       clearInterval(id);
     };
-  }, [previewing]);
+  }, [previewing, notifyMessages]);
 
   // Lazily load the recipient picker the first time a staff member opens
   // the dropdown, rather than on every page load.
@@ -216,6 +221,13 @@ export default function NotificationBell({
             <p className={styles.previewNote}>Messaging isn&apos;t available while previewing.</p>
           ) : (
             <>
+              {!notifyMessages ? (
+                <p className={styles.previewNote}>
+                  Message alerts are turned off in Settings — new messages
+                  won&apos;t show up here, but you can still send one below
+                  or check <Link href={messagesHref}>the full inbox</Link>.
+                </p>
+              ) : (
               <div className={styles.list}>
                 {messages === null ? (
                   <SkeletonRows count={3} />
@@ -255,6 +267,7 @@ export default function NotificationBell({
                   ))
                 )}
               </div>
+              )}
 
               <div className={styles.composeArea}>
                 <p className={styles.composeLabel}>

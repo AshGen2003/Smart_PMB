@@ -10,6 +10,9 @@ import {
   AccountSettingsForm,
   AdminShortcutSettings,
   AppearanceSettings,
+  NotificationSettings,
+  HelpCenterSettings,
+  SupportSettings,
 } from "@/app/components/SettingsSections";
 import styles from "../residents/Users.module.css";
 
@@ -28,6 +31,12 @@ export default async function SettingsPage() {
 
       <AccountSettingsForm fullName={user.fullName ?? ""} email={user.email} />
       <AppearanceSettings />
+      <NotificationSettings
+        notifyMessages={user.notifyMessages}
+        notifyHarvestUpdates={user.notifyHarvestUpdates}
+      />
+      <HelpCenterSettings role="admin" />
+      <SupportSettings messagesHref="/messages" />
       {/* Shortcuts to admin-only areas (users, roles) — only shown to users who can manage_users. */}
       {user.permissions.includes("manage_users") && <AdminShortcutSettings />}
     </div>

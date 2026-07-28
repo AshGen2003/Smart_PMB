@@ -12,11 +12,18 @@ import Link from "next/link";
 import { Loader2, Moon, Sun } from "lucide-react";
 import clsx from "clsx";
 import { updateProfile, type ProfileState } from "@/app/actions/profile";
+import {
+  updateNotificationPreferences,
+  type NotificationPreferencesState,
+} from "@/app/actions/notifications";
 import { useTheme } from "./ThemeProvider";
 import { PasswordInput } from "./PasswordInput";
+import { HelpFaq } from "./HelpFaq";
+import { APP_VERSION } from "@/app/lib/appInfo";
 import styles from "./SettingsSections.module.css";
 
 const initialState: ProfileState = {};
+const initialNotificationState: NotificationPreferencesState = {};
 
 /**
  * Form for editing name/NIC/phone and optionally changing password (all
@@ -202,6 +209,103 @@ export function AppearanceSettings() {
 }
 
 /**
+ * Card with a toggle for the notification bell's message alerts, plus (for
+ * farmers only) a second toggle for harvest-status-update notifications.
+ * `notifyHarvestUpdates` is `null` for any non-farmer account — that toggle
+ * is omitted entirely rather than shown disabled, since it has no meaning
+ * for them.
+ */
+export function NotificationSettings({
+  notifyMessages,
+  notifyHarvestUpdates,
+}: {
+  notifyMessages: boolean;
+  notifyHarvestUpdates: boolean | null;
+}) {
+  const [state, formAction, pending] = useActionState(
+    updateNotificationPreferences,
+    initialNotificationState
+  );
+
+  return (
+    <div className={styles.card}>
+      <h2 className={styles.cardTitle}>Notifications</h2>
+      <p className={styles.cardSubtitle}>
+        Choose what Smart PMB should alert you about.
+      </p>
+
+      {state.error && (
+        <div className={clsx(styles.banner, styles.bannerError)}>
+          {state.error}
+        </div>
+      )}
+      {state.success && (
+        <div className={clsx(styles.banner, styles.bannerSuccess)}>
+          {state.success}
+        </div>
+      )}
+
+      <form action={formAction} noValidate>
+        <label className={clsx(styles.appearanceRow, styles.toggleRow)}>
+          <div>
+            <p className={styles.appearanceLabel}>Message alerts</p>
+            <p className={styles.appearanceValue}>
+              Show a badge and alert on the bell icon when someone sends you
+              a message or request.
+            </p>
+          </div>
+          <span className={styles.switchTrack}>
+            <input
+              type="checkbox"
+              name="notify_in_app_messages"
+              defaultChecked={notifyMessages}
+              className={styles.switchInput}
+            />
+            <span className={styles.switchSlider} />
+          </span>
+        </label>
+
+        {notifyHarvestUpdates !== null && (
+          <>
+            <hr className={styles.divider} />
+            <label className={clsx(styles.appearanceRow, styles.toggleRow)}>
+              <div>
+                <p className={styles.appearanceLabel}>
+                  Harvest status updates
+                </p>
+                <p className={styles.appearanceValue}>
+                  Notify me on my dashboard when a submission is approved,
+                  rejected, or collected.
+                </p>
+              </div>
+              <span className={styles.switchTrack}>
+                <input
+                  type="checkbox"
+                  name="notify_harvest_updates"
+                  defaultChecked={notifyHarvestUpdates}
+                  className={styles.switchInput}
+                />
+                <span className={styles.switchSlider} />
+              </span>
+            </label>
+          </>
+        )}
+
+        <button
+          type="submit"
+          className={styles.submitBtn}
+          disabled={pending}
+          style={{ marginTop: "1.25rem" }}
+        >
+          {pending && <Loader2 size={16} className={styles.spin} />}
+          {pending ? "Saving…" : "Save changes"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/**
  * Card with a shortcut link to the user management page. Only rendered by
  * the admin settings page when the current user has `manage_users` — the
  * permission check itself lives in the calling page, not here.
@@ -224,6 +328,64 @@ export function AdminShortcutSettings() {
         <Link href="/residents" className={styles.shortcutLink}>
           Go to Users →
         </Link>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Card with the Help Center FAQ inlined directly (no separate /help route
+ * — see HelpFaq.tsx for the actual question/answer content per role).
+ */
+export function HelpCenterSettings({ role }: { role: "farmer" | "driver" | "admin" | "partner" }) {
+  return (
+    <div className={styles.card}>
+      <h2 className={styles.cardTitle}>Help Center</h2>
+      <p className={styles.cardSubtitle}>
+        Answers to common questions about using Smart PMB.
+      </p>
+      <HelpFaq role={role} />
+    </div>
+  );
+}
+
+/**
+ * Card with a shortcut to Messages plus the running app version.
+ * `messagesHref` differs per portal (/messages vs /farmer/messages vs
+ * /driver/messages), so the calling page passes it in rather than this
+ * component guessing the route group.
+ */
+export function SupportSettings({
+  messagesHref,
+}: {
+  messagesHref: string;
+}) {
+  return (
+    <div className={styles.card}>
+      <h2 className={styles.cardTitle}>Support &amp; About</h2>
+      <p className={styles.cardSubtitle}>
+        Send a message, or check what you&apos;re running.
+      </p>
+
+      <div className={styles.shortcutRow}>
+        <div>
+          <p className={styles.appearanceLabel}>Contact support</p>
+          <p className={styles.appearanceValue}>
+            Send a message if you need help or want to report a problem.
+          </p>
+        </div>
+        <Link href={messagesHref} className={styles.shortcutLink}>
+          Send a message →
+        </Link>
+      </div>
+
+      <hr className={styles.divider} />
+
+      <div className={styles.appearanceRow}>
+        <div>
+          <p className={styles.appearanceLabel}>Version</p>
+          <p className={styles.appearanceValue}>Smart PMB v{APP_VERSION}</p>
+        </div>
       </div>
     </div>
   );

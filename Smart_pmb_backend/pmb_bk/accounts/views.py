@@ -21,21 +21,25 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from sysops.utils import log_audit, log_auth
 
-from .emails import send_confirmation_email
-from .models import ONLINE_WINDOW, Message, Permission, Role, User
+from .emails import send_confirmation_email, send_license_decision_email, send_temp_password_email
+from .models import ONLINE_WINDOW, LicenseApplication, Message, Permission, Role, User
 from .permissions import HasPermission, RoleAccessPermission
 from .serializers import (
     AdminUserSerializer,
     AdminUserWriteSerializer,
     CustomTokenObtainPairSerializer,
+    LicenseApplicationSerializer,
+    LicenseDecisionSerializer,
     MessageCreateSerializer,
     MessageRecipientSerializer,
     MessageSerializer,
     PermissionSerializer,
     RegisterFarmerSerializer,
+    RegisterLicenseApplicantSerializer,
     RoleSerializer,
     RoleWriteSerializer,
     SelfProfileSerializer,
+    notify_officers,
 )
 from .tokens import read_email_confirmation_token
 
@@ -68,6 +72,37 @@ class RegisterFarmerView(APIView):
         return Response(
             {
                 "detail": "Account created. Check your email to confirm your account before logging in."
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class RegisterLicenseApplicantView(APIView):
+    """
+    Public self-registration endpoint for authorized purchasers and mill
+    owners; creates a User + pending LicenseApplication and emails a
+    confirmation link. Unlike farmers, this account still needs an
+    officer/admin to approve the application before it reaches real access
+    (see LicenseApplicationViewSet) — the frontend shows a pending/rejected
+    holding screen in the meantime.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterLicenseApplicantSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        user = result["user"]
+
+        send_confirmation_email(user)
+
+        return Response(
+            {
+                "detail": (
+                    "Application submitted. Check your email to confirm your "
+                    "account, then wait for an officer to review your application "
+                    "before logging in."
+                )
             },
             status=status.HTTP_201_CREATED,
         )
@@ -135,6 +170,35 @@ class MeView(APIView):
             return None
         return request.build_absolute_uri(user.profile_picture.url)
 
+    def _notification_prefs(self, user):
+        # notify_harvest_updates only exists on farmer_profile, so it's
+        # None (and the frontend hides that toggle) for every other role.
+        farmer_profile = getattr(user, "farmer_profile", None)
+        return {
+            "notify_in_app_messages": user.notify_in_app_messages,
+            "notify_harvest_updates": (
+                farmer_profile.notify_harvest_updates if farmer_profile else None
+            ),
+        }
+
+    def _account_status(self, user):
+        # license_application only exists for authorized_purchaser/mill_owner
+        # accounts — None (no gating) for everyone else. The frontend shows
+        # a pending/rejected holding screen instead of the real portal
+        # unless status is "approved".
+        application = getattr(user, "license_application", None)
+        return {
+            "must_change_password": user.must_change_password,
+            "license_status": application.status if application else None,
+            "license_rejection_reason": (
+                application.rejection_reason if application else ""
+            ),
+            "license_business_name": application.business_name if application else "",
+            "license_type_display": (
+                application.get_license_type_display() if application else ""
+            ),
+        }
+
     def get(self, request):
         user = request.user
         return Response(
@@ -150,6 +214,8 @@ class MeView(APIView):
                 "permissions": list(
                     user.role.permissions.values_list("codename", flat=True)
                 ),
+                **self._notification_prefs(user),
+                **self._account_status(user),
             }
         )
 
@@ -178,6 +244,8 @@ class MeView(APIView):
                 "permissions": list(
                     user.role.permissions.values_list("codename", flat=True)
                 ),
+                **self._notification_prefs(user),
+                **self._account_status(user),
                 "access": str(token.access_token),
                 "refresh": str(token),
             }
@@ -231,10 +299,27 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = serializer.save()
         log_audit(self.request.user, "create_user", "accounts", user.email)
+        # Always set on create by AdminUserWriteSerializer (typed or
+        # auto-generated password, either way "temporary" — see there).
+        send_temp_password_email(user, user._plain_password)
+        # Unlike a self-registered applicant, an admin-created purchaser/
+        # mill-owner account skips the licensing queue entirely (creating it
+        # directly already IS the approval) — but the rest of the team
+        # would otherwise have no way of knowing the account exists at all.
+        if user.role.slug in ("authorized_purchaser", "mill_owner"):
+            notify_officers(
+                user,
+                f"New {user.role.name} account created for {user.full_name or user.email} "
+                "(no licensing application — created directly by an admin).",
+            )
 
     def perform_update(self, serializer):
         user = serializer.save()
         log_audit(self.request.user, "update_user", "accounts", user.email)
+        # Only set when this update included a password change/reset.
+        plain_password = getattr(user, "_plain_password", None)
+        if plain_password:
+            send_temp_password_email(user, plain_password)
 
     @action(detail=True, methods=["post"], permission_classes=[HasPermission("manage_system")])
     def unlock(self, request, pk=None):
@@ -261,6 +346,59 @@ class AdminUserViewSet(viewsets.ModelViewSet):
                 pass
         log_audit(request.user, "force_logout", "accounts", user.email)
         return Response({"detail": "Session revoked."})
+
+
+class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Officer/admin review queue for authorized-purchaser/mill-owner
+    self-registrations (requires the pre-seeded "approve_licenses"
+    permission — already granted to admin/pmb_officer by default, see
+    accounts/migrations/0003_role_permission.py). Read-only aside from the
+    approve/reject actions, since an application's own fields are set once
+    at self-registration and never edited afterward.
+    """
+    permission_classes = [HasPermission("approve_licenses")]
+    serializer_class = LicenseApplicationSerializer
+    queryset = (
+        LicenseApplication.objects.all()
+        .select_related("user", "reviewed_by")
+        .order_by("-submitted_at")
+    )
+
+    def get_queryset(self):
+        # Optional ?status=pending filter for the review queue's default view.
+        qs = super().get_queryset()
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        application = self.get_object()
+        application.status = LicenseApplication.Status.APPROVED
+        application.reviewed_by = request.user
+        application.reviewed_at = timezone.now()
+        application.rejection_reason = ""
+        application.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
+        log_audit(request.user, "approve_license", "accounts", application.business_name)
+        send_license_decision_email(application)
+        return Response(LicenseApplicationSerializer(application).data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        serializer = LicenseDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        application = self.get_object()
+        application.status = LicenseApplication.Status.REJECTED
+        application.reviewed_by = request.user
+        application.reviewed_at = timezone.now()
+        application.rejection_reason = serializer.validated_data.get("reason", "")
+        application.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
+        log_audit(request.user, "reject_license", "accounts", application.business_name)
+        send_license_decision_email(application)
+        return Response(LicenseApplicationSerializer(application).data)
 
 
 class RoleViewSet(viewsets.ModelViewSet):

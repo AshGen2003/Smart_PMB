@@ -21,6 +21,7 @@ interface AdminShellProps {
   roleLabel: string;
   permissions: string[];
   profilePictureUrl?: string | null;
+  notifyMessages?: boolean;
   idleMinutes?: number;
   maintenanceMode?: boolean;
   previewing?: { slug: string; name: string };
@@ -35,6 +36,7 @@ interface AdminShellProps {
 function LayoutWrapper({
   children,
   permissions,
+  notifyMessages,
   idleMinutes,
   maintenanceMode,
   previewing,
@@ -58,7 +60,7 @@ function LayoutWrapper({
       <div className={styles.mainWrapper}>
         {previewing && <PreviewBanner roleName={previewing.name} />}
         <div className={styles.headerArea}>
-          <Header previewing={!!previewing} />
+          <Header previewing={!!previewing} notifyMessages={notifyMessages} />
         </div>
         {maintenanceMode && (
           <div className={styles.maintenanceBanner}>
@@ -83,6 +85,7 @@ function LayoutWrapper({
 export default function AdminShell({
   children,
   permissions,
+  notifyMessages,
   idleMinutes,
   maintenanceMode,
   previewing,
@@ -91,6 +94,7 @@ export default function AdminShell({
     <LayoutProvider>
       <LayoutWrapper
         permissions={permissions}
+        notifyMessages={notifyMessages}
         idleMinutes={idleMinutes}
         maintenanceMode={maintenanceMode}
         previewing={previewing}

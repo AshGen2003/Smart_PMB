@@ -244,7 +244,9 @@ class PaddyTypeViewSet(viewsets.ModelViewSet):
 
 
 def _notify_farmer(harvest, message):
-    """Creates a Notification the farmer sees on their dashboard — so a status change doesn't only show up if they happen to check back."""
+    """Creates a Notification the farmer sees on their dashboard — so a status change doesn't only show up if they happen to check back. Skipped if the farmer has turned harvest-update notifications off in Settings."""
+    if not harvest.farmer.notify_harvest_updates:
+        return
     Notification.objects.create(farmer=harvest.farmer, message=message)
 
 

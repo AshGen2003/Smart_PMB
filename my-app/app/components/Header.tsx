@@ -23,6 +23,9 @@ interface HeaderProps {
   // only send a request to the admin team, not pick a specific user.
   restrictedCompose?: boolean;
   previewing?: boolean;
+  // Settings → Notifications → "Message alerts". Defaults to true so a
+  // failed/omitted preference fetch doesn't silently mute the bell.
+  notifyMessages?: boolean;
 }
 
 /**
@@ -34,6 +37,7 @@ export default function Header({
   messagesHref = "/messages",
   restrictedCompose = false,
   previewing = false,
+  notifyMessages = true,
 }: HeaderProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
@@ -67,6 +71,7 @@ export default function Header({
           restrictedCompose={restrictedCompose}
           messagesHref={messagesHref}
           previewing={previewing}
+          notifyMessages={notifyMessages}
         />
 
         <form action={logout}>

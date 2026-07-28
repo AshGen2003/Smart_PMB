@@ -158,6 +158,64 @@ export async function signupFarmer(
 }
 
 /**
+ * Registers a new authorized-purchaser or mill-owner licensing application
+ * via Django's public registration endpoint. Like signupFarmer, this
+ * doesn't log the user in — the account needs both email confirmation AND
+ * an officer/admin's approval of the application before it reaches real
+ * access (see the partner/ route group's layout), so this just redirects
+ * to the login page with the same "check your email" success flag.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Submitted fields (email, password, confirmPassword,
+ *   fullName, licenseType, businessName, businessRegistrationNo,
+ *   contactNumber).
+ * @returns `{ error }` on validation/registration failure. On success,
+ *   redirects to `/login?registered=1` instead of returning.
+ */
+export async function signupPartner(
+  _prevState: SignupState,
+  formData: FormData
+): Promise<SignupState> {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+  const licenseType = String(formData.get("licenseType") ?? "");
+
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match." };
+  }
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+  if (licenseType !== "authorized_purchaser" && licenseType !== "mill_owner") {
+    return { error: "Choose whether you're applying as an authorized purchaser or mill owner." };
+  }
+
+  const payload = {
+    email: String(formData.get("email") ?? "").trim(),
+    password,
+    full_name: String(formData.get("fullName") ?? "").trim(),
+    license_type: licenseType,
+    business_name: String(formData.get("businessName") ?? "").trim(),
+    business_registration_no: String(formData.get("businessRegistrationNo") ?? "").trim(),
+    contact_number: String(formData.get("contactNumber") ?? "").trim(),
+  };
+
+  const res = await fetch(`${API_URL}/api/auth/register/license/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  redirect("/login?registered=1");
+}
+
+/**
  * Logs the current user out.
  *
  * Best-effort notifies Django to invalidate/blacklist the refresh token

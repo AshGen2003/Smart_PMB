@@ -6,6 +6,7 @@
 import uuid
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
@@ -101,6 +102,17 @@ class User(AbstractUser):
     # (accounts/middleware.py) — the basis for "currently online" counts,
     # since JWT auth is stateless and has no server-side session to query.
     last_activity = models.DateTimeField(null=True, blank=True)
+    # Set whenever an admin creates the account (or resets its password)
+    # with a system-generated temporary password — the frontend forces a
+    # password change before letting the user reach any real page while
+    # this is true. Cleared automatically the moment they set their own
+    # new password (see SelfProfileSerializer.save()).
+    must_change_password = models.BooleanField(default=False)
+    # User-controlled preference (Settings → Notifications): whether the
+    # notification bell polls for and alerts on new messages/requests. Off
+    # just mutes the alert — sending/reading messages via /messages still
+    # works regardless.
+    notify_in_app_messages = models.BooleanField(default=True)
 
     # Log in with email + password instead of Django's default username.
     USERNAME_FIELD = "email"
@@ -114,6 +126,53 @@ class User(AbstractUser):
     @property
     def is_online(self):
         return bool(self.last_activity) and timezone.now() - self.last_activity <= ONLINE_WINDOW
+
+
+class LicenseApplication(models.Model):
+    """
+    A request from an external party (an authorized purchaser or mill
+    owner — not an employee) to be licensed as part of the organization.
+    Unlike a farmer, self-registering isn't enough on its own: the account
+    exists and can log in immediately, but only reaches real access once an
+    officer/admin reviews and approves this application (see
+    LicenseApplicationViewSet). Confirming email and getting the license
+    approved are independent gates — both must pass.
+    """
+
+    class LicenseType(models.TextChoices):
+        AUTHORIZED_PURCHASER = "authorized_purchaser", "Authorized Purchaser"
+        MILL_OWNER = "mill_owner", "Mill Owner"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="license_application"
+    )
+    license_type = models.CharField(max_length=30, choices=LicenseType.choices)
+    business_name = models.CharField(max_length=150)
+    business_registration_no = models.CharField(max_length=50)
+    contact_number = models.CharField(max_length=20, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_license_applications",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    # Shown to the applicant on their pending-approval holding screen when rejected.
+    rejection_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-submitted_at"]
+
+    def __str__(self):
+        return f"{self.business_name} ({self.get_license_type_display()}) — {self.status}"
 
 
 class Message(models.Model):

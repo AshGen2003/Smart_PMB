@@ -134,16 +134,15 @@ export default function UserFormModal({
           <div className={styles.field}>
             <label className={styles.label} htmlFor="password">
               Password{" "}
-              {mode === "edit" && (
-                <span className={styles.optional}>
-                  (leave blank to keep current)
-                </span>
-              )}
+              <span className={styles.optional}>
+                {mode === "edit"
+                  ? "(leave blank to keep current)"
+                  : "(leave blank to auto-generate and email a temporary one)"}
+              </span>
             </label>
             <PasswordInput
               id="password"
               name="password"
-              required={mode === "create"}
               minLength={8}
               className={styles.input}
               placeholder="At least 8 characters"

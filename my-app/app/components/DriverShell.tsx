@@ -22,6 +22,7 @@ interface DriverShellProps {
   userName: string;
   permissions: string[];
   profilePictureUrl?: string | null;
+  notifyMessages?: boolean;
   previewing?: { slug: string; name: string };
 }
 
@@ -34,6 +35,7 @@ interface DriverShellProps {
 function LayoutWrapper({
   children,
   permissions,
+  notifyMessages,
   previewing,
 }: Omit<DriverShellProps, "userName" | "profilePictureUrl">) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
@@ -57,6 +59,7 @@ function LayoutWrapper({
             messagesHref="/driver/messages"
             restrictedCompose
             previewing={!!previewing}
+            notifyMessages={notifyMessages}
           />
         </div>
         <main className={styles.mainArea}>{children}</main>
@@ -69,11 +72,12 @@ function LayoutWrapper({
 export default function DriverShell({
   children,
   permissions,
+  notifyMessages,
   previewing,
 }: DriverShellProps) {
   return (
     <LayoutProvider>
-      <LayoutWrapper permissions={permissions} previewing={previewing}>
+      <LayoutWrapper permissions={permissions} notifyMessages={notifyMessages} previewing={previewing}>
         {children}
       </LayoutWrapper>
     </LayoutProvider>

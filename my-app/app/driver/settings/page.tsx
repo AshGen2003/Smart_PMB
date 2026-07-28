@@ -6,6 +6,9 @@ import { requirePermission } from "@/app/lib/dal";
 import {
   AccountSettingsForm,
   AppearanceSettings,
+  NotificationSettings,
+  HelpCenterSettings,
+  SupportSettings,
 } from "@/app/components/SettingsSections";
 import styles from "../DriverDashboard.module.css";
 
@@ -24,6 +27,12 @@ export default async function DriverSettingsPage() {
 
       <AccountSettingsForm fullName={user.fullName ?? ""} email={user.email} />
       <AppearanceSettings />
+      <NotificationSettings
+        notifyMessages={user.notifyMessages}
+        notifyHarvestUpdates={user.notifyHarvestUpdates}
+      />
+      <HelpCenterSettings role="driver" />
+      <SupportSettings messagesHref="/driver/messages" />
     </div>
   );
 }

@@ -23,6 +23,7 @@ from rest_framework.routers import DefaultRouter
 from accounts.views import (
     AdminOverviewView,
     AdminUserViewSet,
+    LicenseApplicationViewSet,
     MessageCreateView,
     MessageHistoryView,
     MessageInboxView,
@@ -63,6 +64,7 @@ from sysops.views import (
 router = DefaultRouter()
 router.register('admin/users', AdminUserViewSet, basename='admin-users')
 router.register('admin/roles', RoleViewSet, basename='admin-roles')
+router.register('admin/license-applications', LicenseApplicationViewSet, basename='admin-license-applications')
 router.register('admin/warehouses', WarehouseViewSet, basename='admin-warehouses')
 router.register('admin/paddy-types', PaddyTypeViewSet, basename='admin-paddy-types')
 router.register('admin/harvests', OfficerHarvestViewSet, basename='admin-harvests')

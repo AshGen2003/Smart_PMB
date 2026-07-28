@@ -63,6 +63,10 @@ class Farmer(models.Model):
     contact_number = models.CharField(max_length=20, blank=True)
     registered_date = models.DateField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    # User-controlled preference (Settings → Notifications): whether a
+    # harvest of theirs being approved/rejected/collected creates a
+    # dashboard notification (see farmers/views.py's _notify_farmer).
+    notify_harvest_updates = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.name} ({self.registration_no})"

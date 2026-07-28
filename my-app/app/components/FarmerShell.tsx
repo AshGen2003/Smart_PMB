@@ -25,6 +25,7 @@ interface FarmerShellProps {
   userName: string;
   permissions: string[];
   profilePictureUrl?: string | null;
+  notifyMessages?: boolean;
   previewing?: { slug: string; name: string };
 }
 
@@ -37,6 +38,7 @@ interface FarmerShellProps {
 function LayoutWrapper({
   children,
   permissions,
+  notifyMessages,
   previewing,
 }: Omit<FarmerShellProps, "userName" | "profilePictureUrl">) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
@@ -60,6 +62,7 @@ function LayoutWrapper({
             messagesHref="/farmer/messages"
             restrictedCompose
             previewing={!!previewing}
+            notifyMessages={notifyMessages}
           />
         </div>
         <main className={styles.mainArea}>{children}</main>
@@ -72,11 +75,12 @@ function LayoutWrapper({
 export default function FarmerShell({
   children,
   permissions,
+  notifyMessages,
   previewing,
 }: FarmerShellProps) {
   return (
     <LayoutProvider>
-      <LayoutWrapper permissions={permissions} previewing={previewing}>
+      <LayoutWrapper permissions={permissions} notifyMessages={notifyMessages} previewing={previewing}>
         {children}
       </LayoutWrapper>
     </LayoutProvider>

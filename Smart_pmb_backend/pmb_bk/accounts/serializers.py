@@ -2,6 +2,8 @@
 # logic), farmer self-registration, self-service profile editing, and the
 # admin-facing user/role/permission management endpoints.
 import random
+import secrets
+import string
 from datetime import timedelta
 
 from django.db import transaction
@@ -13,7 +15,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from farmers.models import District, Farmer
 from sysops.utils import get_config_value, log_auth
 
-from .models import Message, Permission, Role, User
+from .models import LicenseApplication, Message, Permission, Role, User
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -175,6 +177,95 @@ class RegisterFarmerSerializer(serializers.Serializer):
         return {"user": user, "farmer": farmer}
 
 
+def notify_officers(sender, body):
+    """
+    Sends an in-app request (notification bell) to both the admin and
+    pmb_officer teams — reused for both self-registered licensing
+    applications and admin-created purchaser/mill-owner accounts, so
+    neither team ever finds out about a new account only by happening to
+    check /licenses or /residents. Both are notified since both hold
+    approve_licenses, but pmb_officer additionally lacks view_audit_logs
+    (so a SystemAlert-based notice would have missed them entirely).
+    """
+    for target_role in (Message.TargetRole.ADMIN, Message.TargetRole.PMB_OFFICER):
+        Message.objects.create(sender=sender, target_role=target_role, body=body)
+
+
+class RegisterLicenseApplicantSerializer(serializers.Serializer):
+    """
+    Validates and creates a new authorized-purchaser/mill-owner User account
+    plus a pending LicenseApplication, in one transaction. Unlike a farmer,
+    this account can log in right away but only reaches real access once an
+    officer/admin approves the application (see LicenseApplicationViewSet)
+    — confirming email is a separate, independent gate on top of that, same
+    as farmer self-registration.
+    """
+
+    email = serializers.EmailField()
+    password = serializers.CharField(min_length=8, write_only=True)
+    full_name = serializers.CharField(max_length=150)
+    license_type = serializers.ChoiceField(choices=LicenseApplication.LicenseType.choices)
+    business_name = serializers.CharField(max_length=150)
+    business_registration_no = serializers.CharField(max_length=50)
+    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
+        return value
+
+    def create(self, validated_data):
+        with transaction.atomic():
+            user = User.objects.create_user(
+                email=validated_data["email"],
+                password=validated_data["password"],
+                full_name=validated_data["full_name"],
+                role=Role.objects.get(slug=validated_data["license_type"]),
+                email_confirmed=False,
+            )
+            application = LicenseApplication.objects.create(
+                user=user,
+                license_type=validated_data["license_type"],
+                business_name=validated_data["business_name"],
+                business_registration_no=validated_data["business_registration_no"],
+                contact_number=validated_data.get("contact_number", ""),
+            )
+            notify_officers(
+                user,
+                f"New licensing application from {application.business_name} "
+                f"({application.get_license_type_display()}) — awaiting review.",
+            )
+
+        return {"user": user, "application": application}
+
+
+class LicenseApplicationSerializer(serializers.ModelSerializer):
+    """Read-only representation of a licensing application for the officer/admin approval queue."""
+
+    applicant_name = serializers.CharField(source="user.full_name", read_only=True)
+    applicant_email = serializers.CharField(source="user.email", read_only=True)
+    license_type_display = serializers.CharField(source="get_license_type_display", read_only=True)
+    reviewed_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LicenseApplication
+        fields = [
+            "id", "applicant_name", "applicant_email", "license_type",
+            "license_type_display", "business_name", "business_registration_no",
+            "contact_number", "status", "submitted_at", "reviewed_by_name",
+            "reviewed_at", "rejection_reason",
+        ]
+
+    def get_reviewed_by_name(self, obj):
+        return obj.reviewed_by.full_name if obj.reviewed_by else None
+
+
+class LicenseDecisionSerializer(serializers.Serializer):
+    """Validates the optional rejection reason submitted with LicenseApplicationViewSet's reject action."""
+
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
+
 class SelfProfileSerializer(serializers.Serializer):
     """Handles the logged-in user's self-service profile edits, including an optional password change."""
 
@@ -188,6 +279,10 @@ class SelfProfileSerializer(serializers.Serializer):
     new_password = serializers.CharField(
         required=False, allow_blank=True, min_length=8, write_only=True
     )
+    notify_in_app_messages = serializers.BooleanField(required=False)
+    # Farmer-only preference; silently ignored (see save()) for any user
+    # without a farmer_profile, so it's safe to accept from every caller.
+    notify_harvest_updates = serializers.BooleanField(required=False)
 
     def validate(self, attrs):
         # Changing the password requires re-confirming the current one,
@@ -210,6 +305,8 @@ class SelfProfileSerializer(serializers.Serializer):
         phone_number = self.validated_data.get("phone_number")
         profile_picture = self.validated_data.get("profile_picture")
         new_password = self.validated_data.get("new_password")
+        notify_in_app_messages = self.validated_data.get("notify_in_app_messages")
+        notify_harvest_updates = self.validated_data.get("notify_harvest_updates")
 
         if full_name is not None:
             user.full_name = full_name.strip()
@@ -221,8 +318,18 @@ class SelfProfileSerializer(serializers.Serializer):
             user.profile_picture = profile_picture
         if new_password:
             user.set_password(new_password)
+            # Setting their own password is exactly what must_change_password
+            # exists to force — clear it once they've done so.
+            user.must_change_password = False
+        if notify_in_app_messages is not None:
+            user.notify_in_app_messages = notify_in_app_messages
 
         user.save()
+
+        if notify_harvest_updates is not None and hasattr(user, "farmer_profile"):
+            user.farmer_profile.notify_harvest_updates = notify_harvest_updates
+            user.farmer_profile.save(update_fields=["notify_harvest_updates"])
+
         return user
 
 
@@ -284,8 +391,21 @@ class AdminUserSerializer(serializers.ModelSerializer):
         return bool(obj.locked_until and obj.locked_until > timezone.now())
 
 
+def generate_temp_password() -> str:
+    """A random 12-character password (letters, digits, and a few punctuation marks) for admin-created/-reset accounts — always treated as temporary (see must_change_password)."""
+    alphabet = string.ascii_letters + string.digits + "!@#$%"
+    return "".join(secrets.choice(alphabet) for _ in range(12))
+
+
 class AdminUserWriteSerializer(serializers.ModelSerializer):
-    """Handles admin-driven create/update of a User account, including an optional password reset."""
+    """
+    Handles admin-driven create/update of a User account. `password` is
+    always optional now — leaving it blank on create auto-generates one
+    server-side rather than forcing the admin to invent it, and either way
+    (typed or generated) it's emailed to the user as a temporary password
+    they must change on first login (see AdminUserViewSet.perform_create/
+    perform_update and must_change_password).
+    """
 
     password = serializers.CharField(
         write_only=True, required=False, allow_blank=True, min_length=8
@@ -299,20 +419,15 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id"]
 
-    def validate(self, attrs):
-        # Password is mandatory when creating a new user, but optional on
-        # update (omitting it just leaves the existing password in place).
-        if self.instance is None and not attrs.get("password"):
-            raise serializers.ValidationError(
-                {"password": "Password is required for new users."}
-            )
-        return attrs
-
     def create(self, validated_data):
-        password = validated_data.pop("password")
+        password = validated_data.pop("password", "") or generate_temp_password()
         user = User(**validated_data)
         user.set_password(password)  # hash before saving
+        user.must_change_password = True
         user.save()
+        # Not persisted — stashed only so the view can email it once, right
+        # after this call returns; never touches the database in plaintext.
+        user._plain_password = password
         return user
 
     def update(self, instance, validated_data):
@@ -332,7 +447,11 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         if password:
+            # An admin setting/resetting someone else's password is, by the
+            # same logic as account creation, always a temporary one.
             instance.set_password(password)
+            instance.must_change_password = True
+            instance._plain_password = password
         instance.save()
         return instance
 

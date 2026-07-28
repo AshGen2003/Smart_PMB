@@ -8,6 +8,9 @@ import { requirePermission } from "@/app/lib/dal";
 import {
   AccountSettingsForm,
   AppearanceSettings,
+  NotificationSettings,
+  HelpCenterSettings,
+  SupportSettings,
 } from "@/app/components/SettingsSections";
 import styles from "../FarmerDashboard.module.css";
 
@@ -26,6 +29,12 @@ export default async function FarmerSettingsPage() {
 
       <AccountSettingsForm fullName={user.fullName ?? ""} email={user.email} />
       <AppearanceSettings />
+      <NotificationSettings
+        notifyMessages={user.notifyMessages}
+        notifyHarvestUpdates={user.notifyHarvestUpdates}
+      />
+      <HelpCenterSettings role="farmer" />
+      <SupportSettings messagesHref="/farmer/messages" />
     </div>
   );
 }

@@ -24,6 +24,30 @@ export type AppUser = {
   role: string;
   roleName: string;
   permissions: string[];
+  // The rest of these come along for free from the same /api/auth/me/ call
+  // this function already makes for live role/permissions (see below) —
+  // every page that used to issue its own separate fetch for its profile
+  // picture, nic/phone, or notification preferences now reads them straight
+  // off this object instead, cutting a redundant network round-trip to the
+  // (remote, Supabase-hosted) backend on every single page load.
+  nic: string;
+  phoneNumber: string;
+  profilePictureUrl: string | null;
+  notifyMessages: boolean;
+  // null for any account with no farmer profile (that toggle has no
+  // meaning for them) — see accounts/views.py's _notification_prefs.
+  notifyHarvestUpdates: boolean | null;
+  // True right after an admin creates or resets this account's password —
+  // every portal layout redirects to /change-password until they set their
+  // own (see accounts/views.py's AdminUserWriteSerializer).
+  mustChangePassword: boolean;
+  // null for every role except authorized_purchaser/mill_owner, which have
+  // a LicenseApplication gating real access — see accounts/views.py's
+  // _account_status and the partner/ route group's layout.
+  licenseStatus: "pending" | "approved" | "rejected" | null;
+  licenseRejectionReason: string;
+  licenseBusinessName: string;
+  licenseTypeDisplay: string;
   // Set only while an admin is using Portal Preview (see
   // actions/preview.ts) — `role`/`roleName`/`permissions` above are already
   // swapped to the previewed role's when this is present, so every existing
@@ -92,13 +116,47 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
   let role = payload.role;
   let roleName = payload.role_name;
   let realPermissions = payload.permissions ?? [];
+  let nic = "";
+  let phoneNumber = "";
+  let profilePictureUrl: string | null = null;
+  let notifyMessages = true;
+  let notifyHarvestUpdates: boolean | null = null;
+  let mustChangePassword = false;
+  let licenseStatus: "pending" | "approved" | "rejected" | null = null;
+  let licenseRejectionReason = "";
+  let licenseBusinessName = "";
+  let licenseTypeDisplay = "";
 
   const meRes = await apiFetch("/api/auth/me/");
   if (meRes.ok) {
-    const me: { role: string; role_name: string; permissions: string[] } = await meRes.json();
+    const me: {
+      role: string;
+      role_name: string;
+      permissions: string[];
+      nic: string;
+      phone_number: string;
+      profile_picture: string | null;
+      notify_in_app_messages: boolean;
+      notify_harvest_updates: boolean | null;
+      must_change_password: boolean;
+      license_status: "pending" | "approved" | "rejected" | null;
+      license_rejection_reason: string;
+      license_business_name: string;
+      license_type_display: string;
+    } = await meRes.json();
     role = me.role;
     roleName = me.role_name;
     realPermissions = me.permissions ?? [];
+    nic = me.nic ?? "";
+    phoneNumber = me.phone_number ?? "";
+    profilePictureUrl = me.profile_picture ?? null;
+    notifyMessages = me.notify_in_app_messages ?? true;
+    notifyHarvestUpdates = me.notify_harvest_updates ?? null;
+    mustChangePassword = me.must_change_password ?? false;
+    licenseStatus = me.license_status ?? null;
+    licenseRejectionReason = me.license_rejection_reason ?? "";
+    licenseBusinessName = me.license_business_name ?? "";
+    licenseTypeDisplay = me.license_type_display ?? "";
   }
 
   const user: AppUser = {
@@ -108,6 +166,16 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
     role,
     roleName,
     permissions: realPermissions,
+    nic,
+    phoneNumber,
+    profilePictureUrl,
+    notifyMessages,
+    notifyHarvestUpdates,
+    mustChangePassword,
+    licenseStatus,
+    licenseRejectionReason,
+    licenseBusinessName,
+    licenseTypeDisplay,
   };
 
   // Only holders of manage_roles can start a preview (see actions/preview.ts
@@ -146,10 +214,12 @@ export async function requireUser(): Promise<AppUser> {
 }
 
 // Where to send a user who is logged in but not allowed on the page they
-// requested — their own dashboard, rather than a generic error page.
-function homeFor(user: AppUser): string {
+// requested — their own dashboard, rather than a generic error page. Also
+// used directly by /change-password to know where to go once done.
+export function homeFor(user: AppUser): string {
   if (user.role === "farmer") return "/farmer";
   if (user.role === "driver") return "/driver";
+  if (user.role === "authorized_purchaser" || user.role === "mill_owner") return "/partner";
   return "/dashboard";
 }
 
@@ -165,6 +235,19 @@ export async function requireRole(role: string): Promise<AppUser> {
   const user = await requireUser();
   if (user.role !== role) {
     // Send them to their own home, not the page they were denied.
+    redirect(homeFor(user));
+  }
+  return user;
+}
+
+/**
+ * Like requireRole, but passes if the user's role is any one of several —
+ * used by the partner/ route group, which serves both authorized_purchaser
+ * and mill_owner accounts under one shell.
+ */
+export async function requireAnyRole(...roles: string[]): Promise<AppUser> {
+  const user = await requireUser();
+  if (!roles.includes(user.role)) {
     redirect(homeFor(user));
   }
   return user;
