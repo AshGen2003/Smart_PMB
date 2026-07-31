@@ -21,9 +21,12 @@ export type AdminUserRow = {
   email: string;
   full_name: string;
   nic: string | null;
+  phone_number: string | null;
   role: { id: number; name: string; slug: string };
   is_active: boolean;
+  email_confirmed: boolean;
   date_joined: string;
+  last_activity: string | null;
   is_locked: boolean;
 };
 
@@ -155,6 +158,7 @@ export default function UsersManager({
                 <th>Email</th>
                 <th>Full Name</th>
                 <th>NIC</th>
+                <th>Phone</th>
                 <th>Role</th>
                 <th>Status</th>
                 <th>Joined</th>
@@ -167,6 +171,7 @@ export default function UsersManager({
                   <td>{u.email}</td>
                   <td>{u.full_name || "—"}</td>
                   <td>{u.nic || "—"}</td>
+                  <td>{u.phone_number || "—"}</td>
                   <td>
                     <span className={clsx(styles.badge, styles.roleBadge)}>
                       {u.role.name}
@@ -228,8 +233,11 @@ export default function UsersManager({
                               id: u.id,
                               email: u.email,
                               full_name: u.full_name,
+                              nic: u.nic ?? "",
+                              phone_number: u.phone_number ?? "",
                               roleId: u.role.id,
                               is_active: u.is_active,
+                              email_confirmed: u.email_confirmed,
                             },
                           })
                         }

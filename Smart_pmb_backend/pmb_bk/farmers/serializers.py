@@ -3,7 +3,20 @@
 # plain foreign-key ids" pattern used throughout the admin/officer APIs.
 from rest_framework import serializers
 
-from .models import District, Farmer, Harvest, Notification, PaddyType, Warehouse
+from .models import (
+    Delivery,
+    DeliveryLocationPing,
+    District,
+    Farmer,
+    FuelRecord,
+    Harvest,
+    MaintenanceRecord,
+    Notification,
+    PaddyType,
+    Route,
+    Vehicle,
+    Warehouse,
+)
 
 
 class ProvinceNameSerializer(serializers.Serializer):
@@ -140,4 +153,114 @@ class OfficerHarvestWriteSerializer(serializers.ModelSerializer):
             "id", "farmer", "paddy_type", "warehouse", "quantity_kg",
             "purchase_date", "grade", "moisture_level", "quality_check",
             "unit_price",
+        ]
+
+
+class VehicleSerializer(serializers.ModelSerializer):
+    """Read/write representation of a Vehicle (same fields both ways — no derived/read-only extras)."""
+
+    class Meta:
+        model = Vehicle
+        fields = ["id", "registration_no", "vehicle_type", "model", "manufacture_year", "size", "capacity_kg", "status"]
+
+
+class RouteSerializer(serializers.ModelSerializer):
+    """Read/write representation of a Route."""
+
+    class Meta:
+        model = Route
+        fields = ["id", "origin", "destination", "distance_km", "estimated_time"]
+
+
+class DeliverySerializer(serializers.ModelSerializer):
+    """Read representation of a Delivery, with vehicle/driver/route/warehouse names resolved for display."""
+
+    vehicle_registration = serializers.CharField(source="vehicle.registration_no", default=None)
+    driver_name = serializers.CharField(source="driver.full_name", default=None)
+    route_label = serializers.SerializerMethodField()
+    warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+    approved_by_name = serializers.CharField(source="approved_by.full_name", default=None)
+    latest_location = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Delivery
+        fields = [
+            "id", "vehicle", "vehicle_registration", "driver", "driver_name",
+            "route", "route_label", "warehouse", "warehouse_name",
+            "approved_by", "approved_by_name", "scheduled_date", "status",
+            "assignment_status", "latest_location",
+        ]
+
+    def get_route_label(self, obj):
+        return f"{obj.route.origin} → {obj.route.destination}" if obj.route_id else None
+
+    def get_latest_location(self, obj):
+        ping = obj.location_pings.first()  # Meta.ordering = ["-recorded_at"]
+        if not ping:
+            return None
+        return {
+            "latitude": float(ping.latitude),
+            "longitude": float(ping.longitude),
+            "recorded_at": ping.recorded_at,
+        }
+
+
+class DeliveryLocationPingSerializer(serializers.ModelSerializer):
+    """Write-only: a single GPS reading the driver's browser reports while a delivery is in transit."""
+
+    class Meta:
+        model = DeliveryLocationPing
+        fields = ["id", "latitude", "longitude", "recorded_at"]
+        read_only_fields = ["id", "recorded_at"]
+
+
+class DeliveryWriteSerializer(serializers.ModelSerializer):
+    """
+    Create/update representation of a Delivery. `status` is writable here
+    too (unlike Harvest) since deliveries don't have the same
+    approve/reject/collect gating workflow — an officer can move a
+    delivery through scheduled/in_transit/delivered/delayed/cancelled
+    directly, or via the `update_status` action for a lighter-weight call.
+    """
+
+    class Meta:
+        model = Delivery
+        fields = [
+            "id", "vehicle", "driver", "route", "warehouse",
+            "scheduled_date", "status",
+        ]
+
+
+class FuelRecordSerializer(serializers.ModelSerializer):
+    """
+    Read/write representation of a FuelRecord, with the vehicle's
+    registration resolved for display. `vehicle_registration` must stay
+    read_only: it shares this one serializer between read and write (no
+    separate write serializer, unlike Delivery/Warehouse/Harvest), and a
+    writable dotted-source field here collides with the plain `vehicle` FK
+    field during deserialization (both try to write into the same nested
+    `vehicle` slot in the input dict — DRF raises "'Vehicle' object does
+    not support item assignment").
+    """
+
+    vehicle_registration = serializers.CharField(source="vehicle.registration_no", read_only=True, default=None)
+
+    class Meta:
+        model = FuelRecord
+        fields = [
+            "id", "vehicle", "vehicle_registration", "fuel_type",
+            "quantity_litres", "cost", "fuel_date",
+        ]
+
+
+class MaintenanceRecordSerializer(serializers.ModelSerializer):
+    """Read/write representation of a MaintenanceRecord, with the vehicle's registration resolved for display. See FuelRecordSerializer's docstring for why `vehicle_registration` must stay read_only."""
+
+    vehicle_registration = serializers.CharField(source="vehicle.registration_no", read_only=True, default=None)
+
+    class Meta:
+        model = MaintenanceRecord
+        fields = [
+            "id", "vehicle", "vehicle_registration", "service_date",
+            "description", "cost", "next_service_date",
         ]

@@ -82,11 +82,12 @@ export async function login(
   // Bust the root layout's cached render so the header/nav (which shows
   // login state) reflects the newly authenticated user on next navigation.
   revalidatePath("/", "layout");
-  // Farmers and mill owners land on their own portals; every other role
-  // (admin, PMB officers, authorized purchasers, etc.) lands on the shared
-  // admin dashboard.
+  // Farmers, mill owners, and drivers land on their own portals; every
+  // other role (admin, PMB officers, authorized purchasers, etc.) lands on
+  // the shared admin dashboard.
   if (payload?.role === "farmer") redirect("/farmer");
   if (payload?.role === "mill_owner") redirect("/mill-owner");
+  if (payload?.role === "driver") redirect("/driver");
   redirect("/dashboard");
 }
 

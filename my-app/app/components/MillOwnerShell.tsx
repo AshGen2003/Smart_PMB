@@ -45,7 +45,7 @@ function LayoutWrapper({ children, userName, profilePictureUrl, previewing }: Mi
             profileHref="/mill-owner/profile"
             settingsHref="/mill-owner/settings"
             profilePictureUrl={profilePictureUrl}
-            isFarmer
+            restrictedCompose
             messagesHref="/mill-owner/messages"
             previewing={!!previewing}
           />

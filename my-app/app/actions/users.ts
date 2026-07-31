@@ -32,6 +32,8 @@ export async function createUser(
     email: String(formData.get("email") ?? "").trim(),
     password: String(formData.get("password") ?? ""),
     full_name: String(formData.get("fullName") ?? "").trim(),
+    nic: String(formData.get("nic") ?? "").trim(),
+    phone_number: String(formData.get("phoneNumber") ?? "").trim(),
     role: Number(formData.get("role")),
   };
 
@@ -70,8 +72,11 @@ export async function updateUser(
   const payload: Record<string, unknown> = {
     email: String(formData.get("email") ?? "").trim(),
     full_name: String(formData.get("fullName") ?? "").trim(),
+    nic: String(formData.get("nic") ?? "").trim(),
+    phone_number: String(formData.get("phoneNumber") ?? "").trim(),
     role: Number(formData.get("role")),
     is_active: formData.get("isActive") === "on",
+    email_confirmed: formData.get("emailConfirmed") === "on",
   };
   // Only include password in the payload if the admin actually typed a new
   // one — an empty field means "leave the existing password unchanged",

@@ -20,6 +20,7 @@
     "recharts": "^3.9.1"
   },
   "devDependencies": {
+    "@types/google.maps": "^3.65.3",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",

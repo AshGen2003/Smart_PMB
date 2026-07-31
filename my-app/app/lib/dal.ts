@@ -127,6 +127,7 @@ export async function requireUser(): Promise<AppUser> {
 function homeFor(user: AppUser): string {
   if (user.role === "farmer") return "/farmer";
   if (user.role === "mill_owner") return "/mill-owner";
+  if (user.role === "driver") return "/driver";
   return "/dashboard";
 }
 

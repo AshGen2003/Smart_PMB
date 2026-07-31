@@ -212,3 +212,145 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ["-sent_at"]
+
+
+# ---------------------------------------------------------------------------
+# Transportation: the PMB Officer's vehicle fleet, drivers, routes, and
+# deliveries of collected paddy between warehouses. Drivers are real User
+# accounts (role "driver") rather than a standalone roster — see Delivery
+# below — so they show up in admin User Management like any other account.
+# ---------------------------------------------------------------------------
+class Vehicle(models.Model):
+    class VehicleType(models.TextChoices):
+        LORRY = "lorry", "Lorry"
+        VAN = "van", "Van"
+        TRACTOR = "tractor", "Tractor"
+        THREE_WHEELER = "three_wheeler", "Three Wheeler"
+        PICKUP = "pickup", "Pickup"
+        OTHER = "other", "Other"
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
+        MAINTENANCE = "maintenance", "Under Maintenance"
+        RETIRED = "retired", "Retired"
+
+    registration_no = models.CharField(max_length=30, unique=True)
+    vehicle_type = models.CharField(max_length=20, choices=VehicleType.choices, default=VehicleType.LORRY)
+    model = models.CharField(max_length=100, blank=True)
+    manufacture_year = models.PositiveIntegerField(null=True, blank=True)
+    size = models.CharField(max_length=50, blank=True, help_text="Body size/dimensions, e.g. \"14ft\", \"6-wheeler\".")
+    capacity_kg = models.PositiveIntegerField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+
+    class Meta:
+        ordering = ["registration_no"]
+
+    def __str__(self):
+        return self.registration_no
+
+
+class Route(models.Model):
+    origin = models.CharField(max_length=200)
+    destination = models.CharField(max_length=200)
+    distance_km = models.DecimalField(max_digits=8, decimal_places=2)
+    estimated_time = models.CharField(max_length=50, blank=True, help_text="e.g. 3h 20m")
+
+    class Meta:
+        ordering = ["origin", "destination"]
+
+    def __str__(self):
+        return f"{self.origin} → {self.destination}"
+
+
+class Delivery(models.Model):
+    """A scheduled or in-progress transport of collected paddy from a warehouse along a route."""
+
+    class Status(models.TextChoices):
+        SCHEDULED = "scheduled", "Scheduled"
+        IN_TRANSIT = "in_transit", "In Transit"
+        DELIVERED = "delivered", "Delivered"
+        DELAYED = "delayed", "Delayed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="deliveries")
+    # A User with the "driver" role — not a dedicated Driver model, since
+    # drivers now log in like any other staff account (see accounts app).
+    driver = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    route = models.ForeignKey(Route, on_delete=models.PROTECT, related_name="deliveries")
+    warehouse = models.ForeignKey(
+        Warehouse, on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    scheduled_date = models.DateField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.SCHEDULED)
+
+    class AssignmentStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+        REJECTED = "rejected", "Rejected"
+
+    # Whether the assigned driver has responded to this task yet. Separate
+    # from `status` above (which tracks the delivery's physical progress)
+    # — a delivery only starts moving through scheduled/in_transit/etc.
+    # once the driver has accepted it. Reset to PENDING (see
+    # DeliveryViewSet.perform_update) whenever the driver is reassigned.
+    assignment_status = models.CharField(
+        max_length=20, choices=AssignmentStatus.choices, default=AssignmentStatus.PENDING
+    )
+
+    class Meta:
+        ordering = ["-scheduled_date", "-id"]
+
+    def __str__(self):
+        return f"Delivery #{self.pk} ({self.status})"
+
+
+class DeliveryLocationPing(models.Model):
+    """
+    A single GPS reading reported by the driver's browser while a delivery
+    is in transit (see DriverLocationPingView) — the trail of pings for a
+    delivery lets the officer/driver dashboards show its live position on
+    a map. Only the most recent ping is currently displayed (see
+    DeliverySerializer.get_latest_location), but the full trail is kept in
+    case a route-replay view is wanted later.
+    """
+
+    delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE, related_name="location_pings")
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-recorded_at"]
+
+
+class FuelRecord(models.Model):
+    class FuelType(models.TextChoices):
+        PETROL = "petrol", "Petrol"
+        DIESEL = "diesel", "Diesel"
+        CNG = "cng", "CNG"
+
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="fuel_records")
+    fuel_type = models.CharField(max_length=20, choices=FuelType.choices, default=FuelType.DIESEL)
+    quantity_litres = models.DecimalField(max_digits=8, decimal_places=2)
+    cost = models.DecimalField(max_digits=10, decimal_places=2)
+    fuel_date = models.DateField()
+
+    class Meta:
+        ordering = ["-fuel_date", "-id"]
+
+
+class MaintenanceRecord(models.Model):
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="maintenance_records")
+    service_date = models.DateField()
+    description = models.CharField(max_length=255, blank=True)
+    cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    next_service_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-service_date", "-id"]

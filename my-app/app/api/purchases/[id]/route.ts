@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { status } = await request.json();
-    const { id } = params;
+    const { id } = await params;
 
     await pool.query(`
       UPDATE purchase_intakes 
@@ -19,9 +19,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params;
+    const { id } = await params;
     await pool.query(`DELETE FROM purchase_intakes WHERE purchase_id = $1`, [id]);
     return NextResponse.json({ message: "Deleted successfully" });
   } catch (error: unknown) {

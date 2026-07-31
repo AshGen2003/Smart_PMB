@@ -24,8 +24,11 @@ export type EditableUser = {
   id: string;
   email: string;
   full_name: string;
+  nic: string;
+  phone_number: string;
   roleId: number;
   is_active: boolean;
+  email_confirmed: boolean;
 };
 
 const initialState: UserFormState = {};
@@ -98,6 +101,35 @@ export default function UserFormModal({
             />
           </div>
 
+          <div className={styles.fieldRow}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="nic">
+                NIC <span className={styles.optional}>(optional)</span>
+              </label>
+              <input
+                id="nic"
+                name="nic"
+                type="text"
+                defaultValue={user?.nic}
+                className={styles.input}
+                placeholder="e.g. 200012345678"
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="phoneNumber">
+                Phone number <span className={styles.optional}>(optional)</span>
+              </label>
+              <input
+                id="phoneNumber"
+                name="phoneNumber"
+                type="tel"
+                defaultValue={user?.phone_number}
+                className={styles.input}
+                placeholder="e.g. 0771234567"
+              />
+            </div>
+          </div>
+
           <div className={styles.field}>
             <label className={styles.label} htmlFor="password">
               Password{" "}
@@ -140,14 +172,25 @@ export default function UserFormModal({
           </div>
 
           {mode === "edit" && (
-            <div className={clsx(styles.field, styles.checkboxRow)}>
-              <input
-                id="isActive"
-                name="isActive"
-                type="checkbox"
-                defaultChecked={user?.is_active ?? true}
-              />
-              <label htmlFor="isActive">Active</label>
+            <div className={styles.fieldRow}>
+              <div className={clsx(styles.field, styles.checkboxRow)}>
+                <input
+                  id="isActive"
+                  name="isActive"
+                  type="checkbox"
+                  defaultChecked={user?.is_active ?? true}
+                />
+                <label htmlFor="isActive">Active</label>
+              </div>
+              <div className={clsx(styles.field, styles.checkboxRow)}>
+                <input
+                  id="emailConfirmed"
+                  name="emailConfirmed"
+                  type="checkbox"
+                  defaultChecked={user?.email_confirmed ?? true}
+                />
+                <label htmlFor="emailConfirmed">Email confirmed</label>
+              </div>
             </div>
           )}
 

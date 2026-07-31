@@ -213,7 +213,11 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     mutation is recorded to the audit log via sysops.utils.log_audit.
     """
     permission_classes = [HasPermission("manage_users")]
-    queryset = User.objects.all().select_related("role").order_by("-date_joined")
+    queryset = (
+        User.objects.all()
+        .select_related("role", "farmer_profile")
+        .order_by("-date_joined")
+    )
 
     def get_queryset(self):
         # Optional ?role=<slug> filter for the admin user list screen.
@@ -410,7 +414,7 @@ class OnlineRolesView(APIView):
 # Shared by MessageInboxView and MessageMarkReadView so the two can't drift.
 def _visible_messages(user):
     qs = Message.objects.select_related("sender", "sender__role", "recipient")
-    if user.role.slug == "farmer":
+    if user.role.slug in ("farmer", "driver"):
         return qs.filter(recipient=user)
     return qs.filter(Q(recipient=user) | Q(recipient__isnull=True))
 
@@ -486,10 +490,10 @@ class MessageMarkReadView(APIView):
 class MessageRecipientsView(generics.ListAPIView):
     """
     GET /api/messages/recipients/ — user picker for composing a direct
-    message. Open to any staff (non-farmer) account rather than gated on
-    manage_users, since PMB Officers need to message farmers too; farmers
-    get an empty list since they can only message the admin team, not a
-    specific user (see MessageCreateSerializer).
+    message. Open to any staff (non-farmer, non-driver) account rather
+    than gated on manage_users, since PMB Officers need to message farmers
+    too; farmers and drivers get an empty list since they can only message
+    the admin team, not a specific user (see MessageCreateSerializer).
     """
 
     permission_classes = [IsAuthenticated]
@@ -497,6 +501,6 @@ class MessageRecipientsView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role.slug == "farmer":
+        if user.role.slug in ("farmer", "driver"):
             return User.objects.none()
         return User.objects.exclude(id=user.id).select_related("role").order_by("full_name")

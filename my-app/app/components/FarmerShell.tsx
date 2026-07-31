@@ -51,8 +51,9 @@ function LayoutWrapper({ children, userName, profilePictureUrl, previewing }: Fa
             roleLabel="Farmer"
             profileHref="/farmer/profile"
             settingsHref="/farmer/settings"
+            messagesHref="/farmer/messages"
             profilePictureUrl={profilePictureUrl}
-            isFarmer
+            restrictedCompose
             previewing={!!previewing}
           />
         </div>

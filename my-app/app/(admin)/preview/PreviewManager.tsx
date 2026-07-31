@@ -21,6 +21,7 @@ import {
   ClipboardCheck,
   Eye,
   MessageSquare,
+  Truck,
   Settings,
   LogOut,
   Sprout,
@@ -41,6 +42,7 @@ const ADMIN_NAV_ITEMS = [
   { label: "Warehouses", icon: Warehouse, permission: "manage_warehouses" },
   { label: "Pricing", icon: Coins, permission: "manage_pricing" },
   { label: "Approvals", icon: ClipboardCheck, permissions: ["monitor_operations", "record_purchases"] },
+  { label: "Transportation", icon: Truck, permission: "manage_transport" },
   { label: "Reports", icon: BarChart3, permission: "generate_reports" },
   { label: "Roles", icon: ShieldCheck, permission: "manage_roles" },
   { label: "Preview Portal", icon: Eye, permission: "manage_roles" },
@@ -57,12 +59,22 @@ const FARMER_NAV_ITEMS = [
   { label: "Log out", icon: LogOut },
 ];
 
+// Every driver sees this exact, fixed nav too (see components/DriverSidebar.tsx).
+const DRIVER_NAV_ITEMS = [
+  { label: "Dashboard", icon: LayoutDashboard },
+  { label: "Vehicle Log", icon: Truck },
+  { label: "Messages", icon: MessageSquare },
+  { label: "Settings", icon: Settings },
+  { label: "Log out", icon: LogOut },
+];
+
 export default function PreviewManager({ roles }: { roles: RoleRow[] }) {
   const sortedRoles = [...roles].sort((a, b) => a.name.localeCompare(b.name));
   const [selectedId, setSelectedId] = useState<number | undefined>(sortedRoles[0]?.id);
 
   const selected = sortedRoles.find((r) => r.id === selectedId);
   const isFarmerRole = selected?.slug === "farmer";
+  const isDriverRole = selected?.slug === "driver";
   const currentPermissions = selected?.permissions ?? [];
 
   function hasAccess(item: (typeof ADMIN_NAV_ITEMS)[number]) {
@@ -110,8 +122,8 @@ export default function PreviewManager({ roles }: { roles: RoleRow[] }) {
                 <span>Smart PMB</span>
               </div>
               <nav className={sidebarStyles.nav}>
-                {isFarmerRole
-                  ? FARMER_NAV_ITEMS.map((item) => (
+                {isFarmerRole || isDriverRole
+                  ? (isFarmerRole ? FARMER_NAV_ITEMS : DRIVER_NAV_ITEMS).map((item) => (
                       <span key={item.label} className={sidebarStyles.navItem}>
                         <item.icon className={sidebarStyles.navIcon} size={18} />
                         {item.label}
@@ -126,10 +138,10 @@ export default function PreviewManager({ roles }: { roles: RoleRow[] }) {
               </nav>
             </aside>
           </div>
-          {isFarmerRole && (
+          {(isFarmerRole || isDriverRole) && (
             <p className={styles.mockupNote}>
-              <Sprout size={14} /> Farmer navigation is fixed for every farmer — it isn&apos;t
-              permission-based.
+              <Sprout size={14} /> {isFarmerRole ? "Farmer" : "Driver"} navigation is fixed for
+              every {isFarmerRole ? "farmer" : "driver"} — it isn&apos;t permission-based.
             </p>
           )}
         </div>

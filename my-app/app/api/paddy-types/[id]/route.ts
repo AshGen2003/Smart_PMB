@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const body = await request.json();
     const { type_name, variety, description, guaranteed_price, is_active } = body;
-    const { id } = params;
+    const { id } = await params;
 
     const result = await pool.query(`
       UPDATE paddy_types 
@@ -22,9 +22,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params;
+    const { id } = await params;
     await pool.query(`DELETE FROM paddy_types WHERE paddy_type_id = $1`, [id]);
     return NextResponse.json({ message: "Paddy type deleted successfully" });
   } catch (error: unknown) {

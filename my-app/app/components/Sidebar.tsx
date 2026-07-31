@@ -29,6 +29,7 @@ import {
   Package,
   Eye,
   MessageSquare,
+  Truck,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -72,6 +73,7 @@ const NAV_ITEMS = [
     icon: Package,
     permissions: ["monitor_operations", "record_purchases"],
   },
+  { label: "Transportation", href: "/transportation", icon: Truck, permission: "manage_transport" },
   { label: "Reports", href: "/reports", icon: BarChart3, permission: "generate_reports" },
   { label: "Roles", href: "/roles", icon: ShieldCheck, permission: "manage_roles" },
   { label: "Preview Portal", href: "/preview", icon: Eye, permission: "manage_roles" },

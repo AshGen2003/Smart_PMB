@@ -21,26 +21,28 @@ interface HeaderProps {
   roleLabel?: string;
   profileHref?: string;
   settingsHref?: string;
-  profilePictureUrl?: string | null;
-  isFarmer?: boolean;
-  previewing?: boolean;
   messagesHref?: string;
+  profilePictureUrl?: string | null;
+  // True for farmer/driver portals: the notification bell's compose can
+  // only send a request to the admin team, not pick a specific user.
+  restrictedCompose?: boolean;
+  previewing?: boolean;
 }
 
 /**
- * `profileHref`/`settingsHref` default to the admin routes (`/profile`,
- * `/settings`); FarmerShell overrides them to the farmer-portal
- * equivalents so the same Header works for both shells.
+ * `profileHref`/`settingsHref`/`messagesHref` default to the admin routes;
+ * FarmerShell/DriverShell override them to their own portal's equivalents
+ * so the same Header works for all three shells.
  */
 export default function Header({
   userName = "Admin User",
   roleLabel,
   profileHref = "/profile",
   settingsHref = "/settings",
+  messagesHref = "/messages",
   profilePictureUrl,
-  isFarmer = false,
+  restrictedCompose = false,
   previewing = false,
-  messagesHref,
 }: HeaderProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
@@ -85,7 +87,11 @@ export default function Header({
           {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
         </button>
 
-        <NotificationBell isFarmer={isFarmer} previewing={previewing} messagesHref={messagesHref} />
+        <NotificationBell
+          restrictedCompose={restrictedCompose}
+          messagesHref={messagesHref}
+          previewing={previewing}
+        />
 
         <div className={styles.profileWrap} ref={menuRef}>
           <button

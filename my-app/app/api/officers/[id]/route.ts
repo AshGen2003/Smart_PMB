@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const body = await request.json();
     const { name, designation, location, contact_number, email, status } = body;
-    const { id } = params;
+    const { id } = await params;
 
     const result = await pool.query(`
       UPDATE pmb_officers 
@@ -22,9 +22,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // First delete linked user
     const officer = await pool.query(

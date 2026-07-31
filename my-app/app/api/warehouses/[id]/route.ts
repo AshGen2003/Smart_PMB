@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const body = await request.json();
     const { name, code, capacity, current_stock, status, contact_number, location } = body;
-    const { id } = params;
+    const { id } = await params;
 
     await pool.query(`
       UPDATE warehouses 
@@ -22,9 +22,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params;
+    const { id } = await params;
     await pool.query(`DELETE FROM warehouses WHERE warehouse_id = $1`, [id]);
     return NextResponse.json({ message: "Warehouse deleted successfully" });
   } catch (error: unknown) {

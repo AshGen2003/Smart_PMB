@@ -23,7 +23,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowRight, BarChart3, Download, Package, Receipt } from "lucide-react";
+import { ArrowRight, BarChart3, Download, FileDown, Package, Receipt } from "lucide-react";
 import styles from "./Reports.module.css";
 
 const TOOLTIP_STYLE = {
@@ -141,7 +141,14 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>Reports &amp; Analytics</h1>
+        <div className={styles.pageHeaderTitleRow}>
+          <h1 className={styles.pageTitle}>Reports &amp; Analytics</h1>
+          {/* Route Handler proxies this to the Django backend and streams back a PDF,
+              since httpOnly auth cookies aren't readable by client-side fetch. */}
+          <a href="/api/reports/officer-pdf" className={styles.pdfBtn}>
+            <FileDown size={16} /> Download PDF
+          </a>
+        </div>
 
         <div className={styles.tabsRow}>
           <button

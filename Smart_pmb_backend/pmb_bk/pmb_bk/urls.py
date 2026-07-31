@@ -33,9 +33,18 @@ from accounts.views import (
     RoleViewSet,
 )
 from farmers.views import (
+    DeliveryViewSet,
+    DriverFuelRecordViewSet,
+    DriverMaintenanceRecordViewSet,
+    DriverOptionsView,
     FarmerHarvestViewSet,
+    FuelRecordViewSet,
+    MaintenanceRecordViewSet,
     OfficerHarvestViewSet,
     PaddyTypeViewSet,
+    RouteViewSet,
+    TransportationDashboardView,
+    VehicleViewSet,
     WarehouseViewSet,
 )
 from mills.views import LicenseViewSet, MillingReportViewSet, OfficerLicenseViewSet
@@ -69,6 +78,13 @@ router.register('mill-owner/milling-reports', MillingReportViewSet, basename='mi
 router.register('admin/mill-licenses', OfficerLicenseViewSet, basename='admin-mill-licenses')
 router.register('purchaser/requests', RiceRequestViewSet, basename='purchaser-requests')
 router.register('admin/rice-requests', OfficerRiceRequestViewSet, basename='admin-rice-requests')
+router.register('admin/vehicles', VehicleViewSet, basename='admin-vehicles')
+router.register('admin/routes', RouteViewSet, basename='admin-routes')
+router.register('admin/deliveries', DeliveryViewSet, basename='admin-deliveries')
+router.register('admin/fuel-records', FuelRecordViewSet, basename='admin-fuel-records')
+router.register('admin/maintenance-records', MaintenanceRecordViewSet, basename='admin-maintenance-records')
+router.register('driver/fuel-records', DriverFuelRecordViewSet, basename='driver-fuel-records')
+router.register('driver/maintenance-records', DriverMaintenanceRecordViewSet, basename='driver-maintenance-records')
 
 urlpatterns = [
     path('admin/', admin.site.urls),  # Django's built-in admin site
@@ -82,6 +98,8 @@ urlpatterns = [
     path('api/admin/system-config/', SystemConfigView.as_view()),
     path('api/admin/reports/admin-summary/', AdminReportView.as_view()),
     path('api/admin/reports/admin-summary/pdf/', AdminReportPdfView.as_view()),
+    path('api/admin/transportation/dashboard/', TransportationDashboardView.as_view()),
+    path('api/admin/drivers/', DriverOptionsView.as_view()),
     path('api/messages/', MessageCreateView.as_view()),
     path('api/messages/inbox/', MessageInboxView.as_view()),
     path('api/messages/history/', MessageHistoryView.as_view()),

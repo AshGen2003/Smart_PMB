@@ -77,13 +77,7 @@ const TOOLTIP_STYLE = {
 };
 
 /** Renders KPI cards, status/volume/stock charts, and recent-harvests/warehouse-stock tables. */
-export default function OfficerDashboardPanel({
-  data,
-  title = "PMB Officer Dashboard",
-}: {
-  data: OfficerDashboardData;
-  title?: string;
-}) {
+export default function OfficerDashboardPanel({ data }: { data: OfficerDashboardData }) {
   // Warehouse decimal fields arrive as strings (DRF's default decimal
   // serialization) — recharts needs actual numbers to size the bars.
   const stockChartData = data.warehouse_stock.map((w) => ({
@@ -95,7 +89,7 @@ export default function OfficerDashboardPanel({
   return (
     <div className={styles.dashboard}>
       <div className={styles.header}>
-        <h1 className={styles.title}>{title}</h1>
+        <h1 className={styles.title}>PMB Officer Dashboard</h1>
         <span className={styles.subtitle}>Nationwide paddy purchasing overview</span>
       </div>
 
