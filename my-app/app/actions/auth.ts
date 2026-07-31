@@ -319,6 +319,55 @@ export async function signupWarehouseManager(
 }
 
 /**
+ * Registers a new authorized purchaser account via Django's public
+ * registration endpoint. Same minimal shape as
+ * signupTransportOperator/signupWarehouseManager — no domain profile, no
+ * district. The account lands on the shared admin dashboard once an admin
+ * grants it the "record_purchases" permission via the Roles screen.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Submitted registration fields (email, password,
+ *   confirmPassword, fullName, contactNumber).
+ * @returns `{ error }` on validation/registration failure. On success,
+ *   redirects to `/login?registered=1`.
+ */
+export async function signupAuthorizedPurchaser(
+  _prevState: SignupState,
+  formData: FormData
+): Promise<SignupState> {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match." };
+  }
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+
+  const payload = {
+    email: String(formData.get("email") ?? "").trim(),
+    password,
+    full_name: String(formData.get("fullName") ?? "").trim(),
+    contact_number: String(formData.get("contactNumber") ?? "").trim(),
+  };
+
+  const res = await fetch(`${API_URL}/api/auth/register/authorized-purchaser/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  redirect("/login?registered=1");
+}
+
+/**
  * Logs the current user out.
  *
  * Best-effort notifies Django to invalidate/blacklist the refresh token

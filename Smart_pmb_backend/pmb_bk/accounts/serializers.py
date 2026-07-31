@@ -299,6 +299,38 @@ class RegisterWarehouseManagerSerializer(serializers.Serializer):
         return {"user": user}
 
 
+class RegisterAuthorizedPurchaserSerializer(serializers.Serializer):
+    """
+    Validates and creates a new authorized purchaser's User account. Same
+    shape as RegisterTransportOperatorSerializer/RegisterWarehouseManagerSerializer
+    — no domain profile model, just credentials. Lands on the shared admin
+    dashboard's PurchaserDashboardPanel once an admin grants the role
+    "record_purchases" (not seeded automatically — same as every
+    non-migration-seeded role, see accounts/migrations/0003_role_permission.py).
+    """
+
+    email = serializers.EmailField()
+    password = serializers.CharField(min_length=8, write_only=True)
+    full_name = serializers.CharField(max_length=150)
+    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
+        return value
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            email=validated_data["email"],
+            password=validated_data["password"],
+            full_name=validated_data["full_name"],
+            phone_number=validated_data.get("contact_number", ""),
+            role=Role.objects.get(slug="authorized_purchaser"),
+            email_confirmed=False,
+        )
+        return {"user": user}
+
+
 class SelfProfileSerializer(serializers.Serializer):
     """Handles the logged-in user's self-service profile edits, including an optional password change."""
 

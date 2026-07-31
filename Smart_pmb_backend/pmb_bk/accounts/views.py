@@ -32,6 +32,7 @@ from .serializers import (
     MessageRecipientSerializer,
     MessageSerializer,
     PermissionSerializer,
+    RegisterAuthorizedPurchaserSerializer,
     RegisterFarmerSerializer,
     RegisterMillOwnerSerializer,
     RegisterTransportOperatorSerializer,
@@ -122,6 +123,26 @@ class RegisterWarehouseManagerView(APIView):
 
     def post(self, request):
         serializer = RegisterWarehouseManagerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        user = result["user"]
+
+        send_confirmation_email(user)
+
+        return Response(
+            {
+                "detail": "Account created. Check your email to confirm your account before logging in."
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class RegisterAuthorizedPurchaserView(APIView):
+    """Public self-registration endpoint for new authorized purchasers; creates a User (no domain profile) and emails a confirmation link."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterAuthorizedPurchaserSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         result = serializer.save()
         user = result["user"]

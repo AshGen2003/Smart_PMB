@@ -6,7 +6,7 @@
  * still works standalone for deep-linking/bookmarking.
  */
 import Link from "next/link";
-import { Sprout, Factory, Warehouse, Truck } from "lucide-react";
+import { Sprout, Factory, Warehouse, Truck, ShoppingCart } from "lucide-react";
 import AuthShell from "../AuthShell";
 import formStyles from "../AuthForm.module.css";
 import styles from "./RolePicker.module.css";
@@ -36,6 +36,12 @@ const ROLES = [
     icon: Truck,
     label: "Transport Operator",
     description: "Manage the vehicle fleet, drivers, and deliveries.",
+  },
+  {
+    href: "/signup/authorized-purchaser",
+    icon: ShoppingCart,
+    label: "Authorized Purchaser",
+    description: "Record rice purchase requests against warehouse stock.",
   },
 ];
 
