@@ -1,15 +1,14 @@
-import json
 import logging
 
 from django.core.cache import cache
-from django.db import connection, models, transaction
+from django.db import models, transaction
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from apps.authentication.permissions import IsPmbOfficerOrPurchaser
 from apps.common.cache import DASHBOARD_KPIS_KEY, WAREHOUSE_LIST_KEY
-from apps.warehouses.models import Warehouse
+from apps.warehouses.models import Inventory, Warehouse
 from .models import Purchase
 from .serializers import PurchaseCreateSerializer, PurchaseListSerializer
 
@@ -80,12 +79,11 @@ def purchase_create(request):
                 payment_status=payment_status,
             )
 
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """INSERT INTO inventory (warehouse_id, paddy_type, quantity_kg)
-                       VALUES (%s, %s, %s)""",
-                    [warehouse_id, paddy_type, quantity_kg],
-                )
+            Inventory.objects.create(
+                warehouse_id=warehouse_id,
+                paddy_type=paddy_type,
+                quantity_kg=quantity_kg,
+            )
 
             Warehouse.objects.filter(pk=warehouse_id).update(
                 current_stock_kg=models.F("current_stock_kg") + quantity_kg
@@ -130,9 +128,11 @@ def purchase_create(request):
 
 
 def _log_audit(user_id, action, target_type, target_id, details):
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """INSERT INTO audit_logs (user_id, action, target_type, target_id, details)
-               VALUES (%s, %s, %s, %s, %s)""",
-            [user_id, action, target_type, target_id, json.dumps(details)],
+    from apps.audit.models import AuditLog
+    AuditLog.objects.create(
+        user_id=user_id,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        details=details,
     )

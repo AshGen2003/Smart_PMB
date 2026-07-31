@@ -4,7 +4,6 @@ from .models import Purchase
 
 
 class PurchaseListSerializer(serializers.ModelSerializer):
-    farmer_name = serializers.CharField(source="farmer_name")
     warehouse_name = serializers.CharField(source="warehouse.name")
     warehouse_id = serializers.IntegerField(source="warehouse.warehouse_id")
 

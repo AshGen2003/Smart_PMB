@@ -129,10 +129,10 @@ def dashboard_kpis(request):
     if cached is not None:
         return Response(cached)
 
-    qs = Warehouse.objects.all()
-    total = qs.count()
-    capacity = sum(float(w.capacity_kg) for w in qs)
-    stock = sum(float(w.current_stock_kg) for w in qs)
+    warehouses = list(Warehouse.objects.all())
+    total = len(warehouses)
+    capacity = sum(float(w.capacity_kg) for w in warehouses)
+    stock = sum(float(w.current_stock_kg) for w in warehouses)
     util = round((stock / capacity * 100), 1) if capacity else 0.0
 
     data = {

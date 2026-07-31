@@ -19,6 +19,7 @@ class Delivery(models.Model):
         "warehouses.Warehouse",
         on_delete=models.PROTECT,
     )
+    quantity_kg = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     vehicle_number = models.CharField(max_length=50, blank=True, default="")
     driver_name = models.CharField(max_length=120, blank=True, default="")
     pickup_location = models.CharField(max_length=200)

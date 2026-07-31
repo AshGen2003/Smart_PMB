@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Sidebar from '@/components/Sidebar';
-import Header from '@/components/Header';
+import RouteGuard from '@/components/RouteGuard';
 import { Providers } from '@/lib/providers';
 
 export const metadata: Metadata = {
@@ -14,13 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen bg-cream text-forest-800 antialiased">
         <Providers>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <div className="ml-[84px] flex-1 flex flex-col">
-              <Header />
-              <main className="p-6 md:p-8 animate-fade-in">{children}</main>
-            </div>
-          </div>
+          <RouteGuard>{children}</RouteGuard>
         </Providers>
       </body>
     </html>

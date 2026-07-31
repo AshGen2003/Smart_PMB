@@ -10,15 +10,18 @@ class DeliveryListSerializer(serializers.ModelSerializer):
         model = Delivery
         fields = [
             "delivery_id", "purchase_id", "warehouse_id", "warehouse_name",
-            "vehicle_number", "driver_name", "pickup_location", "drop_location",
-            "status", "delivery_date",
+            "quantity_kg", "vehicle_number", "driver_name", "pickup_location",
+            "drop_location", "status", "delivery_date",
         ]
 
 
 class DeliveryCreateSerializer(serializers.ModelSerializer):
+    warehouse_id = serializers.IntegerField()
+    purchase_id = serializers.IntegerField(required=False, allow_null=True)
+
     class Meta:
         model = Delivery
         fields = [
-            "purchase_id", "warehouse_id", "vehicle_number",
+            "purchase_id", "warehouse_id", "quantity_kg", "vehicle_number",
             "driver_name", "pickup_location", "drop_location",
         ]

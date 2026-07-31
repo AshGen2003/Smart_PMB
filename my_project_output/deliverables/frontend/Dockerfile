@@ -11,8 +11,10 @@ RUN npm ci --only=production --ignore-scripts && \
 
 # Build application
 COPY . .
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000/api
 ENV NEXT_TELEMETRY_DISABLED=1 \
-    NODE_ENV=production
+    NODE_ENV=production \
+    NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 
 # ── Runtime Stage ──

@@ -6,5 +6,5 @@ WAREHOUSE_LIST_KEY = "warehouse_list"
 
 
 def invalidate_warehouse_cache():
-    cache.delete_pattern("warehouse_*")
     cache.delete(DASHBOARD_KPIS_KEY)
+    cache.delete(WAREHOUSE_LIST_KEY)

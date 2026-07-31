@@ -3,28 +3,23 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
-# ─── Sentry (Safely Imported) ───
-try:
-    import sentry_sdk
-    from sentry_sdk.integrations.django import DjangoIntegration
-    HAS_SENTRY = True
-except ImportError:
-    HAS_SENTRY = False
+import sentry_sdk
+from dotenv import load_dotenv
+from sentry_sdk.integrations.django import DjangoIntegration
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ─── Environment Secrets & Debug ───
-# Fallback provided for local development
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY", 
-    "django-insecure-local-dev-key-change-this-in-production-982374"
-)
-DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() in ("true", "1")
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,*").split(",")
+# Load .env file so DJANGO_SECRET_KEY etc. work out of the box (dev convenience)
+load_dotenv(BASE_DIR / ".env")
 
-# Initialize Sentry only if installed and DSN present
+# ─── Mandatory Environment Secrets (no fallback in production) ───
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() in ("true", "1")
+ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+
+# ─── Sentry ───
 SENTRY_DSN = os.environ.get("SENTRY_DSN")
-if SENTRY_DSN and HAS_SENTRY:
+if SENTRY_DSN:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         integrations=[DjangoIntegration()],
@@ -87,7 +82,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "smart_pmb.wsgi.application"
 
-# ─── Database ───
+# ─── Database (PostgreSQL via DATABASE_URL, SQLite fallback for dev) ───
 import dj_database_url
 
 DB_URL = os.environ.get("DATABASE_URL")
@@ -121,16 +116,19 @@ TIME_ZONE = "Asia/Colombo"
 USE_I18N = True
 USE_TZ = True
 
-# ─── Static Files ───
+# ─── Static Files (WhiteNoise) ───
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "default": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ─── Security Settings ───
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
+# ═══════════════════════════════════════════════════════════════
+# PRODUCTION SECURITY HARDENING
+# ═══════════════════════════════════════════════════════════════
 X_FRAME_OPTIONS = "DENY"
 SECURE_HSTS_SECONDS = 0 if DEBUG else 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
@@ -170,8 +168,7 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": (
         "rest_framework.renderers.JSONRenderer",
     ),
-    # Optional: Fallback to DRF standard handler if custom_exception_handler isn't built yet
-    "EXCEPTION_HANDLER": "rest_framework.views.exception_handler",
+    "EXCEPTION_HANDLER": "apps.common.exceptions.custom_exception_handler",
     "COERCE_DECIMAL_TO_STRING": True,
 }
 
@@ -186,7 +183,7 @@ SIMPLE_JWT = {
     "USER_ID_CLAIM": "sub",
 }
 
-# ─── Cache ───
+# ─── Cache (Redis via REDIS_URL, local-memory fallback) ───
 REDIS_URL = os.environ.get("REDIS_URL")
 if REDIS_URL:
     CACHES = {
@@ -213,16 +210,26 @@ else:
     }
     SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
-# ─── Logging ───
+# ═══════════════════════════════════════════════════════════════
+# STRUCTURED JSON LOGGING
+# ═══════════════════════════════════════════════════════════════
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
+        "json": {
+            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+            "format": "%(asctime)s %(name)s %(levelname)s %(message)s %(module)s %(lineno)s",
+        },
         "standard": {
             "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         },
     },
     "handlers": {
+        "console_json": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+        },
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "standard",

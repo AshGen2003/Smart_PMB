@@ -63,6 +63,41 @@ export function useCreatePurchase() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchases'] });
       qc.invalidateQueries({ queryKey: ['warehouses'] });
+      qc.invalidateQueries({ queryKey: ['warehouseInventory'] });
+      qc.invalidateQueries({ queryKey: ['dashboardKpis'] });
+      qc.invalidateQueries({ queryKey: ['capacityAlerts'] });
+    },
+  });
+}
+
+export function useCreateWarehouse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const res = await api.warehouses.create(data);
+      return res.warehouse;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['warehouses'] });
+      qc.invalidateQueries({ queryKey: ['dashboardKpis'] });
+      qc.invalidateQueries({ queryKey: ['capacityAlerts'] });
+    },
+  });
+}
+
+export function useCreateDelivery() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const res = await api.deliveries.create(data);
+      return res.delivery;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deliveries'] });
+      qc.invalidateQueries({ queryKey: ['warehouses'] });
+      qc.invalidateQueries({ queryKey: ['warehouseInventory'] });
+      qc.invalidateQueries({ queryKey: ['dashboardKpis'] });
+      qc.invalidateQueries({ queryKey: ['capacityAlerts'] });
     },
   });
 }

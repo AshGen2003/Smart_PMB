@@ -1,9 +1,18 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
+const TOKEN_KEY = 'pmb_access_token';
+
 let accessToken: string | null = null;
+if (typeof window !== 'undefined') {
+  accessToken = window.localStorage.getItem(TOKEN_KEY);
+}
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) window.localStorage.setItem(TOKEN_KEY, token);
+    else window.localStorage.removeItem(TOKEN_KEY);
+  }
 }
 
 export function getAccessToken() {
@@ -79,7 +88,7 @@ export const api = {
     detail: (id: number) => request<{ warehouse: any }>(`/warehouses/${id}/`),
     inventory: (id: number) => request<{ inventory: any[] }>(`/warehouses/${id}/inventory/`),
     create: (data: any) =>
-      request<{ warehouse: any }>('/warehouses/', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ warehouse: any }>('/warehouses/create/', { method: 'POST', body: JSON.stringify(data) }),
     alerts: () => request<{ alerts: any[] }>('/warehouses/alerts/capacity/'),
   },
 

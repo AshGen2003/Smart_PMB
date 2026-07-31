@@ -1,7 +1,6 @@
 import logging
 
 from django.contrib.auth import authenticate
-from django.middleware.csrf import _get_new_csrf_string
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
