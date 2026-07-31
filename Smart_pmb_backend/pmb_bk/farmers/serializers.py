@@ -92,17 +92,18 @@ class FarmerOptionSerializer(serializers.ModelSerializer):
 
 
 class WarehouseSerializer(serializers.ModelSerializer):
-    """Read representation of a Warehouse, with district/province names resolved for display."""
+    """Read representation of a Warehouse, with district/province/manager names resolved for display."""
 
     district_name = serializers.CharField(source="district.name", default=None)
     province_name = serializers.CharField(source="province.name", default=None)
+    manager_name = serializers.CharField(source="manager.full_name", default=None)
 
     class Meta:
         model = Warehouse
         fields = [
             "id", "name", "code", "capacity", "current_stock", "status",
             "contact_number", "established_date", "district", "district_name",
-            "province", "province_name", "location",
+            "province", "province_name", "location", "manager", "manager_name",
         ]
 
 
@@ -111,14 +112,17 @@ class WarehouseWriteSerializer(serializers.ModelSerializer):
     Create/update representation of a Warehouse. Deliberately excludes
     `current_stock` (only ever changed by the harvest-collection workflow,
     never edited directly) and `province` (derived from `district` by
-    WarehouseViewSet._sync_province in views.py).
+    WarehouseViewSet._sync_province in views.py). `manager` lets an officer
+    assign a self-registered Warehouse Manager account to this warehouse —
+    a manager can't claim one at signup, since warehouses belong to the
+    board, not the manager (see RegisterWarehouseManagerSerializer).
     """
 
     class Meta:
         model = Warehouse
         fields = [
             "id", "name", "code", "capacity", "status", "contact_number",
-            "established_date", "district", "location",
+            "established_date", "district", "location", "manager",
         ]
 
 
@@ -154,6 +158,33 @@ class OfficerHarvestWriteSerializer(serializers.ModelSerializer):
             "purchase_date", "grade", "moisture_level", "quality_check",
             "unit_price",
         ]
+
+
+class WarehouseIntakeSerializer(serializers.Serializer):
+    """
+    Validates a Warehouse Manager's single-step "record an intake" form
+    (farmer, paddy type, quantity, unit price). Mirrors
+    OfficerHarvestWriteSerializer's fields but as a plain Serializer, since
+    WarehouseIntakeView drives the farmer/paddy_type/quantity_kg straight
+    into a Harvest that is then pushed through approve+collect in one call
+    (see farmers.views._create_and_collect_harvest) rather than accepting a
+    raw Harvest write.
+    """
+
+    farmer_id = serializers.IntegerField()
+    paddy_type_id = serializers.IntegerField()
+    quantity_kg = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
+    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
+
+    def validate_farmer_id(self, value):
+        if not Farmer.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Select a valid farmer.")
+        return value
+
+    def validate_paddy_type_id(self, value):
+        if not PaddyType.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Select a valid paddy type.")
+        return value
 
 
 class VehicleSerializer(serializers.ModelSerializer):

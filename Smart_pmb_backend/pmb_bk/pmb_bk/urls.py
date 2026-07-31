@@ -45,6 +45,11 @@ from farmers.views import (
     RouteViewSet,
     TransportationDashboardView,
     VehicleViewSet,
+    WarehouseAlertsView,
+    WarehouseIntakeView,
+    WarehouseManagerDashboardView,
+    WarehouseManagerFarmerOptionsView,
+    WarehouseManagerWarehouseViewSet,
     WarehouseViewSet,
 )
 from mills.views import LicenseViewSet, MillingReportViewSet, OfficerLicenseViewSet
@@ -85,6 +90,7 @@ router.register('admin/fuel-records', FuelRecordViewSet, basename='admin-fuel-re
 router.register('admin/maintenance-records', MaintenanceRecordViewSet, basename='admin-maintenance-records')
 router.register('driver/fuel-records', DriverFuelRecordViewSet, basename='driver-fuel-records')
 router.register('driver/maintenance-records', DriverMaintenanceRecordViewSet, basename='driver-maintenance-records')
+router.register('warehouse-manager/warehouses', WarehouseManagerWarehouseViewSet, basename='warehouse-manager-warehouses')
 
 urlpatterns = [
     path('admin/', admin.site.urls),  # Django's built-in admin site
@@ -100,6 +106,10 @@ urlpatterns = [
     path('api/admin/reports/admin-summary/pdf/', AdminReportPdfView.as_view()),
     path('api/admin/transportation/dashboard/', TransportationDashboardView.as_view()),
     path('api/admin/drivers/', DriverOptionsView.as_view()),
+    path('api/warehouse-manager/dashboard/', WarehouseManagerDashboardView.as_view()),
+    path('api/warehouse-manager/intake/', WarehouseIntakeView.as_view()),
+    path('api/warehouse-manager/alerts/', WarehouseAlertsView.as_view()),
+    path('api/warehouse-manager/farmers/', WarehouseManagerFarmerOptionsView.as_view()),
     path('api/messages/', MessageCreateView.as_view()),
     path('api/messages/inbox/', MessageInboxView.as_view()),
     path('api/messages/history/', MessageHistoryView.as_view()),

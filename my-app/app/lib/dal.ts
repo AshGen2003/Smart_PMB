@@ -128,6 +128,8 @@ function homeFor(user: AppUser): string {
   if (user.role === "farmer") return "/farmer";
   if (user.role === "mill_owner") return "/mill-owner";
   if (user.role === "driver") return "/driver";
+  if (user.role === "warehouse_manager") return "/warehouse-manager";
+  if (user.role === "transport_operator") return "/transport-operator";
   return "/dashboard";
 }
 

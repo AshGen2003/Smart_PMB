@@ -30,8 +30,10 @@ export default async function AdminLayout({
   // redirects to /login if there is no valid session.
   const user = await requireUser();
 
-  // Farmers/mill owners/drivers have their own portal/shell (see
-  // app/farmer/layout.tsx, app/mill-owner/layout.tsx, app/driver/layout.tsx)
+  // Farmers/mill owners/drivers/warehouse managers/transport operators
+  // have their own portal/shell (see app/farmer/layout.tsx,
+  // app/mill-owner/layout.tsx, app/driver/layout.tsx,
+  // app/warehouse-manager/layout.tsx, app/transport-operator/layout.tsx)
   // — bounce them out of the admin area if they land here directly
   // (including via Portal Preview, since `user.role` reflects the
   // previewed role while previewing).
@@ -43,6 +45,12 @@ export default async function AdminLayout({
   }
   if (user.role === "driver") {
     redirect("/driver");
+  }
+  if (user.role === "warehouse_manager") {
+    redirect("/warehouse-manager");
+  }
+  if (user.role === "transport_operator") {
+    redirect("/transport-operator");
   }
 
   // Fetch the current user's profile (for the avatar image) and the global

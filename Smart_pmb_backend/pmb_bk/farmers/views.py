@@ -4,6 +4,7 @@
 # business logic of the whole system lives in OfficerHarvestViewSet below).
 from datetime import timedelta
 
+from django.db import transaction
 from django.db.models import Count, Sum
 from django.db.models.functions import TruncWeek
 from django.http import FileResponse
@@ -36,7 +37,7 @@ from .models import (
     Vehicle,
     Warehouse,
 )
-from .permissions import CanViewVehicles, IsDriver, IsFarmer
+from .permissions import CanViewVehicles, IsDriver, IsFarmer, IsWarehouseManager
 from .serializers import (
     DeliveryLocationPingSerializer,
     DeliverySerializer,
@@ -54,10 +55,26 @@ from .serializers import (
     PaddyTypeWriteSerializer,
     RouteSerializer,
     VehicleSerializer,
+    WarehouseIntakeSerializer,
     WarehouseSerializer,
     WarehouseWriteSerializer,
 )
 from .models import District
+
+
+def _add_stock_to_warehouse(warehouse, quantity_kg):
+    """
+    Adds `quantity_kg` onto a warehouse's existing stock. Shared by
+    OfficerHarvestViewSet.mark_collected (farmer-submitted harvests going
+    through the pending->verified->collected workflow) and
+    WarehouseIntakeView (a Warehouse Manager recording stock they've
+    already physically received, in one step). Reads current_stock in
+    Python rather than using an F() expression, so two collections hitting
+    the same warehouse at the exact same moment could in theory race.
+    """
+    Warehouse.objects.filter(pk=warehouse.pk).update(
+        current_stock=warehouse.current_stock + quantity_kg
+    )
 
 
 STATUS_LABELS = {
@@ -219,7 +236,7 @@ class WarehouseViewSet(viewsets.ModelViewSet):
     """
 
     permission_classes = [HasPermission("manage_warehouses")]
-    queryset = Warehouse.objects.select_related("district", "province").order_by("name")
+    queryset = Warehouse.objects.select_related("district", "province", "manager").order_by("name")
 
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
@@ -242,6 +259,180 @@ class WarehouseViewSet(viewsets.ModelViewSet):
         warehouse = serializer.save()
         self._sync_province(warehouse)
         log_audit(self.request.user, "update_warehouse", "farmers", warehouse.name)
+
+
+# ---------------------------------------------------------------------------
+# Warehouse Manager portal: a manager's own assigned warehouse(s), scoped
+# via `request.user.managed_warehouses` — never the global Warehouse
+# queryset WarehouseViewSet above uses. Gated by IsWarehouseManager rather
+# than a codename permission, same pattern as the Driver portal.
+# ---------------------------------------------------------------------------
+class WarehouseManagerDashboardView(APIView):
+    """
+    Aggregates a Warehouse Manager's assigned warehouses, capacity/stock
+    KPIs, harvests awaiting pickup (verified but not yet collected), and a
+    recent-approvals feed — the manager-scoped counterpart to
+    OfficerDashboardView.
+    """
+
+    permission_classes = [IsAuthenticated, IsWarehouseManager]
+
+    def get(self, request):
+        warehouses = request.user.managed_warehouses.select_related("district", "province")
+        total_capacity = warehouses.aggregate(total=Sum("capacity"))["total"] or 0
+        total_stock = warehouses.aggregate(total=Sum("current_stock"))["total"] or 0
+
+        pending_pickup = Harvest.objects.filter(
+            warehouse__in=warehouses, status=Harvest.Status.VERIFIED
+        ).select_related("farmer", "paddy_type", "warehouse")
+        recent_approvals = Harvest.objects.filter(
+            warehouse__in=warehouses, status=Harvest.Status.COLLECTED
+        ).select_related("farmer", "paddy_type", "warehouse").order_by("-harvest_date")[:6]
+
+        return Response(
+            {
+                "warehouses": WarehouseSerializer(warehouses, many=True).data,
+                "kpis": {
+                    "total_warehouses": warehouses.count(),
+                    "total_capacity": total_capacity,
+                    "total_stock": total_stock,
+                    "utilization_pct": round(float(total_stock) / float(total_capacity) * 100, 1)
+                    if total_capacity
+                    else 0,
+                },
+                "pending_pickup": OfficerHarvestSerializer(pending_pickup, many=True).data,
+                "recent_approvals": OfficerHarvestSerializer(recent_approvals, many=True).data,
+            }
+        )
+
+
+class WarehouseManagerWarehouseViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only view of a Warehouse Manager's own assigned warehouse(s),
+    including their inventory broken down by paddy type. Scoped to
+    `request.user.managed_warehouses` so a manager can never see (let alone
+    edit) a warehouse they haven't been assigned.
+    """
+
+    permission_classes = [IsAuthenticated, IsWarehouseManager]
+    serializer_class = WarehouseSerializer
+
+    def get_queryset(self):
+        return self.request.user.managed_warehouses.select_related("district", "province")
+
+    @action(detail=True, methods=["get"])
+    def inventory(self, request, pk=None):
+        warehouse = self.get_object()
+        breakdown = (
+            Harvest.objects.filter(warehouse=warehouse, status=Harvest.Status.COLLECTED)
+            .values("paddy_type__type_name")
+            .annotate(total_kg=Sum("quantity_kg"))
+            .order_by("paddy_type__type_name")
+        )
+        return Response(
+            [
+                {"paddy_type": row["paddy_type__type_name"] or "Unspecified", "quantity_kg": row["total_kg"]}
+                for row in breakdown
+            ]
+        )
+
+
+class WarehouseManagerFarmerOptionsView(generics.ListAPIView):
+    """List of all farmers (name + registration number) for the Warehouse Manager's intake form's farmer picker — mirrors FarmerListView, scoped to IsWarehouseManager instead of record_purchases."""
+
+    permission_classes = [IsAuthenticated, IsWarehouseManager]
+    queryset = Farmer.objects.all().order_by("name")
+    serializer_class = FarmerOptionSerializer
+
+
+class WarehouseIntakeView(APIView):
+    """
+    POST — a Warehouse Manager records paddy they've already physically
+    received into one of their own warehouses, in a single step (as
+    opposed to the officer's pending->verify->collect workflow). Creates a
+    Harvest straight in the "collected" state, its completed Payment, and
+    adds the quantity to the warehouse's stock — reusing
+    _add_stock_to_warehouse, the same helper OfficerHarvestViewSet.
+    mark_collected uses, so the two flows can't drift apart.
+    """
+
+    permission_classes = [IsAuthenticated, IsWarehouseManager]
+
+    def post(self, request):
+        warehouse_id = request.data.get("warehouse_id")
+        warehouse = get_object_or_404(request.user.managed_warehouses, pk=warehouse_id)
+
+        serializer = WarehouseIntakeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        quantity_kg = data["quantity_kg"]
+        if warehouse.current_stock + quantity_kg > warehouse.capacity:
+            return Response(
+                {"detail": "This intake would exceed the warehouse's remaining capacity."},
+                status=400,
+            )
+
+        with transaction.atomic():
+            harvest = Harvest.objects.create(
+                farmer_id=data["farmer_id"],
+                paddy_type_id=data["paddy_type_id"],
+                quantity_kg=quantity_kg,
+                warehouse=warehouse,
+                unit_price=data["unit_price"],
+                quality_check=True,
+                purchase_date=timezone.now().date(),
+                status=Harvest.Status.COLLECTED,
+            )
+            Payment.objects.create(
+                harvest=harvest,
+                farmer_id=data["farmer_id"],
+                amount=quantity_kg * data["unit_price"],
+                status=Payment.Status.COMPLETED,
+                method=Payment.Method.CASH,
+                payment_date=timezone.now().date(),
+            )
+            _add_stock_to_warehouse(warehouse, quantity_kg)
+
+        log_audit(request.user, "warehouse_intake", "farmers", f"Harvest #{harvest.id}")
+        return Response(OfficerHarvestSerializer(harvest).data, status=status.HTTP_201_CREATED)
+
+
+class WarehouseAlertsView(APIView):
+    """
+    Computed (not stored) capacity alerts for a Warehouse Manager's own
+    warehouses: >=85% utilization is flagged "high" (arrange dispatch
+    soon), <=20% is flagged "low" (consider redirecting intake).
+    """
+
+    permission_classes = [IsAuthenticated, IsWarehouseManager]
+
+    HIGH_THRESHOLD = 85
+    LOW_THRESHOLD = 20
+
+    def get(self, request):
+        warehouses = request.user.managed_warehouses.select_related("district")
+        alerts = []
+        for w in warehouses:
+            if not w.capacity:
+                continue
+            utilization = float(w.current_stock) / float(w.capacity) * 100
+            if utilization >= self.HIGH_THRESHOLD:
+                level = "high"
+            elif utilization <= self.LOW_THRESHOLD:
+                level = "low"
+            else:
+                continue
+            alerts.append(
+                {
+                    "warehouse_id": w.id,
+                    "warehouse_name": w.name,
+                    "district_name": w.district.name if w.district else None,
+                    "utilization_pct": round(utilization, 1),
+                    "level": level,
+                }
+            )
+        return Response(alerts)
 
 
 class PaddyTypeViewSet(viewsets.ModelViewSet):
@@ -382,13 +573,7 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
         )
 
         if harvest.warehouse_id:
-            # Adds this harvest's quantity onto the warehouse's existing
-            # stock. Note this reads current_stock in Python rather than
-            # using an F() expression, so two collections hitting the same
-            # warehouse at the exact same moment could in theory race.
-            Warehouse.objects.filter(pk=harvest.warehouse_id).update(
-                current_stock=harvest.warehouse.current_stock + harvest.quantity_kg
-            )
+            _add_stock_to_warehouse(harvest.warehouse, harvest.quantity_kg)
 
         log_audit(request.user, "collect_harvest", "farmers", f"Harvest #{harvest.id}")
         return Response(OfficerHarvestSerializer(harvest).data)

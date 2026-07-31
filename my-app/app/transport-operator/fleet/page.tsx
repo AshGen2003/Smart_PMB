@@ -1,12 +1,13 @@
 /**
- * `/transportation` — vehicle fleet, routes, and deliveries. Requires the
- * `manage_transport` permission (PMB Officer). Preview never fetches real
- * data — see previewSampleData.ts. Drivers aren't fetched as a managed
- * resource here — `/api/admin/drivers/` returns the lightweight
- * {id, name} list of User accounts with the "driver" role, just to
- * populate the Delivery form's picker.
+ * `/transport-operator/fleet` — vehicle fleet, routes, and deliveries.
+ * Reuses TransportationManager, the same component the PMB Officer's
+ * /transportation page renders (see app/components/TransportationManager.tsx)
+ * — the underlying endpoints are gated by the `manage_transport` permission,
+ * which every transport_operator holds, so no separate backend views were
+ * needed for this portal. Access to this whole route tree is enforced by
+ * app/transport-operator/layout.tsx.
  */
-import { requirePermission } from "@/app/lib/dal";
+import { getCurrentUser } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import { PREVIEW_TRANSPORTATION } from "@/app/lib/previewSampleData";
 import TransportationManager, {
@@ -31,12 +32,11 @@ type Stats = {
 
 type WarehouseOption = { id: number; name: string };
 
-/** Server Component: gates access, fetches every transportation resource in parallel, and renders the client-side manager. */
-export default async function TransportationPage() {
-  const user = await requirePermission("manage_transport");
-  const canWrite = !user.previewing;
+export default async function TransportOperatorFleetPage() {
+  const user = await getCurrentUser();
+  const canWrite = !user?.previewing;
 
-  if (user.previewing) {
+  if (user?.previewing) {
     return (
       <TransportationManager
         vehicles={PREVIEW_TRANSPORTATION.vehicles}

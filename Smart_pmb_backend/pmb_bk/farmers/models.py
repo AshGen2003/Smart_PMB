@@ -111,6 +111,18 @@ class Warehouse(models.Model):
         Province, on_delete=models.SET_NULL, null=True, blank=True, related_name="warehouses"
     )
     location = models.CharField(max_length=255, blank=True)
+    # Self-registering Warehouse Managers have no warehouse of their own at
+    # signup time (unlike Farmer/Mill, there's nothing for them to create) —
+    # a PMB officer assigns one to this field after the account exists, via
+    # the existing warehouse admin screen. FK (not one-to-one) since a
+    # manager could plausibly be assigned more than one warehouse.
+    manager = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="managed_warehouses",
+    )
 
     class Meta:
         ordering = ["name"]

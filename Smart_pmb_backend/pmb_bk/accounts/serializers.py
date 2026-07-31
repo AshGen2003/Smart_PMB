@@ -238,6 +238,67 @@ class RegisterMillOwnerSerializer(serializers.Serializer):
         return {"user": user, "mill": mill}
 
 
+class RegisterTransportOperatorSerializer(serializers.Serializer):
+    """
+    Validates and creates a new transport operator's User account. Unlike
+    Farmer/Mill Owner, a transport operator has no domain profile model of
+    their own — they operate on the shared fleet (Vehicle/Route/Delivery/
+    etc.) rather than owning a farm/mill, so this only ever creates a User.
+    """
+
+    email = serializers.EmailField()
+    password = serializers.CharField(min_length=8, write_only=True)
+    full_name = serializers.CharField(max_length=150)
+    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
+        return value
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            email=validated_data["email"],
+            password=validated_data["password"],
+            full_name=validated_data["full_name"],
+            phone_number=validated_data.get("contact_number", ""),
+            role=Role.objects.get(slug="transport_operator"),
+            email_confirmed=False,
+        )
+        return {"user": user}
+
+
+class RegisterWarehouseManagerSerializer(serializers.Serializer):
+    """
+    Validates and creates a new warehouse manager's User account. No
+    warehouse is assigned at signup time — an existing Warehouse belongs to
+    the board, not to the manager, so a PMB officer assigns one to the new
+    account afterwards from the warehouse admin screen (see
+    WarehouseWriteSerializer's `manager` field).
+    """
+
+    email = serializers.EmailField()
+    password = serializers.CharField(min_length=8, write_only=True)
+    full_name = serializers.CharField(max_length=150)
+    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
+        return value
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            email=validated_data["email"],
+            password=validated_data["password"],
+            full_name=validated_data["full_name"],
+            phone_number=validated_data.get("contact_number", ""),
+            role=Role.objects.get(slug="warehouse_manager"),
+            email_confirmed=False,
+        )
+        return {"user": user}
+
+
 class SelfProfileSerializer(serializers.Serializer):
     """Handles the logged-in user's self-service profile edits, including an optional password change."""
 

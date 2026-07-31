@@ -88,11 +88,8 @@ export default function LandingPage() {
               Log in
               <ArrowRight size={16} />
             </Link>
-            <Link href="/signup/farmer" className={styles.btnSecondary}>
-              Register as a Farmer
-            </Link>
-            <Link href="/signup/mill-owner" className={styles.btnSecondary}>
-              Register as a Mill Owner
+            <Link href="/signup" className={styles.btnSecondary}>
+              Create an account
             </Link>
           </div>
         </div>
@@ -237,8 +234,7 @@ export default function LandingPage() {
             <div className={styles.footerLinkGroup}>
               <h4>Access</h4>
               <Link href="/login">Log in</Link>
-              <Link href="/signup/farmer">Farmer sign up</Link>
-              <Link href="/signup/mill-owner">Mill owner sign up</Link>
+              <Link href="/signup">Sign up</Link>
             </div>
           </div>
         </div>

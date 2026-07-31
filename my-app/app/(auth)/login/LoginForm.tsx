@@ -118,7 +118,7 @@ function LoginFormInner() {
       </form>
 
       <p className={styles.switchLine}>
-        Farmer without an account? <Link href="/signup/farmer">Sign up</Link>
+        Don&apos;t have an account? <Link href="/signup">Sign up</Link>
       </p>
     </div>
   );

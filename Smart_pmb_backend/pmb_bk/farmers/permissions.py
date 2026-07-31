@@ -26,6 +26,17 @@ class IsDriver(BasePermission):
         )
 
 
+class IsWarehouseManager(BasePermission):
+    """Allows access only to authenticated users whose Role slug is "warehouse_manager"."""
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role.slug == "warehouse_manager"
+        )
+
+
 class CanViewVehicles(BasePermission):
     """
     Read access to the vehicle fleet for either manage_transport holders

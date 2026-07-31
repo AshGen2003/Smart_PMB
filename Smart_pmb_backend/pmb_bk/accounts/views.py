@@ -34,6 +34,8 @@ from .serializers import (
     PermissionSerializer,
     RegisterFarmerSerializer,
     RegisterMillOwnerSerializer,
+    RegisterTransportOperatorSerializer,
+    RegisterWarehouseManagerSerializer,
     RoleSerializer,
     RoleWriteSerializer,
     SelfProfileSerializer,
@@ -80,6 +82,46 @@ class RegisterMillOwnerView(APIView):
 
     def post(self, request):
         serializer = RegisterMillOwnerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        user = result["user"]
+
+        send_confirmation_email(user)
+
+        return Response(
+            {
+                "detail": "Account created. Check your email to confirm your account before logging in."
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class RegisterTransportOperatorView(APIView):
+    """Public self-registration endpoint for new transport operators; creates a User (no domain profile) and emails a confirmation link."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterTransportOperatorSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        user = result["user"]
+
+        send_confirmation_email(user)
+
+        return Response(
+            {
+                "detail": "Account created. Check your email to confirm your account before logging in."
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class RegisterWarehouseManagerView(APIView):
+    """Public self-registration endpoint for new warehouse managers; creates a User (no domain profile) and emails a confirmation link."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterWarehouseManagerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         result = serializer.save()
         user = result["user"]

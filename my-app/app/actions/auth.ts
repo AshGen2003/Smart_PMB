@@ -82,12 +82,15 @@ export async function login(
   // Bust the root layout's cached render so the header/nav (which shows
   // login state) reflects the newly authenticated user on next navigation.
   revalidatePath("/", "layout");
-  // Farmers, mill owners, and drivers land on their own portals; every
-  // other role (admin, PMB officers, authorized purchasers, etc.) lands on
-  // the shared admin dashboard.
+  // Farmers, mill owners, drivers, warehouse managers, and transport
+  // operators land on their own portals; every other role (admin, PMB
+  // officers, authorized purchasers, etc.) lands on the shared admin
+  // dashboard.
   if (payload?.role === "farmer") redirect("/farmer");
   if (payload?.role === "mill_owner") redirect("/mill-owner");
   if (payload?.role === "driver") redirect("/driver");
+  if (payload?.role === "warehouse_manager") redirect("/warehouse-manager");
+  if (payload?.role === "transport_operator") redirect("/transport-operator");
   redirect("/dashboard");
 }
 
@@ -205,6 +208,102 @@ export async function signupMillOwner(
   };
 
   const res = await fetch(`${API_URL}/api/auth/register/mill-owner/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  redirect("/login?registered=1");
+}
+
+/**
+ * Registers a new transport operator account via Django's public
+ * registration endpoint. Simpler than signupFarmer/signupMillOwner — a
+ * transport operator has no domain profile model of their own (no
+ * district needed either), just credentials and a name.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Submitted registration fields (email, password,
+ *   confirmPassword, fullName, contactNumber).
+ * @returns `{ error }` on validation/registration failure. On success,
+ *   redirects to `/login?registered=1`.
+ */
+export async function signupTransportOperator(
+  _prevState: SignupState,
+  formData: FormData
+): Promise<SignupState> {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match." };
+  }
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+
+  const payload = {
+    email: String(formData.get("email") ?? "").trim(),
+    password,
+    full_name: String(formData.get("fullName") ?? "").trim(),
+    contact_number: String(formData.get("contactNumber") ?? "").trim(),
+  };
+
+  const res = await fetch(`${API_URL}/api/auth/register/transport-operator/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  redirect("/login?registered=1");
+}
+
+/**
+ * Registers a new warehouse manager account via Django's public
+ * registration endpoint. Simpler than signupFarmer/signupMillOwner — no
+ * warehouse is assigned at signup (an officer links an existing warehouse
+ * to the account afterwards), so this only needs credentials and a name.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Submitted registration fields (email, password,
+ *   confirmPassword, fullName, contactNumber).
+ * @returns `{ error }` on validation/registration failure. On success,
+ *   redirects to `/login?registered=1`.
+ */
+export async function signupWarehouseManager(
+  _prevState: SignupState,
+  formData: FormData
+): Promise<SignupState> {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match." };
+  }
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+
+  const payload = {
+    email: String(formData.get("email") ?? "").trim(),
+    password,
+    full_name: String(formData.get("fullName") ?? "").trim(),
+    contact_number: String(formData.get("contactNumber") ?? "").trim(),
+  };
+
+  const res = await fetch(`${API_URL}/api/auth/register/warehouse-manager/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
