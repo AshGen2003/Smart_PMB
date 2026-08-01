@@ -93,6 +93,56 @@
   margin-bottom: 0.4rem;
 }
 
+.labelRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.4rem;
+}
+
+.labelRow .label {
+  margin-bottom: 0;
+}
+
+.inlineLink {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary-text);
+  /* Safe no-ops on the <Link>/<a> usages of this class; makes it usable
+     on a plain <button> too (Resend code / Use a different email). */
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.inlineLink:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.channelRow {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.channelOption {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.channelOption input[type="radio"] {
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
 .optional {
   font-weight: 400;
   color: var(--text-muted);

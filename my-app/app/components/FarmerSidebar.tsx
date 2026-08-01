@@ -17,6 +17,7 @@ import styles from "./Sidebar.module.css";
 import clsx from "clsx";
 import {
   LayoutDashboard,
+  Sprout,
   MessageSquare,
   Settings,
   ChevronLeft,
@@ -26,6 +27,7 @@ import {
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/farmer", icon: LayoutDashboard, permission: "view_dashboard" },
+  { label: "Harvests", href: "/farmer/harvests", icon: Sprout, permission: "view_dashboard" },
   { label: "Messages", href: "/farmer/messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", href: "/farmer/settings", icon: Settings, permission: "view_settings" },
 ];

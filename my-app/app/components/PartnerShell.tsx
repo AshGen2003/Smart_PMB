@@ -22,6 +22,7 @@ import clsx from "clsx";
 interface PartnerShellProps {
   children: React.ReactNode;
   userName: string;
+  role: "authorized_purchaser" | "mill_owner";
   permissions: string[];
   profilePictureUrl?: string | null;
   notifyMessages?: boolean;
@@ -36,6 +37,7 @@ interface PartnerShellProps {
  */
 function LayoutWrapper({
   children,
+  role,
   permissions,
   notifyMessages,
   previewing,
@@ -52,7 +54,7 @@ function LayoutWrapper({
           isMobileSidebarOpen && styles.mobileOpen
         )}
       >
-        <PartnerSidebar permissions={permissions} />
+        <PartnerSidebar role={role} permissions={permissions} />
       </div>
       <div className={styles.mainWrapper}>
         {previewing && <PreviewBanner roleName={previewing.name} />}
@@ -73,13 +75,14 @@ function LayoutWrapper({
 /** Wraps LayoutWrapper in a LayoutProvider so sidebar open/collapsed state is available via context. */
 export default function PartnerShell({
   children,
+  role,
   permissions,
   notifyMessages,
   previewing,
 }: PartnerShellProps) {
   return (
     <LayoutProvider>
-      <LayoutWrapper permissions={permissions} notifyMessages={notifyMessages} previewing={previewing}>
+      <LayoutWrapper role={role} permissions={permissions} notifyMessages={notifyMessages} previewing={previewing}>
         {children}
       </LayoutWrapper>
     </LayoutProvider>

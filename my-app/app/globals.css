@@ -122,6 +122,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Plus Jakarta Sans has no Sinhala glyphs, so Sinhala text would otherwise
+   fall through to whatever generic sans-serif the OS picks — naming a
+   proper Sinhala-aware font first keeps it legible and consistent. */
+:lang(si) {
+  font-family: "Noto Sans Sinhala", "Iskoola Pota", "Nirmala UI", var(--font-sans), sans-serif;
+}
+
 /* Shared glassmorphism surface: translucent + blurred card, meant to sit
    on top of the ambient --gradient-page background. Opt-in per component
    (compose with clsx alongside a module's own card class) rather than

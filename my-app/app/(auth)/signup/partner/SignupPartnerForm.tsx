@@ -18,12 +18,20 @@ import { signupPartner, type SignupState } from "@/app/actions/auth";
 import StyledSelect from "@/app/components/StyledSelect";
 import styles from "../../AuthForm.module.css";
 
+export type DistrictOption = {
+  id: number;
+  name: string;
+  province: { name: string } | null;
+};
+
 const initialState: SignupState = {};
 
-export default function SignupPartnerForm() {
+export default function SignupPartnerForm({ districts }: { districts: DistrictOption[] }) {
   const [state, formAction, pending] = useActionState(signupPartner, initialState);
   const [showPassword, setShowPassword] = useState(false);
   const [licenseType, setLicenseType] = useState("");
+  const [districtId, setDistrictId] = useState("");
+  const isMillOwner = licenseType === "mill_owner";
 
   return (
     <div className={clsx(styles.card, styles.cardWide)}>
@@ -137,6 +145,56 @@ export default function SignupPartnerForm() {
             placeholder="0771234567"
           />
         </div>
+
+        <div className={styles.row2}>
+          {isMillOwner && (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="nic">
+                NIC
+              </label>
+              <input
+                id="nic"
+                name="nic"
+                type="text"
+                required
+                className={styles.input}
+                placeholder="e.g. 991234567V"
+              />
+            </div>
+          )}
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="districtId">
+              District {!isMillOwner && <span className={styles.optional}>(optional)</span>}
+            </label>
+            <StyledSelect
+              id="districtId"
+              name="districtId"
+              required={isMillOwner}
+              value={districtId}
+              onChange={setDistrictId}
+              placeholder="Select district"
+              options={districts.map((d) => ({ value: String(d.id), label: d.name }))}
+            />
+          </div>
+        </div>
+
+        {isMillOwner && (
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="capacityMtPerDay">
+              Milling capacity (MT/day, optional)
+            </label>
+            <input
+              id="capacityMtPerDay"
+              name="capacityMtPerDay"
+              type="number"
+              step="0.01"
+              min="0"
+              className={styles.input}
+              placeholder="e.g. 5"
+            />
+          </div>
+        )}
 
         <div className={styles.row2}>
           <div className={styles.field}>

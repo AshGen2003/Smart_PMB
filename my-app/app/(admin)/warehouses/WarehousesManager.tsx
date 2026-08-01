@@ -7,12 +7,16 @@
 
 import React, { useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
-import { Pencil, Plus, Search, Trash2, Warehouse as WarehouseIcon } from "lucide-react";
+import { ClipboardList, Pencil, Plus, Search, Trash2, Warehouse as WarehouseIcon } from "lucide-react";
 import { deleteWarehouse } from "@/app/actions/warehouses";
 import WarehouseFormModal, {
   type DistrictOption,
   type EditableWarehouse,
 } from "./WarehouseFormModal";
+import WarehouseDetailModal, {
+  type InventoryLine,
+  type TransactionLogEntry,
+} from "./WarehouseDetailModal";
 import styles from "./Warehouses.module.css";
 
 /** Shape of a warehouse row as returned by `GET /api/admin/warehouses/`. */
@@ -30,7 +34,11 @@ export type WarehouseRow = {
   province: number | null;
   province_name: string | null;
   location: string;
+  managed_by: string | null;
+  managed_by_name: string | null;
 };
+
+export type OfficerOption = { id: string; name: string };
 
 const STATUS_LABEL: Record<WarehouseRow["status"], string> = {
   active: "Active",
@@ -50,10 +58,16 @@ const STATUS_TINT: Record<WarehouseRow["status"], string> = {
 export default function WarehousesManager({
   warehouses,
   districts,
+  officers,
+  inventory,
+  transactions,
   canWrite = true,
 }: {
   warehouses: WarehouseRow[];
   districts: DistrictOption[];
+  officers: OfficerOption[];
+  inventory: InventoryLine[];
+  transactions: TransactionLogEntry[];
   // False for viewers who can only see warehouses (Portal Preview, or a
   // future read-only role) — hides the create/edit/delete affordances.
   canWrite?: boolean;
@@ -62,6 +76,7 @@ export default function WarehousesManager({
   const [modal, setModal] = useState<
     { mode: "create" } | { mode: "edit"; warehouse: EditableWarehouse } | null
   >(null);
+  const [detailWarehouse, setDetailWarehouse] = useState<WarehouseRow | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -154,47 +169,58 @@ export default function WarehousesManager({
                     />
                   </div>
 
-                  {(w.district_name || w.location) && (
+                  {(w.district_name || w.location || w.managed_by_name) && (
                     <p className={styles.meta}>
                       {[w.district_name, w.location].filter(Boolean).join(" · ")}
+                      {w.managed_by_name && ` · Managed by ${w.managed_by_name}`}
                     </p>
                   )}
 
-                  {canWrite && (
-                    <div className={styles.cardActions}>
-                      <button
-                        type="button"
-                        className={styles.editBtn}
-                        onClick={() =>
-                          setModal({
-                            mode: "edit",
-                            warehouse: {
-                              id: w.id,
-                              name: w.name,
-                              code: w.code,
-                              capacity: w.capacity,
-                              status: w.status,
-                              contact_number: w.contact_number,
-                              established_date: w.established_date,
-                              district: w.district,
-                              location: w.location,
-                            },
-                          })
-                        }
-                      >
-                        <Pencil size={14} /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.deleteIconBtn}
-                        aria-label="Delete warehouse"
-                        disabled={isPending}
-                        onClick={() => handleDelete(w)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  )}
+                  <div className={styles.cardActions}>
+                    <button
+                      type="button"
+                      className={styles.editBtn}
+                      onClick={() => setDetailWarehouse(w)}
+                    >
+                      <ClipboardList size={14} /> Stock detail
+                    </button>
+                    {canWrite && (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.editBtn}
+                          onClick={() =>
+                            setModal({
+                              mode: "edit",
+                              warehouse: {
+                                id: w.id,
+                                name: w.name,
+                                code: w.code,
+                                capacity: w.capacity,
+                                status: w.status,
+                                contact_number: w.contact_number,
+                                established_date: w.established_date,
+                                district: w.district,
+                                location: w.location,
+                                managed_by: w.managed_by,
+                              },
+                            })
+                          }
+                        >
+                          <Pencil size={14} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.deleteIconBtn}
+                          aria-label="Delete warehouse"
+                          disabled={isPending}
+                          onClick={() => handleDelete(w)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -205,14 +231,29 @@ export default function WarehousesManager({
       </div>
 
       {modal?.mode === "create" && (
-        <WarehouseFormModal mode="create" districts={districts} onClose={() => setModal(null)} />
+        <WarehouseFormModal
+          mode="create"
+          districts={districts}
+          officers={officers}
+          onClose={() => setModal(null)}
+        />
       )}
       {modal?.mode === "edit" && (
         <WarehouseFormModal
           mode="edit"
           warehouse={modal.warehouse}
           districts={districts}
+          officers={officers}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {detailWarehouse && (
+        <WarehouseDetailModal
+          warehouseName={detailWarehouse.name}
+          inventory={inventory.filter((i) => i.warehouse === detailWarehouse.id)}
+          transactions={transactions.filter((t) => t.warehouse === detailWarehouse.id)}
+          onClose={() => setDetailWarehouse(null)}
         />
       )}
     </div>

@@ -4,6 +4,10 @@
 # refresh are handled by djangorestframework_simplejwt; everything else is
 # plain DRF APIViews/ViewSets guarded by the custom permission classes in
 # accounts/permissions.py.
+from datetime import timedelta
+
+from django.conf import settings
+from django.contrib.auth.hashers import check_password, make_password
 from django.core import signing
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
@@ -21,8 +25,14 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from sysops.utils import log_audit, log_auth
 
-from .emails import send_confirmation_email, send_license_decision_email, send_temp_password_email
-from .models import ONLINE_WINDOW, LicenseApplication, Message, Permission, Role, User
+from .emails import (
+    send_confirmation_email,
+    send_license_decision_email,
+    send_otp_email,
+    send_temp_password_email,
+)
+from .models import ONLINE_WINDOW, LicenseApplication, Message, PasswordResetOTP, Permission, Role, User
+from .otp import MAX_OTP_ATTEMPTS, OTP_EXPIRY_MINUTES, generate_otp_code
 from .permissions import HasPermission, RoleAccessPermission
 from .serializers import (
     AdminUserSerializer,
@@ -39,8 +49,11 @@ from .serializers import (
     RoleSerializer,
     RoleWriteSerializer,
     SelfProfileSerializer,
+    generate_temp_password,
+    get_effective_phone_number,
     notify_officers,
 )
+from .sms import send_otp_sms
 from .tokens import read_email_confirmation_token
 
 
@@ -140,6 +153,110 @@ class ConfirmEmailView(APIView):
             user.save(update_fields=["email_confirmed"])
 
         return Response({"detail": "Email confirmed. You can now log in."})
+
+
+class ForgotPasswordView(APIView):
+    """
+    Public self-service password-reset request: sends a one-time code via
+    the caller's chosen channel (email or SMS to whatever contact number is
+    on file — see get_effective_phone_number) if the given address belongs
+    to an account. Always responds with the same generic message
+    regardless of whether the account exists or has a phone on file for
+    the "sms" channel — the one flow in this app worth guarding against
+    enumeration, since it's the one most commonly targeted for it.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_reset"
+
+    GENERIC_RESPONSE = {
+        "detail": "If that account exists, we've sent a reset code to it."
+    }
+
+    def post(self, request):
+        email = request.data.get("email", "")
+        channel = request.data.get("channel", "email")
+        if channel not in (PasswordResetOTP.Channel.EMAIL, PasswordResetOTP.Channel.SMS):
+            return Response({"detail": "Invalid channel."}, status=400)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if user:
+            # Only the newest code is ever valid — burn whatever came before.
+            PasswordResetOTP.objects.filter(user=user, consumed_at__isnull=True).delete()
+
+            code = generate_otp_code()
+            PasswordResetOTP.objects.create(
+                user=user,
+                code_hash=make_password(code),
+                channel=channel,
+                expires_at=timezone.now() + timedelta(minutes=OTP_EXPIRY_MINUTES),
+            )
+
+            if channel == PasswordResetOTP.Channel.EMAIL:
+                send_otp_email(user, code)
+            else:
+                phone = get_effective_phone_number(user)
+                if phone:
+                    send_otp_sms(phone, code)
+                # No phone on file: silently do nothing — same
+                # anti-enumeration reasoning as the generic response below.
+
+        return Response(self.GENERIC_RESPONSE)
+
+
+class VerifyResetOTPView(APIView):
+    """Verifies the one-time code from ForgotPasswordView and sets the account's new password."""
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_reset"
+
+    def post(self, request):
+        email = request.data.get("email", "")
+        code = request.data.get("code", "")
+        new_password = request.data.get("new_password", "")
+
+        if not code:
+            return Response({"detail": "Missing reset code."}, status=400)
+        if len(new_password) < 8:
+            return Response(
+                {"detail": "Password must be at least 8 characters."}, status=400
+            )
+
+        user = User.objects.filter(email__iexact=email).first()
+        otp = (
+            PasswordResetOTP.objects.filter(user=user, consumed_at__isnull=True).first()
+            if user else None
+        )
+        if not otp or otp.expires_at < timezone.now():
+            return Response(
+                {"detail": "This code is invalid or has expired. Request a new one."}, status=400
+            )
+
+        if otp.attempts >= MAX_OTP_ATTEMPTS:
+            otp.consumed_at = timezone.now()
+            otp.save(update_fields=["consumed_at"])
+            return Response(
+                {"detail": "Too many incorrect attempts. Request a new code."}, status=400
+            )
+
+        if not check_password(code, otp.code_hash):
+            otp.attempts += 1
+            otp.save(update_fields=["attempts"])
+            remaining = MAX_OTP_ATTEMPTS - otp.attempts
+            return Response(
+                {"detail": f"Incorrect code. {remaining} attempt(s) remaining."}, status=400
+            )
+
+        user.set_password(new_password)
+        # Mirrors SelfProfileSerializer.save(): setting your own new password
+        # clears the forced-change flag, same as the logged-in Settings flow.
+        user.must_change_password = False
+        user.save(update_fields=["password", "must_change_password"])
+
+        otp.consumed_at = timezone.now()
+        otp.save(update_fields=["consumed_at"])
+
+        return Response({"detail": "Password reset. You can now log in with your new password."})
 
 
 class LogoutView(APIView):
@@ -262,7 +379,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     permission_classes = [HasPermission("manage_users")]
     queryset = (
         User.objects.all()
-        .select_related("role", "farmer_profile")
+        .select_related("role", "farmer_profile", "pmb_officer_profile")
         .order_by("-date_joined")
     )
 
@@ -316,10 +433,6 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         user = serializer.save()
         log_audit(self.request.user, "update_user", "accounts", user.email)
-        # Only set when this update included a password change/reset.
-        plain_password = getattr(user, "_plain_password", None)
-        if plain_password:
-            send_temp_password_email(user, plain_password)
 
     @action(detail=True, methods=["post"], permission_classes=[HasPermission("manage_system")])
     def unlock(self, request, pk=None):
@@ -346,6 +459,27 @@ class AdminUserViewSet(viewsets.ModelViewSet):
                 pass
         log_audit(request.user, "force_logout", "accounts", user.email)
         return Response({"detail": "Session revoked."})
+
+    @action(
+        detail=True, methods=["post"], url_path="reset-password",
+        permission_classes=[HasPermission("manage_system")],
+    )
+    def reset_password(self, request, pk=None):
+        """
+        Admin-triggered password reset: always a fresh system-generated
+        temporary password, emailed to the user, who must change it on next
+        login — same shape as account creation's temp-password flow, never
+        an admin-chosen one. Replaces the old "type a new password into the
+        edit form" path entirely (see AdminUserWriteSerializer.update).
+        """
+        user = self.get_object()
+        temp_password = generate_temp_password()
+        user.set_password(temp_password)
+        user.must_change_password = True
+        user.save(update_fields=["password", "must_change_password"])
+        send_temp_password_email(user, temp_password)
+        log_audit(request.user, "reset_password", "accounts", user.email)
+        return Response({"detail": "Password reset. A temporary password has been emailed to the user."})
 
 
 class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):

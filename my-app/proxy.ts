@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyAccessToken } from "@/app/lib/jwt";
 
-const PUBLIC_PREFIXES = ["/login", "/signup", "/confirm-email", "/pmb-officer", "/api/pmb", "/api/officers", "/api/warehouses", "/api/purchases", "/api/paddy-types"];
+const PUBLIC_PREFIXES = ["/login", "/signup", "/confirm-email", "/forgot-password", "/pmb-officer", "/api/pmb", "/api/officers", "/api/warehouses", "/api/purchases", "/api/paddy-types"];
 const API_URL = process.env.NEXT_PUBLIC_DJANGO_API_URL!;
 
 const cookieOpts = {

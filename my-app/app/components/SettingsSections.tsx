@@ -17,6 +17,8 @@ import {
   type NotificationPreferencesState,
 } from "@/app/actions/notifications";
 import { useTheme } from "./ThemeProvider";
+import { useLanguage, type Language } from "./LanguageProvider";
+import StyledSelect from "./StyledSelect";
 import { PasswordInput } from "./PasswordInput";
 import { HelpFaq } from "./HelpFaq";
 import { APP_VERSION } from "@/app/lib/appInfo";
@@ -203,6 +205,33 @@ export function AppearanceSettings() {
           {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           Switch to {theme === "dark" ? "light" : "dark"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** Card with a select for switching the display language, backed by LanguageProvider's context. */
+export function LanguageSettings() {
+  const { language, setLanguage, t } = useLanguage();
+
+  return (
+    <div className={styles.card}>
+      <h2 className={styles.cardTitle}>{t.settingsLanguage.title}</h2>
+      <p className={styles.cardSubtitle}>{t.settingsLanguage.subtitle}</p>
+
+      <div className={styles.appearanceRow}>
+        <div>
+          <p className={styles.appearanceLabel}>{t.settingsLanguage.label}</p>
+        </div>
+        <StyledSelect
+          value={language}
+          onChange={(v) => setLanguage(v as Language)}
+          fitContent
+          options={[
+            { value: "en", label: t.settingsLanguage.english },
+            { value: "si", label: t.settingsLanguage.sinhala },
+          ]}
+        />
       </div>
     </div>
   );

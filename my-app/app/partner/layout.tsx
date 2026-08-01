@@ -43,6 +43,7 @@ export default async function PartnerLayout({
   return (
     <PartnerShell
       userName={user.fullName ?? user.email}
+      role={user.role as "authorized_purchaser" | "mill_owner"}
       permissions={user.permissions}
       profilePictureUrl={user.profilePictureUrl}
       notifyMessages={user.notifyMessages}

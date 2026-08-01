@@ -1,6 +1,7 @@
 # Outbound email helpers for the accounts app: account confirmation after
-# self-registration, an admin-created account's temporary password, and a
-# licensing application's approve/reject decision.
+# self-registration, an admin-created account's temporary password, a
+# self-service password-reset OTP code, and a licensing application's
+# approve/reject decision.
 from django.conf import settings
 from django.core.mail import send_mail
 
@@ -20,6 +21,23 @@ def send_confirmation_email(user):
             f"address by visiting the link below:\n\n{confirm_url}\n\n"
             "This link expires in 48 hours. If you didn't create this account, "
             "you can ignore this email."
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
+def send_otp_email(user, code):
+    """Emails the user a one-time code to enter on the forgot-password page, letting them set a new password themselves."""
+    send_mail(
+        subject="Your Smart PMB password reset code",
+        message=(
+            f"Hi {user.full_name or user.email},\n\n"
+            "We received a request to reset your Smart PMB password. Enter "
+            f"the code below on the reset page to continue:\n\n{code}\n\n"
+            "This code expires in 10 minutes. If you didn't request this, "
+            "you can safely ignore this email — your password won't change."
         ),
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],

@@ -29,6 +29,8 @@ export const PREVIEW_WAREHOUSES = [
     province: 1,
     province_name: "North Central",
     location: "Sample data",
+    managed_by: null,
+    managed_by_name: null,
   },
   {
     id: 2,
@@ -44,6 +46,8 @@ export const PREVIEW_WAREHOUSES = [
     province: 1,
     province_name: "North Central",
     location: "Sample data",
+    managed_by: null,
+    managed_by_name: null,
   },
   {
     id: 3,
@@ -59,6 +63,8 @@ export const PREVIEW_WAREHOUSES = [
     province: 2,
     province_name: "North Western",
     location: "Sample data",
+    managed_by: null,
+    managed_by_name: null,
   },
 ];
 

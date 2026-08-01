@@ -20,6 +20,8 @@ export type DistrictOption = {
   province: { name: string } | null;
 };
 
+export type OfficerOption = { id: string; name: string };
+
 /** Subset of warehouse fields needed to pre-fill the form when editing. */
 export type EditableWarehouse = {
   id: number;
@@ -31,6 +33,7 @@ export type EditableWarehouse = {
   established_date: string | null;
   district: number | null;
   location: string;
+  managed_by: string | null;
 };
 
 const initialState: WarehouseFormState = {};
@@ -44,11 +47,13 @@ export default function WarehouseFormModal({
   mode,
   warehouse,
   districts,
+  officers,
   onClose,
 }: {
   mode: "create" | "edit";
   warehouse?: EditableWarehouse;
   districts: DistrictOption[];
+  officers: OfficerOption[];
   onClose: () => void;
 }) {
   const action =
@@ -183,6 +188,19 @@ export default function WarehouseFormModal({
                   label: province,
                   options: items.map((d) => ({ value: String(d.id), label: d.name })),
                 }))}
+              />
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="managed_by">
+                Managed by <span className={styles.optional}>(optional)</span>
+              </label>
+              <StyledSelect
+                id="managed_by"
+                name="managed_by"
+                defaultValue={warehouse?.managed_by ?? ""}
+                placeholder="Select a PMB officer"
+                options={officers.map((o) => ({ value: o.id, label: o.name }))}
               />
             </div>
 

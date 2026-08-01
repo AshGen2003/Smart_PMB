@@ -8,6 +8,7 @@ from . import views
 urlpatterns = [
     path("districts/", views.DistrictListView.as_view()),  # public dropdown data for registration
     path("farmer/dashboard/", views.FarmerDashboardView.as_view()),
+    path("farmer/bank-details/", views.FarmerBankDetailsView.as_view()),
     path("notifications/<int:pk>/read/", views.NotificationMarkReadView.as_view()),
     path("officer/dashboard/", views.OfficerDashboardView.as_view()),
     path("officer/reports/", views.OfficerReportsView.as_view()),

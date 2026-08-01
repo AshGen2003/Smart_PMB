@@ -6,6 +6,7 @@ import { requirePermission } from "@/app/lib/dal";
 import {
   AccountSettingsForm,
   AppearanceSettings,
+  LanguageSettings,
   NotificationSettings,
   HelpCenterSettings,
   SupportSettings,
@@ -27,6 +28,7 @@ export default async function DriverSettingsPage() {
 
       <AccountSettingsForm fullName={user.fullName ?? ""} email={user.email} />
       <AppearanceSettings />
+      <LanguageSettings />
       <NotificationSettings
         notifyMessages={user.notifyMessages}
         notifyHarvestUpdates={user.notifyHarvestUpdates}

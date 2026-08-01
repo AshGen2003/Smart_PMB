@@ -21,20 +21,50 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
+  FileCheck,
+  ClipboardList,
+  Package,
 } from "lucide-react";
 
-const NAV_ITEMS = [
+const BASE_NAV_ITEMS = [
   { label: "Dashboard", href: "/partner", icon: LayoutDashboard, permission: "view_dashboard" },
+];
+
+// Mill owners get their own ongoing License history (renewable, expiry-
+// tracked — see mills/models.py's License) and periodic milling reports.
+// Authorized purchasers instead get their rice requests against warehouse
+// stock (see purchases/models.py's RiceRequest). Both sets are gated by the
+// same view_dashboard permission as the rest of the shell — there's no
+// separate permission per business feature, same as Messages/Settings.
+const MILL_OWNER_NAV_ITEMS = [
+  { label: "Licenses", href: "/partner/licenses", icon: FileCheck, permission: "view_dashboard" },
+  { label: "Milling Reports", href: "/partner/milling-reports", icon: ClipboardList, permission: "view_dashboard" },
+];
+
+const PURCHASER_NAV_ITEMS = [
+  { label: "Rice Requests", href: "/partner/rice-requests", icon: Package, permission: "view_dashboard" },
+];
+
+const TAIL_NAV_ITEMS = [
   { label: "Messages", href: "/partner/messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", href: "/partner/settings", icon: Settings, permission: "view_settings" },
 ];
 
-/** Renders the logo, collapse toggle, and the nav links this partner's permissions allow, highlighting the active route. */
-export default function PartnerSidebar({ permissions }: { permissions: string[] }) {
+/** Renders the logo, collapse toggle, and the nav links this partner's role/permissions allow, highlighting the active route. */
+export default function PartnerSidebar({
+  role,
+  permissions,
+}: {
+  role: "authorized_purchaser" | "mill_owner";
+  permissions: string[];
+}) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
 
-  const items = NAV_ITEMS.filter((item) => permissions.includes(item.permission));
+  const roleItems = role === "mill_owner" ? MILL_OWNER_NAV_ITEMS : PURCHASER_NAV_ITEMS;
+  const items = [...BASE_NAV_ITEMS, ...roleItems, ...TAIL_NAV_ITEMS].filter((item) =>
+    permissions.includes(item.permission)
+  );
 
   return (
     <aside

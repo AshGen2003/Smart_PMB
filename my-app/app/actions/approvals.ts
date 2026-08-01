@@ -132,6 +132,26 @@ export async function collectHarvest(harvestId: number): Promise<{ error?: strin
   return harvestAction(harvestId, "collect");
 }
 
+/**
+ * Records an after-the-fact accountability sign-off on a collected
+ * harvest — an additional check, not a new gate (see
+ * farmers.models.TransactionVerification's docstring on the backend).
+ */
+export async function verifyHarvestTransaction(harvestId: number): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/admin/harvests/${harvestId}/verify_transaction/`, {
+    method: "POST",
+    body: JSON.stringify({ status: "verified" }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/approvals");
+  return {};
+}
+
 /** Permanently deletes a harvest record. */
 export async function deleteHarvest(harvestId: number): Promise<{ error?: string }> {
   const res = await apiFetch(`/api/admin/harvests/${harvestId}/`, {

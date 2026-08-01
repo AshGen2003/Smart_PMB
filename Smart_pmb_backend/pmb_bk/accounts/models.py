@@ -54,7 +54,9 @@ class Role(models.Model):
     # Blocks deletion only (see accounts/views.py RoleViewSet) — never blocks
     # renaming or permission changes.
     is_system = models.BooleanField(default=False)
-    permissions = models.ManyToManyField(Permission, blank=True, related_name="roles")
+    permissions = models.ManyToManyField(
+        Permission, through="RolePermission", blank=True, related_name="roles"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -70,6 +72,26 @@ class Role(models.Model):
         if not self.slug:
             self.slug = slugify(self.name).replace("-", "_")
         super().save(*args, **kwargs)
+
+
+class RolePermission(models.Model):
+    """
+    Explicit through-model for Role.permissions, so a grant can be traced
+    back to who made it and when — a bare ManyToManyField can't carry that.
+    Existing grants (made before this model existed) have `granted_by=None`
+    and a `granted_date` backfilled to the time this model was introduced;
+    only grants made from here on have real attribution.
+    """
+
+    role = models.ForeignKey(Role, on_delete=models.CASCADE)
+    permission = models.ForeignKey(Permission, on_delete=models.CASCADE)
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    granted_date = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("role", "permission")
 
 
 class User(AbstractUser):
@@ -128,6 +150,38 @@ class User(AbstractUser):
         return bool(self.last_activity) and timezone.now() - self.last_activity <= ONLINE_WINDOW
 
 
+class PmbOfficer(models.Model):
+    """
+    A PMB Officer's staff profile: employment details linked one-to-one to
+    a User account with role "pmb_officer". Unlike Farmer/Mill, this is
+    never self-registered — officer accounts are always created by an
+    admin via User Management (see AdminUserWriteSerializer.create/update
+    in serializers.py, which creates/updates this profile whenever the
+    assigned role is "pmb_officer").
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="pmb_officer_profile"
+    )
+    employee_no = models.CharField(max_length=50, unique=True)
+    nic = models.CharField(max_length=20, blank=True)
+    designation = models.CharField(max_length=100, blank=True)
+    district = models.ForeignKey(
+        "farmers.District", on_delete=models.SET_NULL, null=True, blank=True, related_name="pmb_officers"
+    )
+    location = models.CharField(max_length=255, blank=True)
+    contact_number = models.CharField(max_length=20, blank=True)
+    joined_date = models.DateField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+
+    def __str__(self):
+        return f"{self.employee_no} ({self.user.full_name})"
+
+
 class LicenseApplication(models.Model):
     """
     A request from an external party (an authorized purchaser or mill
@@ -173,6 +227,39 @@ class LicenseApplication(models.Model):
 
     def __str__(self):
         return f"{self.business_name} ({self.get_license_type_display()}) — {self.status}"
+
+
+class PasswordResetOTP(models.Model):
+    """
+    A one-time code issued for the self-service forgot-password flow (see
+    ForgotPasswordView/VerifyResetOTPView in views.py). `code_hash` is
+    hashed the same way a password is (never stored in plain text) —
+    `check_password(entered_code, otp.code_hash)` verifies it. Only the
+    newest unconsumed code for a given user is ever valid; requesting a
+    new one invalidates whatever came before it.
+    """
+
+    class Channel(models.TextChoices):
+        EMAIL = "email", "Email"
+        SMS = "sms", "SMS"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="password_reset_otps"
+    )
+    code_hash = models.CharField(max_length=128)
+    channel = models.CharField(max_length=10, choices=Channel.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    # Wrong-code guesses against *this* row — capped in VerifyResetOTPView
+    # so a 6-digit code (1 in a million) can't just be brute-forced.
+    attempts = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"OTP for {self.user.email} via {self.channel} ({'consumed' if self.consumed_at else 'active'})"
 
 
 class Message(models.Model):

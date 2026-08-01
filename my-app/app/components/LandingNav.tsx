@@ -11,11 +11,13 @@ import Image from "next/image";
 import { ArrowRight, Moon, Sun } from "lucide-react";
 import clsx from "clsx";
 import { useTheme } from "./ThemeProvider";
+import { useLanguage } from "./LanguageProvider";
 import styles from "../LandingPage.module.css";
 
-/** Renders the brand logo, anchor links, theme toggle, and login/signup buttons; adds a background once the page is scrolled. */
+/** Renders the brand logo, anchor links, theme toggle, language toggle, and login/signup buttons; adds a background once the page is scrolled. */
 export default function LandingNav() {
   const { theme, toggleTheme } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
   const [scrolled, setScrolled] = useState(false);
 
   // Track scroll position purely for styling — adds a solid background/
@@ -35,12 +37,20 @@ export default function LandingNav() {
       </Link>
 
       <nav className={styles.navLinks}>
-        <a href="#about">About</a>
-        <a href="#features">Features</a>
-        <a href="#get-started">Get started</a>
+        <a href="#about">{t.nav.about}</a>
+        <a href="#features">{t.nav.features}</a>
+        <a href="#get-started">{t.nav.getStarted}</a>
       </nav>
 
       <div className={styles.navActions}>
+        <button
+          type="button"
+          className={styles.navLangBtn}
+          onClick={() => setLanguage(language === "en" ? "si" : "en")}
+          aria-label={t.toggle.languageAria}
+        >
+          {language === "en" ? "සිං" : "EN"}
+        </button>
         <button
           type="button"
           className={styles.navIconBtn}
@@ -50,10 +60,10 @@ export default function LandingNav() {
           {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
         </button>
         <Link href="/login" className={styles.navGhostBtn}>
-          Log in
+          {t.nav.login}
         </Link>
         <Link href="/signup/farmer" className={styles.navPrimaryBtn}>
-          Sign up
+          {t.nav.signup}
           <ArrowRight size={15} className={styles.navPrimaryBtnArrow} />
         </Link>
       </div>

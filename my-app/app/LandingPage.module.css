@@ -127,6 +127,28 @@
   transform: rotate(-14deg);
 }
 
+.navLangBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.6rem;
+  border-radius: 18px;
+  border: 1px solid var(--card-border);
+  background: none;
+  color: var(--foreground);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.navLangBtn:hover {
+  background-color: var(--sidebar-hover);
+}
+
 .navGhostBtn {
   padding: 0.5rem 1rem;
   border-radius: 8px;

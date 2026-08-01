@@ -5,18 +5,29 @@
  * have manage_users.
  */
 import { requirePermission } from "@/app/lib/dal";
+import { apiFetch } from "@/app/lib/api";
 import {
   AccountSettingsForm,
   AppearanceSettings,
+  LanguageSettings,
   NotificationSettings,
   HelpCenterSettings,
   SupportSettings,
 } from "@/app/components/SettingsSections";
+import MillDetailsForm, { type DistrictOption, type MillDetails } from "./MillDetailsForm";
 import styles from "../PartnerDashboard.module.css";
 
 /** Server Component: loads the current user and renders the shared settings sections. */
 export default async function PartnerSettingsPage() {
   const user = await requirePermission("view_settings");
+
+  const shouldFetchMill = !user.previewing && user.role === "mill_owner";
+  const [millRes, districtsRes] = await Promise.all([
+    shouldFetchMill ? apiFetch("/api/mill-owner/profile/") : Promise.resolve(null),
+    shouldFetchMill ? apiFetch("/api/districts/") : Promise.resolve(null),
+  ]);
+  const mill: MillDetails | null = millRes?.ok ? await millRes.json() : null;
+  const districts: DistrictOption[] = districtsRes?.ok ? await districtsRes.json() : [];
 
   return (
     <div className={styles.dashboard}>
@@ -27,8 +38,15 @@ export default async function PartnerSettingsPage() {
         </p>
       </div>
 
-      <AccountSettingsForm fullName={user.fullName ?? ""} email={user.email} />
+      <AccountSettingsForm
+        fullName={user.fullName ?? ""}
+        email={user.email}
+        nic={user.nic}
+        phoneNumber={user.phoneNumber}
+      />
+      {mill && <MillDetailsForm mill={mill} districts={districts} />}
       <AppearanceSettings />
+      <LanguageSettings />
       <NotificationSettings
         notifyMessages={user.notifyMessages}
         notifyHarvestUpdates={user.notifyHarvestUpdates}

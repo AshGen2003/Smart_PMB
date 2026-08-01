@@ -39,6 +39,8 @@ import {
   ChevronRight,
   User,
   BadgeCheck,
+  FileCheck,
+  Package,
 } from "lucide-react";
 
 // Full set of possible sidebar links. `permission` gates a link behind a
@@ -72,6 +74,18 @@ const NAV_ITEMS = [
   },
   { label: "Transportation", href: "/transportation", icon: Truck, permission: "manage_transport" },
   { label: "Licenses", href: "/licenses", icon: BadgeCheck, permission: "approve_licenses" },
+  {
+    label: "Mill Licenses",
+    href: "/mill-licenses",
+    icon: FileCheck,
+    permissions: ["monitor_operations", "approve_licenses"],
+  },
+  {
+    label: "Rice Requests",
+    href: "/purchase-requests",
+    icon: Package,
+    permissions: ["monitor_operations", "record_purchases"],
+  },
   { label: "Reports", href: "/reports", icon: BarChart3, permission: "generate_reports" },
   { label: "Roles", href: "/roles", icon: ShieldCheck, permission: "manage_roles" },
   { label: "Preview Portal", href: "/preview", icon: Eye, permission: "manage_roles" },

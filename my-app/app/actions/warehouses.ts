@@ -26,6 +26,7 @@ function payloadFromFormData(formData: FormData) {
     established_date: String(formData.get("established_date") ?? "") || null,
     location: String(formData.get("location") ?? "").trim(),
     district: formData.get("district") ? Number(formData.get("district")) : null,
+    managed_by: String(formData.get("managed_by") ?? "") || null,
   };
 }
 

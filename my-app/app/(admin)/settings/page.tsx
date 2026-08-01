@@ -10,6 +10,7 @@ import {
   AccountSettingsForm,
   AdminShortcutSettings,
   AppearanceSettings,
+  LanguageSettings,
   NotificationSettings,
   HelpCenterSettings,
   SupportSettings,
@@ -31,6 +32,7 @@ export default async function SettingsPage() {
 
       <AccountSettingsForm fullName={user.fullName ?? ""} email={user.email} />
       <AppearanceSettings />
+      <LanguageSettings />
       <NotificationSettings
         notifyMessages={user.notifyMessages}
         notifyHarvestUpdates={user.notifyHarvestUpdates}

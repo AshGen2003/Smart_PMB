@@ -3,17 +3,31 @@
  * mill owners). Only reached once the account's LicenseApplication is
  * approved, or there's no application at all (see partner/layout.tsx —
  * that's an admin-created account, or an admin using Portal Preview). The
- * License card only renders when there's actual application data to show;
- * no purchase/mill-specific business features exist yet, so this just
- * confirms the license itself — Messages is where they'd reach an officer
- * for anything further.
+ * License card only renders when there's actual application data to show —
+ * that's the one-time account-approval gate (accounts/models.py's
+ * LicenseApplication). Below it, a role-specific panel shows the ongoing
+ * business data: mill owners get their operating License history +
+ * milling reports (mills app), purchasers get their stock + rice requests
+ * (purchases app). Preview never fetches real data, same as messages/bell.
  */
 import { requirePermission } from "@/app/lib/dal";
+import { apiFetch } from "@/app/lib/api";
+import MillOwnerPanel from "./MillOwnerPanel";
+import PurchaserPanel from "./PurchaserPanel";
 import styles from "./PartnerDashboard.module.css";
 
 export default async function PartnerDashboardPage() {
   const user = await requirePermission("view_dashboard");
   const hasApplication = user.licenseStatus !== null;
+
+  const millData =
+    !user.previewing && user.role === "mill_owner"
+      ? await apiFetch("/api/mill-owner/dashboard/").then((res) => (res.ok ? res.json() : null))
+      : null;
+  const purchaserData =
+    !user.previewing && user.role === "authorized_purchaser"
+      ? await apiFetch("/api/purchaser/dashboard/").then((res) => (res.ok ? res.json() : null))
+      : null;
 
   return (
     <div className={styles.dashboard}>
@@ -38,6 +52,12 @@ export default async function PartnerDashboardPage() {
             <span className={styles.statusBadge}>Approved</span>
           </div>
         </div>
+      )}
+
+      {millData && <MillOwnerPanel data={millData} />}
+      {purchaserData && <PurchaserPanel data={purchaserData} />}
+      {user.previewing && (
+        <p className={styles.subtitle}>Business data isn&apos;t available while previewing.</p>
       )}
     </div>
   );

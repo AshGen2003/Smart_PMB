@@ -13,6 +13,7 @@ import {
   PackageCheck,
   Pencil,
   Plus,
+  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import {
   collectHarvest,
   deleteHarvest,
   rejectHarvest,
+  verifyHarvestTransaction,
 } from "@/app/actions/approvals";
 import HarvestFormModal, {
   type EditableHarvest,
@@ -236,6 +238,18 @@ export default function ApprovalsManager({
                             onClick={() => runAction(() => collectHarvest(h.id))}
                           >
                             <PackageCheck size={15} />
+                          </button>
+                        )}
+                        {canWrite && h.status === "collected" && (
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            aria-label="Verify transaction"
+                            title="Record an accountability sign-off on this transaction"
+                            disabled={isPending}
+                            onClick={() => runAction(() => verifyHarvestTransaction(h.id))}
+                          >
+                            <ShieldCheck size={15} />
                           </button>
                         )}
                         {canWrite && (

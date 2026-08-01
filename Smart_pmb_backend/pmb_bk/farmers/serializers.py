@@ -10,10 +10,14 @@ from .models import (
     Farmer,
     FuelRecord,
     Harvest,
+    Inventory,
     MaintenanceRecord,
     Notification,
     PaddyType,
+    PriceRecord,
     Route,
+    TransactionLog,
+    TransactionVerification,
     Vehicle,
     Warehouse,
 )
@@ -51,6 +55,64 @@ class PaddyTypeWriteSerializer(serializers.ModelSerializer):
         fields = ["id", "type_name", "variety", "description", "guaranteed_price", "is_active"]
 
 
+class PriceRecordSerializer(serializers.ModelSerializer):
+    """Read representation of one historical guaranteed-price snapshot for a PaddyType."""
+
+    class Meta:
+        model = PriceRecord
+        fields = ["id", "guaranteed_price", "effective_date"]
+
+
+class InventorySerializer(serializers.ModelSerializer):
+    """Read representation of one warehouse/paddy-type/grade stock line."""
+
+    warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+    updated_by_name = serializers.CharField(source="updated_by.full_name", default=None)
+
+    class Meta:
+        model = Inventory
+        fields = [
+            "id", "warehouse", "warehouse_name", "paddy_type", "paddy_type_name",
+            "grade", "quantity", "unit", "minimum_level", "maximum_level",
+            "last_updated", "updated_by_name",
+        ]
+
+
+class TransactionLogSerializer(serializers.ModelSerializer):
+    """Read representation of one warehouse stock-movement log entry."""
+
+    warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+
+    class Meta:
+        model = TransactionLog
+        fields = [
+            "id", "warehouse", "warehouse_name", "transaction_type",
+            "quantity_change", "harvest", "rice_request", "notes", "created_at",
+        ]
+
+
+class TransactionVerificationSerializer(serializers.ModelSerializer):
+    """Read representation of one after-the-fact transaction sign-off."""
+
+    verified_by_name = serializers.CharField(source="verified_by.full_name", default=None)
+
+    class Meta:
+        model = TransactionVerification
+        fields = [
+            "id", "harvest", "rice_request", "verified_by_name",
+            "verified_at", "status", "notes",
+        ]
+
+
+class TransactionVerificationWriteSerializer(serializers.ModelSerializer):
+    """Validates the optional notes/status submitted with a verify action; harvest/rice_request/verified_by are set server-side."""
+
+    class Meta:
+        model = TransactionVerification
+        fields = ["status", "notes"]
+
+
 class HarvestSerializer(serializers.ModelSerializer):
     """Compact Harvest representation for a farmer's own dashboard (no officer-only assessment fields)."""
 
@@ -59,6 +121,20 @@ class HarvestSerializer(serializers.ModelSerializer):
     class Meta:
         model = Harvest
         fields = ["id", "paddy_type_name", "quantity_kg", "harvest_date", "status"]
+
+
+class FarmerHarvestCreateSerializer(serializers.ModelSerializer):
+    """
+    Create representation of a Harvest for a farmer submitting their own
+    delivery. Deliberately limited to the two fields a farmer actually
+    knows at submission time — grade/moisture/quality_check/unit_price/
+    warehouse are filled in later by an officer during approval, and
+    `status` defaults to "pending" on the model.
+    """
+
+    class Meta:
+        model = Harvest
+        fields = ["id", "paddy_type", "quantity_kg"]
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -77,18 +153,27 @@ class FarmerOptionSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "registration_no"]
 
 
+class FarmerBankDetailsSerializer(serializers.ModelSerializer):
+    """Self-service read/update of the logged-in farmer's own bank details (payout account)."""
+
+    class Meta:
+        model = Farmer
+        fields = ["bank_account", "bank_name"]
+
+
 class WarehouseSerializer(serializers.ModelSerializer):
-    """Read representation of a Warehouse, with district/province names resolved for display."""
+    """Read representation of a Warehouse, with district/province/manager names resolved for display."""
 
     district_name = serializers.CharField(source="district.name", default=None)
     province_name = serializers.CharField(source="province.name", default=None)
+    managed_by_name = serializers.CharField(source="managed_by.full_name", default=None)
 
     class Meta:
         model = Warehouse
         fields = [
             "id", "name", "code", "capacity", "current_stock", "status",
             "contact_number", "established_date", "district", "district_name",
-            "province", "province_name", "location",
+            "province", "province_name", "location", "managed_by", "managed_by_name",
         ]
 
 
@@ -104,7 +189,7 @@ class WarehouseWriteSerializer(serializers.ModelSerializer):
         model = Warehouse
         fields = [
             "id", "name", "code", "capacity", "status", "contact_number",
-            "established_date", "district", "location",
+            "established_date", "district", "location", "managed_by",
         ]
 
 
