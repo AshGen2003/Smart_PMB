@@ -1,10 +1,17 @@
 /**
  * Collapsible left navigation for the admin/officer shell. Each nav item
  * can declare a required `permission` (single codename) or `permissions`
- * (any-of list); items with neither are shown to everyone. This is purely
- * a UI convenience — the actual access control happens server-side via
- * requirePermission()/requireAnyPermission() on each page, so hiding a
- * link here doesn't by itself protect the route.
+ * (any-of list). For most items this is real access control — the same
+ * permission also gates the page server-side via requirePermission()/
+ * requireAnyPermission(), so hiding a link here isn't the only thing
+ * stopping direct navigation. The four view_dashboard/view_messages/
+ * view_settings/view_profile permissions are the exception: they only
+ * control whether the button shows in this sidebar (and in the Preview
+ * Portal mockup) — there's deliberately no matching server-side gate on
+ * those four pages, since Dashboard is the fallback redirect target for
+ * every other denied page (requirePermission would loop), and Profile/
+ * Settings/Messages are basic account pages nobody should ever be fully
+ * locked out of, even if their sidebar button is hidden.
  */
 "use client";
 
@@ -30,15 +37,21 @@ import {
   Truck,
   ChevronLeft,
   ChevronRight,
+  User,
+  BadgeCheck,
+  FileCheck,
+  Package,
 } from "lucide-react";
 
 // Full set of possible sidebar links. `permission` gates a link behind a
 // single codename; `permissions` gates it behind any one of several
 // codenames (e.g. Approvals is visible to either monitor_operations or
-// record_purchases holders). No permission field = visible to all admin/
-// officer roles (e.g. Dashboard, Settings).
+// record_purchases holders). Every item is gated by something — even
+// Dashboard/Messages/Settings have a (normally-granted-to-everyone)
+// view_* permission, so every button can be toggled per role from either
+// the Role edit form or the Preview Portal's quick-toggle checklist.
 const NAV_ITEMS = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
   { label: "Users", href: "/residents", icon: Users, permission: "manage_users" },
   {
     label: "Maintenance",
@@ -60,11 +73,24 @@ const NAV_ITEMS = [
     permissions: ["monitor_operations", "record_purchases"],
   },
   { label: "Transportation", href: "/transportation", icon: Truck, permission: "manage_transport" },
+  { label: "Licenses", href: "/licenses", icon: BadgeCheck, permission: "approve_licenses" },
+  {
+    label: "Mill Licenses",
+    href: "/mill-licenses",
+    icon: FileCheck,
+    permissions: ["monitor_operations", "approve_licenses"],
+  },
+  {
+    label: "Rice Requests",
+    href: "/purchase-requests",
+    icon: Package,
+    permissions: ["monitor_operations", "record_purchases"],
+  },
   { label: "Reports", href: "/reports", icon: BarChart3, permission: "generate_reports" },
   { label: "Roles", href: "/roles", icon: ShieldCheck, permission: "manage_roles" },
   { label: "Preview Portal", href: "/preview", icon: Eye, permission: "manage_roles" },
-  { label: "Messages", href: "/messages", icon: MessageSquare },
-  { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Messages", href: "/messages", icon: MessageSquare, permission: "view_messages" },
+  { label: "Settings", href: "/settings", icon: Settings, permission: "view_settings" },
 ] as const;
 
 /** Renders the logo, collapse toggle, and the nav links visible to the current user's permission set, highlighting the active route. */
@@ -122,6 +148,22 @@ export default function Sidebar({ permissions }: { permissions: string[] }) {
             </Link>
           );
         })}
+
+        {permissions.includes("view_profile") && (
+          <Link
+            href="/profile"
+            className={clsx(
+              styles.navItem,
+              styles.navSpacer,
+              !isSidebarOpen && styles.navItemCollapsed,
+              pathname === "/profile" && styles.navItemActive
+            )}
+            onClick={closeMobileSidebar}
+          >
+            <User className={styles.navIcon} size={20} />
+            <span className={styles.navLabel}>Profile</span>
+          </Link>
+        )}
       </nav>
     </aside>
   );

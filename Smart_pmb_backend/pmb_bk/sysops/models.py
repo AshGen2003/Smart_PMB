@@ -29,6 +29,33 @@ class AuditLog(models.Model):
         ordering = ["-created_at"]
 
 
+class ErrorLog(models.Model):
+    """
+    An unhandled/unexpected exception raised while serving an API request.
+    Written automatically by sysops.exception_handler.custom_exception_handler
+    (registered as DRF's EXCEPTION_HANDLER in settings.py) rather than by any
+    view remembering to log it — every current and future endpoint is
+    covered without per-view instrumentation, which is the point: this is
+    general-purpose activity/error monitoring, not a hand-picked list of
+    business actions like AuditLog.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="error_logs",
+    )
+    actor_label = models.CharField(max_length=255, blank=True)
+    method = models.CharField(max_length=10, blank=True)
+    path = models.CharField(max_length=500, blank=True)
+    exception_type = models.CharField(max_length=200, blank=True)
+    message = models.TextField(blank=True)
+    status_code = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
 class AuthLog(models.Model):
     """A record of one authentication-related event: successful/failed login, account lockout, or logout."""
 

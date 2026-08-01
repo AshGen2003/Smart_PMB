@@ -9,12 +9,13 @@
  * see previewSampleData.ts.
  */
 import { requirePermission } from "@/app/lib/dal";
-import { apiFetch } from "@/app/lib/api";
+import { apiFetch, apiFetchCached } from "@/app/lib/api";
 import { PREVIEW_DISTRICTS, PREVIEW_WAREHOUSES } from "@/app/lib/previewSampleData";
-import WarehousesManager, { type WarehouseRow } from "./WarehousesManager";
+import WarehousesManager, { type OfficerOption, type WarehouseRow } from "./WarehousesManager";
 import type { DistrictOption } from "./WarehouseFormModal";
+import type { InventoryLine, TransactionLogEntry } from "./WarehouseDetailModal";
 
-/** Server Component: gates access, fetches warehouses and the district list (for the create/edit form's location picker). */
+/** Server Component: gates access, fetches warehouses, the district/officer lists (for the create/edit form's pickers), and the inventory/transaction-log detail data. */
 export default async function WarehousesPage() {
   const user = await requirePermission("manage_warehouses");
   // Portal Preview is always read-only (see components/PreviewBanner.tsx),
@@ -29,18 +30,40 @@ export default async function WarehousesPage() {
       <WarehousesManager
         warehouses={PREVIEW_WAREHOUSES}
         districts={PREVIEW_DISTRICTS}
+        officers={[]}
+        inventory={[]}
+        transactions={[]}
         canWrite={false}
       />
     );
   }
 
-  const [warehousesRes, districtsRes] = await Promise.all([
-    apiFetch("/api/admin/warehouses/"),
-    apiFetch("/api/districts/"),
+  // Warehouses are also reused as reference data on /approvals and
+  // /transportation; districts are static seed data with no admin-editable
+  // UI at all — see apiFetchCached's docstring. revalidateTag("warehouses")
+  // in actions/warehouses.ts keeps the warehouse list fresh on mutation.
+  const [warehousesRes, districtsRes, officersRes, inventoryRes, transactionsRes] = await Promise.all([
+    apiFetchCached("/api/admin/warehouses/", 300, ["warehouses"]),
+    apiFetchCached("/api/districts/", 3600, ["districts"]),
+    apiFetch("/api/admin/warehouse-managers/"),
+    apiFetch("/api/admin/inventory/"),
+    apiFetch("/api/admin/transaction-log/"),
   ]);
 
   const warehouses = warehousesRes.ok ? ((await warehousesRes.json()) as WarehouseRow[]) : [];
   const districts = districtsRes.ok ? ((await districtsRes.json()) as DistrictOption[]) : [];
+  const officers = officersRes.ok ? ((await officersRes.json()) as OfficerOption[]) : [];
+  const inventory = inventoryRes.ok ? ((await inventoryRes.json()) as InventoryLine[]) : [];
+  const transactions = transactionsRes.ok ? ((await transactionsRes.json()) as TransactionLogEntry[]) : [];
 
-  return <WarehousesManager warehouses={warehouses} districts={districts} canWrite={canWrite} />;
+  return (
+    <WarehousesManager
+      warehouses={warehouses}
+      districts={districts}
+      officers={officers}
+      inventory={inventory}
+      transactions={transactions}
+      canWrite={canWrite}
+    />
+  );
 }

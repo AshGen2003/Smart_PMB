@@ -1,5 +1,7 @@
-# Outbound email helpers for the accounts app. Currently just the
-# account-confirmation email sent after farmer self-registration.
+# Outbound email helpers for the accounts app: account confirmation after
+# self-registration, an admin-created account's temporary password, a
+# self-service password-reset OTP code, and a licensing application's
+# approve/reject decision.
 from django.conf import settings
 from django.core.mail import send_mail
 
@@ -20,6 +22,80 @@ def send_confirmation_email(user):
             "This link expires in 48 hours. If you didn't create this account, "
             "you can ignore this email."
         ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
+def send_otp_email(user, code):
+    """Emails the user a one-time code to enter on the forgot-password page, letting them set a new password themselves."""
+    send_mail(
+        subject="Your Smart PMB password reset code",
+        message=(
+            f"Hi {user.full_name or user.email},\n\n"
+            "We received a request to reset your Smart PMB password. Enter "
+            f"the code below on the reset page to continue:\n\n{code}\n\n"
+            "This code expires in 10 minutes. If you didn't request this, "
+            "you can safely ignore this email — your password won't change."
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
+def send_temp_password_email(user, temp_password):
+    """
+    Emails a newly admin-created (or admin-reset) account its login email and
+    system-generated temporary password. The account is flagged
+    must_change_password=True at the same time it's created (see
+    AdminUserWriteSerializer), so the recipient is forced to set their own
+    password the moment they first log in.
+    """
+    send_mail(
+        subject="Your Smart PMB account has been created",
+        message=(
+            f"Hi {user.full_name or user.email},\n\n"
+            "An administrator has created a Smart PMB account for you.\n\n"
+            f"Email: {user.email}\n"
+            f"Temporary password: {temp_password}\n\n"
+            f"Log in at {settings.FRONTEND_URL}/login — you'll be asked to "
+            "set your own password before you can do anything else. This "
+            "temporary password is only valid until then."
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
+def send_license_decision_email(application):
+    """Emails the applicant once an officer/admin approves or rejects their licensing application."""
+    user = application.user
+
+    if application.status == application.Status.APPROVED:
+        subject = "Your Smart PMB licensing application has been approved"
+        message = (
+            f"Hi {user.full_name or user.email},\n\n"
+            f"Your application to be licensed as a {application.get_license_type_display()} "
+            f"({application.business_name}) has been approved. "
+            f"You can now log in at {settings.FRONTEND_URL}/login and access your account."
+        )
+    else:
+        subject = "Update on your Smart PMB licensing application"
+        reason = application.rejection_reason or "No reason was provided."
+        message = (
+            f"Hi {user.full_name or user.email},\n\n"
+            f"Your application to be licensed as a {application.get_license_type_display()} "
+            f"({application.business_name}) was not approved.\n\n"
+            f"Reason: {reason}\n\n"
+            "If you believe this is a mistake, contact the PMB office directly."
+        )
+
+    send_mail(
+        subject=subject,
+        message=message,
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
         fail_silently=False,

@@ -4,6 +4,10 @@
 # refresh are handled by djangorestframework_simplejwt; everything else is
 # plain DRF APIViews/ViewSets guarded by the custom permission classes in
 # accounts/permissions.py.
+from datetime import timedelta
+
+from django.conf import settings
+from django.contrib.auth.hashers import check_password, make_password
 from django.core import signing
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
@@ -21,22 +25,35 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from sysops.utils import log_audit, log_auth
 
-from .emails import send_confirmation_email
-from .models import ONLINE_WINDOW, Message, Permission, Role, User
+from .emails import (
+    send_confirmation_email,
+    send_license_decision_email,
+    send_otp_email,
+    send_temp_password_email,
+)
+from .models import ONLINE_WINDOW, LicenseApplication, Message, PasswordResetOTP, Permission, Role, User
+from .otp import MAX_OTP_ATTEMPTS, OTP_EXPIRY_MINUTES, generate_otp_code
 from .permissions import HasPermission, RoleAccessPermission
 from .serializers import (
     AdminUserSerializer,
     AdminUserWriteSerializer,
     CustomTokenObtainPairSerializer,
+    LicenseApplicationSerializer,
+    LicenseDecisionSerializer,
     MessageCreateSerializer,
     MessageRecipientSerializer,
     MessageSerializer,
     PermissionSerializer,
     RegisterFarmerSerializer,
+    RegisterLicenseApplicantSerializer,
     RoleSerializer,
     RoleWriteSerializer,
     SelfProfileSerializer,
+    generate_temp_password,
+    get_effective_phone_number,
+    notify_officers,
 )
+from .sms import send_otp_sms
 from .tokens import read_email_confirmation_token
 
 
@@ -68,6 +85,37 @@ class RegisterFarmerView(APIView):
         return Response(
             {
                 "detail": "Account created. Check your email to confirm your account before logging in."
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class RegisterLicenseApplicantView(APIView):
+    """
+    Public self-registration endpoint for authorized purchasers and mill
+    owners; creates a User + pending LicenseApplication and emails a
+    confirmation link. Unlike farmers, this account still needs an
+    officer/admin to approve the application before it reaches real access
+    (see LicenseApplicationViewSet) — the frontend shows a pending/rejected
+    holding screen in the meantime.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterLicenseApplicantSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        user = result["user"]
+
+        send_confirmation_email(user)
+
+        return Response(
+            {
+                "detail": (
+                    "Application submitted. Check your email to confirm your "
+                    "account, then wait for an officer to review your application "
+                    "before logging in."
+                )
             },
             status=status.HTTP_201_CREATED,
         )
@@ -107,6 +155,110 @@ class ConfirmEmailView(APIView):
         return Response({"detail": "Email confirmed. You can now log in."})
 
 
+class ForgotPasswordView(APIView):
+    """
+    Public self-service password-reset request: sends a one-time code via
+    the caller's chosen channel (email or SMS to whatever contact number is
+    on file — see get_effective_phone_number) if the given address belongs
+    to an account. Always responds with the same generic message
+    regardless of whether the account exists or has a phone on file for
+    the "sms" channel — the one flow in this app worth guarding against
+    enumeration, since it's the one most commonly targeted for it.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_reset"
+
+    GENERIC_RESPONSE = {
+        "detail": "If that account exists, we've sent a reset code to it."
+    }
+
+    def post(self, request):
+        email = request.data.get("email", "")
+        channel = request.data.get("channel", "email")
+        if channel not in (PasswordResetOTP.Channel.EMAIL, PasswordResetOTP.Channel.SMS):
+            return Response({"detail": "Invalid channel."}, status=400)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if user:
+            # Only the newest code is ever valid — burn whatever came before.
+            PasswordResetOTP.objects.filter(user=user, consumed_at__isnull=True).delete()
+
+            code = generate_otp_code()
+            PasswordResetOTP.objects.create(
+                user=user,
+                code_hash=make_password(code),
+                channel=channel,
+                expires_at=timezone.now() + timedelta(minutes=OTP_EXPIRY_MINUTES),
+            )
+
+            if channel == PasswordResetOTP.Channel.EMAIL:
+                send_otp_email(user, code)
+            else:
+                phone = get_effective_phone_number(user)
+                if phone:
+                    send_otp_sms(phone, code)
+                # No phone on file: silently do nothing — same
+                # anti-enumeration reasoning as the generic response below.
+
+        return Response(self.GENERIC_RESPONSE)
+
+
+class VerifyResetOTPView(APIView):
+    """Verifies the one-time code from ForgotPasswordView and sets the account's new password."""
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password_reset"
+
+    def post(self, request):
+        email = request.data.get("email", "")
+        code = request.data.get("code", "")
+        new_password = request.data.get("new_password", "")
+
+        if not code:
+            return Response({"detail": "Missing reset code."}, status=400)
+        if len(new_password) < 8:
+            return Response(
+                {"detail": "Password must be at least 8 characters."}, status=400
+            )
+
+        user = User.objects.filter(email__iexact=email).first()
+        otp = (
+            PasswordResetOTP.objects.filter(user=user, consumed_at__isnull=True).first()
+            if user else None
+        )
+        if not otp or otp.expires_at < timezone.now():
+            return Response(
+                {"detail": "This code is invalid or has expired. Request a new one."}, status=400
+            )
+
+        if otp.attempts >= MAX_OTP_ATTEMPTS:
+            otp.consumed_at = timezone.now()
+            otp.save(update_fields=["consumed_at"])
+            return Response(
+                {"detail": "Too many incorrect attempts. Request a new code."}, status=400
+            )
+
+        if not check_password(code, otp.code_hash):
+            otp.attempts += 1
+            otp.save(update_fields=["attempts"])
+            remaining = MAX_OTP_ATTEMPTS - otp.attempts
+            return Response(
+                {"detail": f"Incorrect code. {remaining} attempt(s) remaining."}, status=400
+            )
+
+        user.set_password(new_password)
+        # Mirrors SelfProfileSerializer.save(): setting your own new password
+        # clears the forced-change flag, same as the logged-in Settings flow.
+        user.must_change_password = False
+        user.save(update_fields=["password", "must_change_password"])
+
+        otp.consumed_at = timezone.now()
+        otp.save(update_fields=["consumed_at"])
+
+        return Response({"detail": "Password reset. You can now log in with your new password."})
+
+
 class LogoutView(APIView):
     """Logs the user out by blacklisting their refresh token so it can no longer be used to mint new access tokens."""
     permission_classes = [IsAuthenticated]
@@ -135,6 +287,35 @@ class MeView(APIView):
             return None
         return request.build_absolute_uri(user.profile_picture.url)
 
+    def _notification_prefs(self, user):
+        # notify_harvest_updates only exists on farmer_profile, so it's
+        # None (and the frontend hides that toggle) for every other role.
+        farmer_profile = getattr(user, "farmer_profile", None)
+        return {
+            "notify_in_app_messages": user.notify_in_app_messages,
+            "notify_harvest_updates": (
+                farmer_profile.notify_harvest_updates if farmer_profile else None
+            ),
+        }
+
+    def _account_status(self, user):
+        # license_application only exists for authorized_purchaser/mill_owner
+        # accounts — None (no gating) for everyone else. The frontend shows
+        # a pending/rejected holding screen instead of the real portal
+        # unless status is "approved".
+        application = getattr(user, "license_application", None)
+        return {
+            "must_change_password": user.must_change_password,
+            "license_status": application.status if application else None,
+            "license_rejection_reason": (
+                application.rejection_reason if application else ""
+            ),
+            "license_business_name": application.business_name if application else "",
+            "license_type_display": (
+                application.get_license_type_display() if application else ""
+            ),
+        }
+
     def get(self, request):
         user = request.user
         return Response(
@@ -150,6 +331,8 @@ class MeView(APIView):
                 "permissions": list(
                     user.role.permissions.values_list("codename", flat=True)
                 ),
+                **self._notification_prefs(user),
+                **self._account_status(user),
             }
         )
 
@@ -178,6 +361,8 @@ class MeView(APIView):
                 "permissions": list(
                     user.role.permissions.values_list("codename", flat=True)
                 ),
+                **self._notification_prefs(user),
+                **self._account_status(user),
                 "access": str(token.access_token),
                 "refresh": str(token),
             }
@@ -194,7 +379,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     permission_classes = [HasPermission("manage_users")]
     queryset = (
         User.objects.all()
-        .select_related("role", "farmer_profile")
+        .select_related("role", "farmer_profile", "pmb_officer_profile")
         .order_by("-date_joined")
     )
 
@@ -231,6 +416,19 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = serializer.save()
         log_audit(self.request.user, "create_user", "accounts", user.email)
+        # Always set on create by AdminUserWriteSerializer (typed or
+        # auto-generated password, either way "temporary" — see there).
+        send_temp_password_email(user, user._plain_password)
+        # Unlike a self-registered applicant, an admin-created purchaser/
+        # mill-owner account skips the licensing queue entirely (creating it
+        # directly already IS the approval) — but the rest of the team
+        # would otherwise have no way of knowing the account exists at all.
+        if user.role.slug in ("authorized_purchaser", "mill_owner"):
+            notify_officers(
+                user,
+                f"New {user.role.name} account created for {user.full_name or user.email} "
+                "(no licensing application — created directly by an admin).",
+            )
 
     def perform_update(self, serializer):
         user = serializer.save()
@@ -261,6 +459,80 @@ class AdminUserViewSet(viewsets.ModelViewSet):
                 pass
         log_audit(request.user, "force_logout", "accounts", user.email)
         return Response({"detail": "Session revoked."})
+
+    @action(
+        detail=True, methods=["post"], url_path="reset-password",
+        permission_classes=[HasPermission("manage_system")],
+    )
+    def reset_password(self, request, pk=None):
+        """
+        Admin-triggered password reset: always a fresh system-generated
+        temporary password, emailed to the user, who must change it on next
+        login — same shape as account creation's temp-password flow, never
+        an admin-chosen one. Replaces the old "type a new password into the
+        edit form" path entirely (see AdminUserWriteSerializer.update).
+        """
+        user = self.get_object()
+        temp_password = generate_temp_password()
+        user.set_password(temp_password)
+        user.must_change_password = True
+        user.save(update_fields=["password", "must_change_password"])
+        send_temp_password_email(user, temp_password)
+        log_audit(request.user, "reset_password", "accounts", user.email)
+        return Response({"detail": "Password reset. A temporary password has been emailed to the user."})
+
+
+class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Officer/admin review queue for authorized-purchaser/mill-owner
+    self-registrations (requires the pre-seeded "approve_licenses"
+    permission — already granted to admin/pmb_officer by default, see
+    accounts/migrations/0003_role_permission.py). Read-only aside from the
+    approve/reject actions, since an application's own fields are set once
+    at self-registration and never edited afterward.
+    """
+    permission_classes = [HasPermission("approve_licenses")]
+    serializer_class = LicenseApplicationSerializer
+    queryset = (
+        LicenseApplication.objects.all()
+        .select_related("user", "reviewed_by")
+        .order_by("-submitted_at")
+    )
+
+    def get_queryset(self):
+        # Optional ?status=pending filter for the review queue's default view.
+        qs = super().get_queryset()
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        application = self.get_object()
+        application.status = LicenseApplication.Status.APPROVED
+        application.reviewed_by = request.user
+        application.reviewed_at = timezone.now()
+        application.rejection_reason = ""
+        application.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
+        log_audit(request.user, "approve_license", "accounts", application.business_name)
+        send_license_decision_email(application)
+        return Response(LicenseApplicationSerializer(application).data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        serializer = LicenseDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        application = self.get_object()
+        application.status = LicenseApplication.Status.REJECTED
+        application.reviewed_by = request.user
+        application.reviewed_at = timezone.now()
+        application.rejection_reason = serializer.validated_data.get("reason", "")
+        application.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
+        log_audit(request.user, "reject_license", "accounts", application.business_name)
+        send_license_decision_email(application)
+        return Response(LicenseApplicationSerializer(application).data)
 
 
 class RoleViewSet(viewsets.ModelViewSet):
@@ -368,17 +640,21 @@ class OnlineRolesView(APIView):
 
     def get(self, request):
         cutoff = timezone.now() - ONLINE_WINDOW
-        online = User.objects.filter(last_activity__gte=cutoff)
-        role_counts = (
-            online.values("role__name", "role__slug")
+        role_counts = list(
+            User.objects.filter(last_activity__gte=cutoff)
+            .values("role__name", "role__slug")
             .annotate(count=Count("id"))
             .order_by("-count")
         )
+        # Every online user has exactly one role, so the total is just the
+        # sum of the per-role breakdown — no need for a second `.count()`
+        # query against the same filter (the DB is remote, so every avoided
+        # round trip matters here; this endpoint is polled every few seconds).
 
         return Response(
             {
                 "generated_at": timezone.now(),
-                "online_total": online.count(),
+                "online_total": sum(r["count"] for r in role_counts),
                 "roles": [
                     {"name": r["role__name"], "slug": r["role__slug"], "count": r["count"]}
                     for r in role_counts
@@ -387,15 +663,17 @@ class OnlineRolesView(APIView):
         )
 
 
-# Messages relevant to a given user: their own direct messages, plus —
-# for staff (non-farmer) accounts — every unaddressed "request to admin"
-# (recipient=None), since those aren't meant for one specific staff member.
+# Messages relevant to a given user: their own direct messages, plus — for
+# Admin/PMB Officer accounts specifically — every unaddressed request
+# (recipient=None) targeted at *their* role. A request addressed to Admin
+# is only visible to Admins, one addressed to PMB Officer only to PMB
+# Officers — not to every staff account, unlike before target_role existed.
 # Shared by MessageInboxView and MessageMarkReadView so the two can't drift.
 def _visible_messages(user):
     qs = Message.objects.select_related("sender", "sender__role", "recipient")
-    if user.role.slug in ("farmer", "driver"):
-        return qs.filter(recipient=user)
-    return qs.filter(Q(recipient=user) | Q(recipient__isnull=True))
+    if user.role.slug in ("admin", "pmb_officer"):
+        return qs.filter(Q(recipient=user) | Q(recipient__isnull=True, target_role=user.role.slug))
+    return qs.filter(recipient=user)
 
 
 class MessageInboxView(generics.ListAPIView):

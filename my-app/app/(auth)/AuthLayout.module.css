@@ -159,10 +159,16 @@
   background: var(--gradient-page);
 }
 
-.themeToggle {
+.toggleGroup {
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.themeToggle {
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -177,6 +183,28 @@
 }
 
 .themeToggle:hover {
+  background-color: var(--sidebar-hover);
+}
+
+.langToggle {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.6rem;
+  border-radius: 18px;
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  color: var(--foreground);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.langToggle:hover {
   background-color: var(--sidebar-hover);
 }
 

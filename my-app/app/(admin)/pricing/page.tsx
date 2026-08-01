@@ -9,7 +9,7 @@
  * see previewSampleData.ts.
  */
 import { requirePermission } from "@/app/lib/dal";
-import { apiFetch } from "@/app/lib/api";
+import { apiFetchCached } from "@/app/lib/api";
 import { PREVIEW_PADDY_TYPES } from "@/app/lib/previewSampleData";
 import PricingManager, { type PaddyTypeRow } from "./PricingManager";
 
@@ -24,7 +24,10 @@ export default async function PricingPage() {
     return <PricingManager paddyTypes={PREVIEW_PADDY_TYPES} canWrite={false} />;
   }
 
-  const res = await apiFetch("/api/admin/paddy-types/");
+  // Also reused as reference data on /approvals's harvest form — see
+  // apiFetchCached's docstring. revalidateTag("paddy-types") in
+  // actions/pricing.ts keeps this fresh the moment a price changes.
+  const res = await apiFetchCached("/api/admin/paddy-types/", 300, ["paddy-types"]);
   const paddyTypes = res.ok ? ((await res.json()) as PaddyTypeRow[]) : [];
 
   return <PricingManager paddyTypes={paddyTypes} canWrite={canWrite} />;

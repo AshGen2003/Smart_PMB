@@ -7,7 +7,7 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { apiFetch } from "@/app/lib/api";
 import { firstErrorMessage } from "@/app/lib/errors";
 
@@ -54,6 +54,7 @@ export async function createRole(
 
   revalidatePath("/roles");
   revalidatePath("/residents");
+  updateTag("roles");
   return {};
 }
 
@@ -90,6 +91,7 @@ export async function updateRole(
 
   revalidatePath("/roles");
   revalidatePath("/residents");
+  updateTag("roles");
   return {};
 }
 
@@ -109,5 +111,41 @@ export async function deleteRole(roleId: number): Promise<{ error?: string }> {
   }
 
   revalidatePath("/roles");
+  updateTag("roles");
+  return {};
+}
+
+/**
+ * Toggles a single permission codename on/off for a role — used by the
+ * Preview Portal's clickable nav checklist so an admin can grant/revoke
+ * access to one specific sidebar button without opening the full role-edit
+ * form. `currentPermissions` is the role's full codename list as already
+ * known by the caller (from the page's own data fetch), so this doesn't
+ * need a separate read before writing.
+ */
+export async function toggleRolePermission(
+  roleId: number,
+  codename: string,
+  currentPermissions: string[],
+  enabled: boolean
+): Promise<{ error?: string }> {
+  const nextPermissions = enabled
+    ? Array.from(new Set([...currentPermissions, codename]))
+    : currentPermissions.filter((p) => p !== codename);
+
+  const res = await apiFetch(`/api/admin/roles/${roleId}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ permissions: nextPermissions }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/preview");
+  revalidatePath("/roles");
+  revalidatePath("/residents");
+  updateTag("roles");
   return {};
 }

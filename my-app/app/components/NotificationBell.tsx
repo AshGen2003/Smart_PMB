@@ -14,6 +14,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, Loader2, Send } from "lucide-react";
 import clsx from "clsx";
+import StyledSelect from "./StyledSelect";
+import { SkeletonRows } from "./Skeleton";
 import styles from "./NotificationBell.module.css";
 
 type MessageRow = {
@@ -23,6 +25,8 @@ type MessageRow = {
   sender_role: string | null;
   recipient: string | null;
   recipient_name: string | null;
+  target_role: "admin" | "pmb_officer" | null;
+  target_role_label: string | null;
   body: string;
   created_at: string;
   is_read: boolean;
@@ -55,6 +59,7 @@ export default function NotificationBell({
   restrictedCompose,
   messagesHref,
   previewing = false,
+  notifyMessages = true,
 }: {
   // True for farmer/driver accounts: compose can only send a request to
   // the admin team (recipient=null), not pick a specific user.
@@ -63,11 +68,15 @@ export default function NotificationBell({
   // /farmer/messages, /driver/messages).
   messagesHref: string;
   previewing?: boolean;
+  // Settings → Notifications → "Message alerts". Off just mutes polling
+  // and the unread badge — compose still works, and /messages is unaffected.
+  notifyMessages?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<MessageRow[] | null>(null);
   const [recipients, setRecipients] = useState<RecipientOption[] | null>(null);
   const [recipientId, setRecipientId] = useState("");
+  const [targetRole, setTargetRole] = useState<"admin" | "pmb_officer">("admin");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -76,11 +85,12 @@ export default function NotificationBell({
 
   const unreadCount = messages?.filter((m) => !m.is_read).length ?? 0;
 
-  // Poll the inbox — skipped entirely during Portal Preview, since the
-  // previewed role's inbox has no meaning for the real admin's own
-  // JWT-authenticated account underneath (see route.ts's matching guard).
+  // Poll the inbox — skipped during Portal Preview (the previewed role's
+  // inbox has no meaning for the real admin's own JWT-authenticated account
+  // underneath, see route.ts's matching guard) and while the user has
+  // turned message alerts off in Settings.
   useEffect(() => {
-    if (previewing) return;
+    if (previewing || !notifyMessages) return;
     let cancelled = false;
 
     async function poll() {
@@ -100,7 +110,7 @@ export default function NotificationBell({
       cancelled = true;
       clearInterval(id);
     };
-  }, [previewing]);
+  }, [previewing, notifyMessages]);
 
   // Lazily load the recipient picker the first time a staff member opens
   // the dropdown, rather than on every page load.
@@ -157,6 +167,7 @@ export default function NotificationBell({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipient: restrictedCompose ? null : recipientId,
+          target_role: restrictedCompose ? targetRole : undefined,
           body: trimmed,
         }),
       });
@@ -210,9 +221,16 @@ export default function NotificationBell({
             <p className={styles.previewNote}>Messaging isn&apos;t available while previewing.</p>
           ) : (
             <>
+              {!notifyMessages ? (
+                <p className={styles.previewNote}>
+                  Message alerts are turned off in Settings — new messages
+                  won&apos;t show up here, but you can still send one below
+                  or check <Link href={messagesHref}>the full inbox</Link>.
+                </p>
+              ) : (
               <div className={styles.list}>
                 {messages === null ? (
-                  <p className={styles.emptyState}>Loading…</p>
+                  <SkeletonRows count={3} />
                 ) : messages.length === 0 ? (
                   <p className={styles.emptyState}>No messages yet.</p>
                 ) : (
@@ -228,7 +246,9 @@ export default function NotificationBell({
                             <span className={styles.messageSenderRole}> · {m.sender_role}</span>
                           )}
                           {m.recipient === null && (
-                            <span className={styles.requestBadge}>Request</span>
+                            <span className={styles.requestBadge}>
+                              Request → {m.target_role_label ?? "Admin"}
+                            </span>
                           )}
                         </span>
                         <span className={styles.messageTime}>{formatTime(m.created_at)}</span>
@@ -247,28 +267,34 @@ export default function NotificationBell({
                   ))
                 )}
               </div>
+              )}
 
               <div className={styles.composeArea}>
                 <p className={styles.composeLabel}>
-                  {restrictedCompose ? "Send a request to Admin" : "Message a user"}
+                  {restrictedCompose ? "Send a request to" : "Message a user"}
                 </p>
 
                 {sendError && <div className={styles.composeError}>{sendError}</div>}
                 {sendSuccess && <div className={styles.composeSuccess}>Sent.</div>}
 
-                {!restrictedCompose && (
-                  <select
-                    className={styles.recipientSelect}
+                {restrictedCompose ? (
+                  <StyledSelect
+                    compact
+                    value={targetRole}
+                    onChange={(v) => setTargetRole(v as "admin" | "pmb_officer")}
+                    options={[
+                      { value: "admin", label: "Admin" },
+                      { value: "pmb_officer", label: "PMB Officer" },
+                    ]}
+                  />
+                ) : (
+                  <StyledSelect
+                    compact
                     value={recipientId}
-                    onChange={(e) => setRecipientId(e.target.value)}
-                  >
-                    <option value="">Select a user…</option>
-                    {(recipients ?? []).map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.full_name} ({r.role_name})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setRecipientId}
+                    placeholder="Select a user…"
+                    options={(recipients ?? []).map((r) => ({ value: r.id, label: `${r.full_name} (${r.role_name})` }))}
+                  />
                 )}
 
                 <textarea

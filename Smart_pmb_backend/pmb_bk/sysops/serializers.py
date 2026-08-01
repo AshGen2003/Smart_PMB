@@ -2,7 +2,7 @@
 # system alerts, and backup records.
 from rest_framework import serializers
 
-from .models import AuditLog, AuthLog, BackupRecord, SystemAlert
+from .models import AuditLog, AuthLog, BackupRecord, ErrorLog, SystemAlert
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
@@ -21,6 +21,24 @@ class AuditLogSerializer(serializers.ModelSerializer):
         if obj.user_id:
             return obj.user.email
         return obj.actor_label or "System"
+
+
+class ErrorLogSerializer(serializers.ModelSerializer):
+    """Read representation of an ErrorLog entry, resolving the actor to an email (or "System"/anonymous if none)."""
+
+    actor = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ErrorLog
+        fields = [
+            "id", "actor", "method", "path", "exception_type",
+            "message", "status_code", "created_at",
+        ]
+
+    def get_actor(self, obj):
+        if obj.user_id:
+            return obj.user.email
+        return obj.actor_label or "Anonymous"
 
 
 class AuthLogSerializer(serializers.ModelSerializer):

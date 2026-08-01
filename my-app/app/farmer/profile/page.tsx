@@ -4,23 +4,20 @@
  * the shared ProfileView component renders only when `farmerDetails` is
  * passed in.
  */
-import { requireUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import { ProfileView, type FarmerProfileDetails } from "@/app/components/ProfileView";
 
 /**
- * Server Component: loads the current user's session info plus extended
- * profile fields and farmer details (pulled from the dashboard endpoint's
- * `farmer` key), then renders the shared ProfileView component.
+ * Server Component: loads the current user's session info (extended
+ * profile fields included — see lib/dal.ts) plus farmer-specific details
+ * (pulled from the dashboard endpoint's `farmer` key), then renders the
+ * shared ProfileView component.
  */
 export default async function FarmerProfilePage() {
-  const user = await requireUser();
+  const user = await requirePermission("view_profile");
 
-  const [meRes, dashboardRes] = await Promise.all([
-    apiFetch("/api/auth/me/"),
-    apiFetch("/api/farmer/dashboard/"),
-  ]);
-  const me = meRes.ok ? await meRes.json() : null;
+  const dashboardRes = await apiFetch("/api/farmer/dashboard/");
   const farmerDetails: FarmerProfileDetails | null = dashboardRes.ok
     ? (await dashboardRes.json()).farmer
     : null;
@@ -31,9 +28,9 @@ export default async function FarmerProfilePage() {
       email={user.email}
       roleName={user.roleName}
       permissions={user.permissions}
-      nic={me?.nic ?? ""}
-      phoneNumber={me?.phone_number ?? ""}
-      profilePictureUrl={me?.profile_picture ?? null}
+      nic={user.nic}
+      phoneNumber={user.phoneNumber}
+      profilePictureUrl={user.profilePictureUrl}
       farmerDetails={farmerDetails}
     />
   );

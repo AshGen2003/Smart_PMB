@@ -14,6 +14,7 @@ import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { signupFarmer, type SignupState } from "@/app/actions/auth";
+import StyledSelect from "@/app/components/StyledSelect";
 import styles from "../../AuthForm.module.css";
 
 export type DistrictOption = {
@@ -24,7 +25,7 @@ export type DistrictOption = {
 
 const initialState: SignupState = {};
 
-/** Renders the full multi-field signup form and groups the district `<select>` options by province. */
+/** Renders the full multi-field signup form and groups the district dropdown's options by province. */
 export default function SignupFarmerForm({
   districts,
 }: {
@@ -36,7 +37,7 @@ export default function SignupFarmerForm({
   );
   const [showPassword, setShowPassword] = useState(false);
 
-  // Group districts under their province name so the <select> can render
+  // Group districts under their province name so the dropdown can render
   // them as <optgroup>s instead of one long flat list.
   const districtsByProvince = useMemo(() => {
     const groups = new Map<string, DistrictOption[]>();
@@ -177,28 +178,16 @@ export default function SignupFarmerForm({
             <label className={styles.label} htmlFor="districtId">
               District
             </label>
-            <select
+            <StyledSelect
               id="districtId"
               name="districtId"
               required
-              defaultValue=""
-              className={styles.select}
-            >
-              <option value="" disabled>
-                Select your district
-              </option>
-              {Array.from(districtsByProvince.entries()).map(
-                ([province, items]) => (
-                  <optgroup key={province} label={province}>
-                    {items.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )
-              )}
-            </select>
+              placeholder="Select your district"
+              groups={Array.from(districtsByProvince.entries()).map(([province, items]) => ({
+                label: province,
+                options: items.map((d) => ({ value: String(d.id), label: d.name })),
+              }))}
+            />
           </div>
 
           <div className={styles.field}>

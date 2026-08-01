@@ -11,6 +11,8 @@
 import { useState } from "react";
 import clsx from "clsx";
 import { Loader2, Send } from "lucide-react";
+import StyledSelect from "./StyledSelect";
+import { SkeletonRows } from "./Skeleton";
 import styles from "./MessagesHistoryView.module.css";
 
 export type MessageRow = {
@@ -20,6 +22,8 @@ export type MessageRow = {
   sender_role: string | null;
   recipient: string | null;
   recipient_name: string | null;
+  target_role: "admin" | "pmb_officer" | null;
+  target_role_label: string | null;
   body: string;
   created_at: string;
   is_read: boolean;
@@ -71,6 +75,7 @@ export default function MessagesHistoryView({
 
   const [recipients, setRecipients] = useState<RecipientOption[] | null>(null);
   const [recipientId, setRecipientId] = useState("");
+  const [targetRole, setTargetRole] = useState<"admin" | "pmb_officer">("admin");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -139,7 +144,11 @@ export default function MessagesHistoryView({
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipient: isFarmer ? null : recipientId, body: trimmed }),
+        body: JSON.stringify({
+          recipient: isFarmer ? null : recipientId,
+          target_role: isFarmer ? targetRole : undefined,
+          body: trimmed,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -173,26 +182,29 @@ export default function MessagesHistoryView({
 
       <div className={styles.composeCard}>
         <p className={styles.composeLabel}>
-          {isFarmer ? "Send a request to Admin" : "Message a user"}
+          {isFarmer ? "Send a request to" : "Message a user"}
         </p>
 
         {sendError && <div className={styles.banner}>{sendError}</div>}
         {sendSuccess && <div className={styles.bannerSuccess}>Sent.</div>}
 
-        {!isFarmer && (
-          <select
-            className={styles.recipientSelect}
+        {isFarmer ? (
+          <StyledSelect
+            value={targetRole}
+            onChange={(v) => setTargetRole(v as "admin" | "pmb_officer")}
+            options={[
+              { value: "admin", label: "Admin" },
+              { value: "pmb_officer", label: "PMB Officer" },
+            ]}
+          />
+        ) : (
+          <StyledSelect
             value={recipientId}
             onFocus={loadRecipientsIfNeeded}
-            onChange={(e) => setRecipientId(e.target.value)}
-          >
-            <option value="">Select a user…</option>
-            {(recipients ?? []).map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.full_name} ({r.role_name})
-              </option>
-            ))}
-          </select>
+            onChange={setRecipientId}
+            placeholder="Select a user…"
+            options={(recipients ?? []).map((r) => ({ value: r.id, label: `${r.full_name} (${r.role_name})` }))}
+          />
         )}
 
         <textarea
@@ -236,7 +248,7 @@ export default function MessagesHistoryView({
         {loadError && <div className={styles.banner}>{loadError}</div>}
 
         {switching ? (
-          <p className={styles.emptyState}>Loading…</p>
+          <SkeletonRows count={5} />
         ) : messages.length === 0 ? (
           <p className={styles.emptyState}>
             {filter === "unread" ? "No unread messages." : "No messages yet."}
@@ -249,7 +261,11 @@ export default function MessagesHistoryView({
                   <span className={styles.messageSender}>
                     {m.sender_name || "Unknown"}
                     {m.sender_role && <span className={styles.messageSenderRole}> · {m.sender_role}</span>}
-                    {m.recipient === null && <span className={styles.requestBadge}>Request</span>}
+                    {m.recipient === null && (
+                      <span className={styles.requestBadge}>
+                        Request → {m.target_role_label ?? "Admin"}
+                      </span>
+                    )}
                   </span>
                   <span className={styles.messageTime}>{formatTime(m.created_at)}</span>
                 </div>

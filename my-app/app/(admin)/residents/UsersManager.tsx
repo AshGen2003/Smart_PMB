@@ -1,18 +1,22 @@
 /**
  * Client Component for the user management table: search/filter by role,
  * create/edit users via a modal, and per-row actions (unlock account,
- * force logout, delete). The unlock/force-logout actions are only shown to
- * users with `manage_system` (see `canManageSystem`), since they affect
- * another account's active sessions.
+ * reset password, force logout, delete). The unlock/reset-password/
+ * force-logout actions are only shown to users with `manage_system` (see
+ * `canManageSystem`), since they affect another account's credentials or
+ * active sessions.
  */
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
 import { format } from "date-fns";
 import clsx from "clsx";
-import { LogOut, Pencil, Plus, Search, Trash2, Unlock } from "lucide-react";
-import { deleteUser, forceLogoutUser, unlockUser } from "@/app/actions/users";
-import UserFormModal, { type EditableUser, type RoleOption } from "./UserFormModal";
+import { KeyRound, LogOut, Pencil, Plus, Search, Trash2, Unlock } from "lucide-react";
+import { deleteUser, forceLogoutUser, resetUserPassword, unlockUser } from "@/app/actions/users";
+import UserFormModal, { type DistrictOption, type EditableUser, type RoleOption } from "./UserFormModal";
+import DeleteUserModal from "./DeleteUserModal";
+import StyledSelect from "@/app/components/StyledSelect";
+import Toast, { type ToastState } from "@/app/components/Toast";
 import styles from "./Users.module.css";
 
 /** Shape of a user row as returned by `GET /api/admin/users/`. */
@@ -28,6 +32,9 @@ export type AdminUserRow = {
   date_joined: string;
   last_activity: string | null;
   is_locked: boolean;
+  employee_no: string | null;
+  designation: string | null;
+  district: number | null;
 };
 
 /**
@@ -38,11 +45,13 @@ export type AdminUserRow = {
 export default function UsersManager({
   users,
   roles,
+  districts,
   currentUserId,
   canManageSystem,
 }: {
   users: AdminUserRow[];
   roles: RoleOption[];
+  districts: DistrictOption[];
   currentUserId: string;
   canManageSystem: boolean;
 }) {
@@ -53,6 +62,8 @@ export default function UsersManager({
   >(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUserRow | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
   const [isPending, startTransition] = useTransition();
 
   // Client-side filter combining the role dropdown and free-text search
@@ -70,13 +81,24 @@ export default function UsersManager({
     });
   }, [users, roleFilter, query]);
 
+  // Opens the confirmation modal rather than deleting immediately — see
+  // confirmDelete below for the actual delete + result toast.
   function handleDelete(user: AdminUserRow) {
-    if (!window.confirm(`Delete ${user.email}? This cannot be undone.`)) return;
+    setDeleteTarget(user);
+  }
 
-    setDeleteError(null);
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+
     startTransition(async () => {
-      const result = await deleteUser(user.id);
-      if (result.error) setDeleteError(result.error);
+      const result = await deleteUser(target.id);
+      setDeleteTarget(null);
+      if (result.error) {
+        setToast({ type: "error", message: `Couldn't delete ${target.email}: ${result.error}` });
+      } else {
+        setToast({ type: "success", message: `${target.email} was permanently deleted.` });
+      }
     });
   }
 
@@ -87,6 +109,18 @@ export default function UsersManager({
       const result = await unlockUser(user.id);
       if (result.error) setDeleteError(result.error);
       else setActionMessage(`${user.email} unlocked.`);
+    });
+  }
+
+  function handleResetPassword(user: AdminUserRow) {
+    if (!window.confirm(`Reset ${user.email}'s password? A new temporary password will be emailed to them.`)) return;
+
+    setDeleteError(null);
+    setActionMessage(null);
+    startTransition(async () => {
+      const result = await resetUserPassword(user.id);
+      if (result.error) setDeleteError(result.error);
+      else setActionMessage(`${user.email}'s password was reset and emailed to them.`);
     });
   }
 
@@ -124,18 +158,12 @@ export default function UsersManager({
             />
           </div>
 
-          <select
-            className={styles.select}
+          <StyledSelect
+            fitContent
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-          >
-            <option value="all">All roles</option>
-            {roles.map((r) => (
-              <option key={r.id} value={r.slug}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+            onChange={setRoleFilter}
+            options={[{ value: "all", label: "All roles" }, ...roles.map((r) => ({ value: r.slug, label: r.name }))]}
+          />
 
           <button
             type="button"
@@ -209,6 +237,18 @@ export default function UsersManager({
                           <Unlock size={16} />
                         </button>
                       )}
+                      {canManageSystem && (
+                        <button
+                          type="button"
+                          className={styles.iconBtn}
+                          aria-label="Reset password"
+                          title="Reset password (emails a new temporary one)"
+                          disabled={isPending}
+                          onClick={() => handleResetPassword(u)}
+                        >
+                          <KeyRound size={16} />
+                        </button>
+                      )}
                       {/* Can't force-logout your own account from this screen. */}
                       {canManageSystem && u.id !== currentUserId && (
                         <button
@@ -238,6 +278,8 @@ export default function UsersManager({
                               roleId: u.role.id,
                               is_active: u.is_active,
                               email_confirmed: u.email_confirmed,
+                              designation: u.designation,
+                              district: u.district,
                             },
                           })
                         }
@@ -265,16 +307,29 @@ export default function UsersManager({
       </div>
 
       {modal?.mode === "create" && (
-        <UserFormModal mode="create" roles={roles} onClose={() => setModal(null)} />
+        <UserFormModal mode="create" roles={roles} districts={districts} onClose={() => setModal(null)} />
       )}
       {modal?.mode === "edit" && (
         <UserFormModal
           mode="edit"
           roles={roles}
+          districts={districts}
           user={modal.user}
           onClose={() => setModal(null)}
         />
       )}
+
+      {deleteTarget && (
+        <DeleteUserModal
+          email={deleteTarget.email}
+          fullName={deleteTarget.full_name}
+          pending={isPending}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }

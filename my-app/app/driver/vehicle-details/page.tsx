@@ -5,9 +5,11 @@
  * editable — vehicles/routes/deliveries stay officer-managed
  * (`manage_transport`); this page only ever reads
  * `/api/driver/vehicle-info/`, which itself scopes everything to
- * `driver=request.user` server-side (see DriverVehicleInfoView).
+ * `driver=request.user` server-side (see DriverVehicleInfoView). Requires
+ * `view_vehicle_details` — granted to "driver" by default (see
+ * accounts/migrations/0017), toggleable from /roles or the Preview Portal.
  */
-import { getCurrentUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import styles from "../DriverDashboard.module.css";
 
@@ -81,10 +83,10 @@ const SAMPLE_VEHICLE_INFO: VehicleInfoData = {
 };
 
 export default async function DriverVehicleDetailsPage() {
-  const user = await getCurrentUser();
+  const user = await requirePermission("view_vehicle_details");
 
   let data: VehicleInfoData;
-  if (user?.previewing) {
+  if (user.previewing) {
     data = SAMPLE_VEHICLE_INFO;
   } else {
     const res = await apiFetch("/api/driver/vehicle-info/");

@@ -29,6 +29,8 @@ export const PREVIEW_WAREHOUSES = [
     province: 1,
     province_name: "North Central",
     location: "Sample data",
+    managed_by: null,
+    managed_by_name: null,
   },
   {
     id: 2,
@@ -44,6 +46,8 @@ export const PREVIEW_WAREHOUSES = [
     province: 1,
     province_name: "North Central",
     location: "Sample data",
+    managed_by: null,
+    managed_by_name: null,
   },
   {
     id: 3,
@@ -59,6 +63,8 @@ export const PREVIEW_WAREHOUSES = [
     province: 2,
     province_name: "North Western",
     location: "Sample data",
+    managed_by: null,
+    managed_by_name: null,
   },
 ];
 
@@ -121,6 +127,7 @@ export const PREVIEW_HARVESTS = [
     quality_check: true,
     unit_price: "120.00",
     status: "collected" as const,
+    processed_by_name: "Sample Officer",
   },
   {
     id: 2,
@@ -138,6 +145,7 @@ export const PREVIEW_HARVESTS = [
     quality_check: null,
     unit_price: null,
     status: "pending" as const,
+    processed_by_name: null,
   },
   {
     id: 3,
@@ -155,6 +163,7 @@ export const PREVIEW_HARVESTS = [
     quality_check: true,
     unit_price: "120.00",
     status: "verified" as const,
+    processed_by_name: "Sample Officer",
   },
 ];
 

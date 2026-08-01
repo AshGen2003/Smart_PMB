@@ -209,16 +209,6 @@
   color: var(--success, #16a34a);
 }
 
-.recipientSelect {
-  width: 100%;
-  padding: 0.45rem 0.5rem;
-  border-radius: 8px;
-  border: 1px solid var(--card-border);
-  background-color: var(--card-bg);
-  color: var(--foreground);
-  font-size: 0.82rem;
-}
-
 .composeInput {
   width: 100%;
   padding: 0.5rem 0.6rem;

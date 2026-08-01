@@ -20,6 +20,7 @@ import {
   type TransportFormState,
 } from "@/app/actions/transportation";
 import { LocationMap, LocationMapPlaceholder } from "@/app/components/LocationMap";
+import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./Transportation.module.css";
 import { DELIVERY_STATUS_LABEL, type VehicleRow, type DriverOption, type RouteRow, type DeliveryRow } from "./TransportationManager";
 
@@ -109,23 +110,33 @@ export function VehicleFormModal({
         <div className={styles.fieldRow}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="vehicle_type">Vehicle type</label>
-            <select id="vehicle_type" name="vehicle_type" defaultValue={vehicle?.vehicle_type ?? "lorry"} className={styles.input}>
-              <option value="lorry">Lorry</option>
-              <option value="van">Van</option>
-              <option value="tractor">Tractor</option>
-              <option value="three_wheeler">Three Wheeler</option>
-              <option value="pickup">Pickup</option>
-              <option value="other">Other</option>
-            </select>
+            <StyledSelect
+              id="vehicle_type"
+              name="vehicle_type"
+              defaultValue={vehicle?.vehicle_type ?? "lorry"}
+              options={[
+                { value: "lorry", label: "Lorry" },
+                { value: "van", label: "Van" },
+                { value: "tractor", label: "Tractor" },
+                { value: "three_wheeler", label: "Three Wheeler" },
+                { value: "pickup", label: "Pickup" },
+                { value: "other", label: "Other" },
+              ]}
+            />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="status">Status</label>
-            <select id="status" name="status" defaultValue={vehicle?.status ?? "active"} className={styles.input}>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="maintenance">Under Maintenance</option>
-              <option value="retired">Retired</option>
-            </select>
+            <StyledSelect
+              id="status"
+              name="status"
+              defaultValue={vehicle?.status ?? "active"}
+              options={[
+                { value: "active", label: "Active" },
+                { value: "inactive", label: "Inactive" },
+                { value: "maintenance", label: "Under Maintenance" },
+                { value: "retired", label: "Retired" },
+              ]}
+            />
           </div>
         </div>
         <div className={styles.fieldRow}>
@@ -231,41 +242,47 @@ export function DeliveryFormModal({
         <div className={styles.fieldRow}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="vehicle">Vehicle</label>
-            <select id="vehicle" name="vehicle" required defaultValue={delivery?.vehicle ?? ""} className={styles.input}>
-              <option value="" disabled>Select a vehicle</option>
-              {vehicles.map((v) => (
-                <option key={v.id} value={v.id}>{v.registration_no}</option>
-              ))}
-            </select>
+            <StyledSelect
+              id="vehicle"
+              name="vehicle"
+              required
+              defaultValue={delivery?.vehicle != null ? String(delivery.vehicle) : undefined}
+              placeholder="Select a vehicle"
+              options={vehicles.map((v) => ({ value: String(v.id), label: v.registration_no }))}
+            />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="driver">Driver</label>
-            <select id="driver" name="driver" required defaultValue={delivery?.driver ?? ""} className={styles.input}>
-              <option value="" disabled>Select a driver</option>
-              {drivers.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
+            <StyledSelect
+              id="driver"
+              name="driver"
+              required
+              defaultValue={delivery?.driver ?? undefined}
+              placeholder="Select a driver"
+              options={drivers.map((d) => ({ value: d.id, label: d.name }))}
+            />
           </div>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="route">Route</label>
-          <select id="route" name="route" required defaultValue={delivery?.route ?? ""} className={styles.input}>
-            <option value="" disabled>Select a route</option>
-            {routes.map((r) => (
-              <option key={r.id} value={r.id}>{r.origin} → {r.destination}</option>
-            ))}
-          </select>
+          <StyledSelect
+            id="route"
+            name="route"
+            required
+            defaultValue={delivery?.route != null ? String(delivery.route) : undefined}
+            placeholder="Select a route"
+            options={routes.map((r) => ({ value: String(r.id), label: `${r.origin} → ${r.destination}` }))}
+          />
         </div>
         <div className={styles.fieldRow}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="warehouse">Warehouse <span className={styles.optional}>(optional)</span></label>
-            <select id="warehouse" name="warehouse" defaultValue={delivery?.warehouse ?? ""} className={styles.input}>
-              <option value="">None</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
-            </select>
+            <StyledSelect
+              id="warehouse"
+              name="warehouse"
+              defaultValue={delivery?.warehouse != null ? String(delivery.warehouse) : ""}
+              options={[{ value: "", label: "None" }, ...warehouses.map((w) => ({ value: String(w.id), label: w.name }))]}
+            />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="scheduled_date">Scheduled date</label>
@@ -274,13 +291,18 @@ export function DeliveryFormModal({
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="status">Status</label>
-          <select id="status" name="status" defaultValue={delivery?.status ?? "scheduled"} className={styles.input}>
-            <option value="scheduled">Scheduled</option>
-            <option value="in_transit">In Transit</option>
-            <option value="delivered">Delivered</option>
-            <option value="delayed">Delayed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          <StyledSelect
+            id="status"
+            name="status"
+            defaultValue={delivery?.status ?? "scheduled"}
+            options={[
+              { value: "scheduled", label: "Scheduled" },
+              { value: "in_transit", label: "In Transit" },
+              { value: "delivered", label: "Delivered" },
+              { value: "delayed", label: "Delayed" },
+              { value: "cancelled", label: "Cancelled" },
+            ]}
+          />
         </div>
         <FormFooter pending={pending} onClose={onClose} />
       </form>

@@ -4,7 +4,7 @@
 # business logic of the whole system lives in OfficerHarvestViewSet below).
 from datetime import timedelta
 
-from django.db.models import Count, Sum
+from django.db.models import Count, F, Sum
 from django.db.models.functions import TruncWeek
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
@@ -17,6 +17,7 @@ from rest_framework.views import APIView
 
 from accounts.models import Message, User
 from accounts.permissions import HasAnyPermission, HasPermission
+from sysops.models import SystemAlert
 from sysops.utils import log_audit
 
 from .pdf import build_officer_report_pdf
@@ -28,11 +29,14 @@ from .models import (
     Farmer,
     FuelRecord,
     Harvest,
+    Inventory,
     MaintenanceRecord,
     Notification,
     PaddyType,
     Payment,
+    PriceRecord,
     Route,
+    TransactionLog,
     Vehicle,
     Warehouse,
 )
@@ -42,16 +46,23 @@ from .serializers import (
     DeliverySerializer,
     DeliveryWriteSerializer,
     DistrictSerializer,
+    FarmerBankDetailsSerializer,
+    FarmerHarvestCreateSerializer,
     FarmerOptionSerializer,
     FuelRecordSerializer,
     HarvestSerializer,
+    InventorySerializer,
     MaintenanceRecordSerializer,
     NotificationSerializer,
     OfficerHarvestSerializer,
     OfficerHarvestWriteSerializer,
     PaddyTypeSerializer,
     PaddyTypeWriteSerializer,
+    PriceRecordSerializer,
     RouteSerializer,
+    TransactionLogSerializer,
+    TransactionVerificationSerializer,
+    TransactionVerificationWriteSerializer,
     VehicleSerializer,
     WarehouseSerializer,
     WarehouseWriteSerializer,
@@ -131,6 +142,8 @@ class FarmerDashboardView(APIView):
                     "status": farmer.status,
                     "district": farmer.district.name if farmer.district else None,
                     "province": farmer.province.name if farmer.province else None,
+                    "bank_account": farmer.bank_account,
+                    "bank_name": farmer.bank_name,
                 },
                 "kpis": {
                     "total_harvests": farmer.harvests.count(),
@@ -148,6 +161,24 @@ class FarmerDashboardView(APIView):
         )
 
 
+class FarmerBankDetailsView(APIView):
+    """Lets the logged-in farmer view (GET) and edit (PATCH) their own payout bank details."""
+
+    permission_classes = [IsAuthenticated, IsFarmer]
+
+    def get(self, request):
+        farmer = get_object_or_404(Farmer, user=request.user)
+        return Response(FarmerBankDetailsSerializer(farmer).data)
+
+    def patch(self, request):
+        farmer = get_object_or_404(Farmer, user=request.user)
+        serializer = FarmerBankDetailsSerializer(farmer, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        farmer = serializer.save()
+        log_audit(request.user, "update_bank_details", "farmers", farmer.name)
+        return Response(FarmerBankDetailsSerializer(farmer).data)
+
+
 class NotificationMarkReadView(APIView):
     """Marks one of the logged-in farmer's own notifications as read."""
 
@@ -163,6 +194,41 @@ class NotificationMarkReadView(APIView):
         notification.is_read = True
         notification.save(update_fields=["is_read"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FarmerHarvestViewSet(viewsets.ModelViewSet):
+    """
+    Self-service CRUD for a farmer's own Harvest submissions: list/view
+    their history, submit a new delivery, and withdraw one while it's
+    still pending. No update endpoint — a farmer can't edit a submission
+    after the fact, only withdraw and resubmit; officer-only assessment
+    fields (grade/price/etc.) are exclusively set via OfficerHarvestViewSet.
+    """
+
+    permission_classes = [IsAuthenticated, IsFarmer]
+    http_method_names = ["get", "post", "delete", "head", "options"]
+    serializer_class = HarvestSerializer
+
+    def get_queryset(self):
+        return Harvest.objects.filter(farmer__user=self.request.user).select_related(
+            "paddy_type"
+        )
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return FarmerHarvestCreateSerializer
+        return HarvestSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(farmer=self.request.user.farmer_profile)
+
+    def destroy(self, request, *args, **kwargs):
+        harvest = self.get_object()
+        if harvest.status != Harvest.Status.PENDING:
+            return Response(
+                {"detail": "Only pending harvests can be withdrawn."}, status=400
+            )
+        return super().destroy(request, *args, **kwargs)
 
 
 class FarmerListView(generics.ListAPIView):
@@ -208,6 +274,36 @@ class WarehouseViewSet(viewsets.ModelViewSet):
         log_audit(self.request.user, "update_warehouse", "farmers", warehouse.name)
 
 
+class WarehouseManagerOptionsView(generics.ListAPIView):
+    """GET /api/admin/warehouse-managers/ — lightweight list of PMB Officer accounts, for the Warehouse form's "managed by" picker."""
+
+    permission_classes = [HasPermission("manage_warehouses")]
+
+    def get_queryset(self):
+        return User.objects.filter(role__slug="pmb_officer").order_by("full_name")
+
+    def list(self, request, *args, **kwargs):
+        return Response(
+            [{"id": str(u.id), "name": u.full_name} for u in self.get_queryset()]
+        )
+
+
+class InventoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only per-warehouse/paddy-type/grade stock breakdown — see Inventory's docstring in models.py."""
+
+    permission_classes = [HasPermission("manage_warehouses")]
+    queryset = Inventory.objects.select_related("warehouse", "paddy_type", "updated_by")
+    serializer_class = InventorySerializer
+
+
+class TransactionLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only warehouse stock-movement audit trail — see TransactionLog's docstring in models.py."""
+
+    permission_classes = [HasAnyPermission("monitor_operations", "manage_warehouses")]
+    queryset = TransactionLog.objects.select_related("warehouse")
+    serializer_class = TransactionLogSerializer
+
+
 class PaddyTypeViewSet(viewsets.ModelViewSet):
     """
     CRUD over PaddyType records. Any authenticated user can view the list
@@ -233,13 +329,93 @@ class PaddyTypeViewSet(viewsets.ModelViewSet):
             self.request.user, "create_paddy_type", "farmers",
             f"{paddy_type.type_name} @ Rs.{paddy_type.guaranteed_price}",
         )
+        # The very first guaranteed_price is itself a price point worth
+        # keeping in the history, same as every later change below.
+        PriceRecord.objects.create(
+            paddy_type=paddy_type, guaranteed_price=paddy_type.guaranteed_price
+        )
 
     def perform_update(self, serializer):
+        previous_price = serializer.instance.guaranteed_price
         paddy_type = serializer.save()
         log_audit(
             self.request.user, "update_paddy_type", "farmers",
             f"{paddy_type.type_name} @ Rs.{paddy_type.guaranteed_price}",
         )
+        if paddy_type.guaranteed_price != previous_price:
+            PriceRecord.objects.create(
+                paddy_type=paddy_type, guaranteed_price=paddy_type.guaranteed_price
+            )
+
+    @action(detail=True, methods=["get"], url_path="price-history")
+    def price_history(self, request, pk=None):
+        """Historical guaranteed-price snapshots for this PaddyType, most recent first."""
+        paddy_type = self.get_object()
+        records = paddy_type.price_records.order_by("-effective_date")[:50]
+        return Response(PriceRecordSerializer(records, many=True).data)
+
+
+def _log_transaction(
+    warehouse, transaction_type, quantity_change, paddy_type, grade=None,
+    harvest=None, rice_request=None, updated_by=None,
+):
+    """
+    Records a TransactionLog entry and updates the matching Inventory line
+    (get_or_create'd on warehouse+paddy_type+grade, then adjusted by
+    quantity_change via F()) — additive telemetry alongside
+    Warehouse.current_stock, which stays the single source of truth for
+    the aggregate number and is updated separately by the caller. Called
+    from OfficerHarvestViewSet.mark_collected below (positive
+    quantity_change) and purchases.OfficerRiceRequestViewSet.fulfill
+    (negative quantity_change).
+    """
+    TransactionLog.objects.create(
+        warehouse=warehouse,
+        transaction_type=transaction_type,
+        quantity_change=quantity_change,
+        harvest=harvest,
+        rice_request=rice_request,
+        notes="",
+    )
+    inventory, _ = Inventory.objects.get_or_create(
+        warehouse=warehouse, paddy_type=paddy_type, grade=grade,
+    )
+    Inventory.objects.filter(pk=inventory.pk).update(
+        quantity=F("quantity") + quantity_change, updated_by=updated_by
+    )
+
+
+def _notify_farmer(harvest, message):
+    """Creates a Notification the farmer sees on their dashboard — so a status change doesn't only show up if they happen to check back. Skipped if the farmer has turned harvest-update notifications off in Settings."""
+    if not harvest.farmer.notify_harvest_updates:
+        return
+    Notification.objects.create(farmer=harvest.farmer, message=message)
+
+
+def _raise_high_capacity_alert(warehouse, new_stock):
+    """
+    Raises a SystemAlert once a warehouse crosses 90% of its capacity.
+    `alert_type` encodes the warehouse id so this only fires once per
+    warehouse while an alert is still open — resolving/acknowledging it
+    lets a future collection raise a fresh one if the condition persists.
+    """
+    if not warehouse.capacity or new_stock / warehouse.capacity < 0.9:
+        return
+    alert_type = f"high_capacity_warehouse_{warehouse.id}"
+    already_open = SystemAlert.objects.filter(
+        alert_type=alert_type, status=SystemAlert.Status.OPEN
+    ).exists()
+    if already_open:
+        return
+    SystemAlert.objects.create(
+        alert_type=alert_type,
+        level=SystemAlert.Level.WARNING,
+        message=(
+            f"{warehouse.name} is at {new_stock:.0f}/{warehouse.capacity:.0f} kg "
+            f"({new_stock / warehouse.capacity:.0%} capacity) — consider arranging "
+            "transport or offload."
+        ),
+    )
 
 
 class OfficerHarvestViewSet(viewsets.ModelViewSet):
@@ -250,9 +426,9 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
     "record_purchases"; creating/editing/actions require "record_purchases".
     """
 
-    queryset = Harvest.objects.select_related("farmer", "paddy_type", "warehouse").order_by(
-        "-harvest_date"
-    )
+    queryset = Harvest.objects.select_related(
+        "farmer", "paddy_type", "warehouse", "processed_by"
+    ).order_by("-harvest_date")
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
@@ -290,7 +466,8 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
             )
 
         harvest.status = Harvest.Status.VERIFIED
-        harvest.save(update_fields=["status"])
+        harvest.processed_by = request.user
+        harvest.save(update_fields=["status", "processed_by"])
 
         amount = harvest.quantity_kg * harvest.unit_price
         # update_or_create keyed on `harvest` ensures at most one Payment
@@ -307,6 +484,11 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
             },
         )
         log_audit(request.user, "approve_harvest", "farmers", f"Harvest #{harvest.id}")
+        _notify_farmer(
+            harvest,
+            f"Your harvest submission of {harvest.quantity_kg} kg was approved "
+            f"(Grade {harvest.grade}, Rs. {harvest.unit_price}/kg). Payment is now pending.",
+        )
         return Response(OfficerHarvestSerializer(harvest).data)
 
     @action(detail=True, methods=["post"])
@@ -318,8 +500,14 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
                 {"detail": "Only pending harvests can be rejected."}, status=400
             )
         harvest.status = Harvest.Status.REJECTED
-        harvest.save(update_fields=["status"])
+        harvest.processed_by = request.user
+        harvest.save(update_fields=["status", "processed_by"])
         log_audit(request.user, "reject_harvest", "farmers", f"Harvest #{harvest.id}")
+        _notify_farmer(
+            harvest,
+            f"Your harvest submission of {harvest.quantity_kg} kg was rejected. "
+            "Contact your PMB officer if you have questions.",
+        )
         return Response(OfficerHarvestSerializer(harvest).data)
 
     @action(detail=True, methods=["post"], url_path="collect")
@@ -339,7 +527,8 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
             )
 
         harvest.status = Harvest.Status.COLLECTED
-        harvest.save(update_fields=["status"])
+        harvest.processed_by = request.user
+        harvest.save(update_fields=["status", "processed_by"])
 
         Payment.objects.filter(harvest=harvest).update(
             status=Payment.Status.COMPLETED, payment_date=timezone.now().date()
@@ -350,12 +539,46 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
             # stock. Note this reads current_stock in Python rather than
             # using an F() expression, so two collections hitting the same
             # warehouse at the exact same moment could in theory race.
-            Warehouse.objects.filter(pk=harvest.warehouse_id).update(
-                current_stock=harvest.warehouse.current_stock + harvest.quantity_kg
-            )
+            new_stock = harvest.warehouse.current_stock + harvest.quantity_kg
+            Warehouse.objects.filter(pk=harvest.warehouse_id).update(current_stock=new_stock)
+            _raise_high_capacity_alert(harvest.warehouse, new_stock)
+            if harvest.paddy_type_id:
+                _log_transaction(
+                    harvest.warehouse,
+                    TransactionLog.TransactionType.HARVEST_COLLECTION,
+                    harvest.quantity_kg,
+                    paddy_type=harvest.paddy_type,
+                    grade=harvest.grade,
+                    harvest=harvest,
+                    updated_by=request.user,
+                )
 
         log_audit(request.user, "collect_harvest", "farmers", f"Harvest #{harvest.id}")
+        _notify_farmer(
+            harvest,
+            f"Your harvest of {harvest.quantity_kg} kg has been collected. "
+            "Payment has been completed.",
+        )
         return Response(OfficerHarvestSerializer(harvest).data)
+
+    @action(detail=True, methods=["post"])
+    def verify_transaction(self, request, pk=None):
+        """
+        Records an after-the-fact accountability sign-off on a collected
+        harvest — an additional check, not a new gate (see
+        TransactionVerification's docstring in models.py). Only makes sense
+        once the harvest has actually been collected.
+        """
+        harvest = self.get_object()
+        if harvest.status != Harvest.Status.COLLECTED:
+            return Response(
+                {"detail": "Only collected harvests can be verified."}, status=400
+            )
+        serializer = TransactionVerificationWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        verification = serializer.save(harvest=harvest, verified_by=request.user)
+        log_audit(request.user, "verify_transaction", "farmers", f"Harvest #{harvest.id}")
+        return Response(TransactionVerificationSerializer(verification).data, status=201)
 
 
 class OfficerDashboardView(APIView):

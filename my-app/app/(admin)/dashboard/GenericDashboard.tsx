@@ -26,6 +26,7 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import clsx from "clsx";
+import { SkeletonDashboard } from "@/app/components/Skeleton";
 
 // Mock data — this component is a static placeholder and does not fetch
 // anything from the backend.
@@ -72,7 +73,9 @@ export default function GenericDashboard() {
     setCurrentDate(format(new Date(), "EEEE, MMMM do, yyyy"));
   }, []);
 
-  if (!mounted) return null; // Avoid hydration mismatch on charts
+  // Avoid hydration mismatch on charts — show a matching skeleton instead of
+  // a blank flash until the client has mounted.
+  if (!mounted) return <SkeletonDashboard />;
 
   return (
     <div className={styles.dashboard}>

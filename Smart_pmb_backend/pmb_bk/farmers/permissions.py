@@ -3,6 +3,8 @@
 # codename-based RBAC checks used for admin/officer endpoints.
 from rest_framework.permissions import BasePermission
 
+from accounts.permissions import _has_codename
+
 
 class IsFarmer(BasePermission):
     """Allows access only to authenticated users whose Role slug is "farmer"."""
@@ -42,4 +44,4 @@ class CanViewVehicles(BasePermission):
             return True
         if user.role.slug == "driver":
             return True
-        return user.role.permissions.filter(codename="manage_transport").exists()
+        return _has_codename(user, "manage_transport")

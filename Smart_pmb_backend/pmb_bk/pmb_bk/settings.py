@@ -27,7 +27,29 @@ SECRET_KEY = config('DJANGO_SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = config('DJANGO_ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
+
+# Needed once this runs behind Azure App Service (or any proxy that
+# terminates TLS and forwards plain HTTP internally) — otherwise Django
+# thinks every request is insecure HTTP, which breaks CSRF and secure
+# cookies. Harmless locally, where there's no such proxy in front of it.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Django 4+ requires the scheme-qualified origin of any host allowed to
+# submit CSRF-protected (session-authenticated) POSTs — matters for the
+# Django admin site once it's reachable at a real domain instead of
+# localhost. The API itself uses JWT auth, which isn't subject to this.
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
+
+# Django's `check --deploy` flags these by default when off — meaningless
+# (and actively wrong) locally over plain HTTP, so tied to DEBUG rather
+# than hardcoded, same as the STORAGES backend choice above.
+SECURE_SSL_REDIRECT = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_HSTS_SECONDS = 0 if DEBUG else 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
 
 
 # Application definition
@@ -45,11 +67,14 @@ INSTALLED_APPS = [
     'corsheaders',  # allows the separately-hosted Next.js frontend to call this API cross-origin
     'accounts',
     'farmers',
+    'mills',
+    'purchases',
     'sysops',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # serves static files directly — must stay right after SecurityMiddleware
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -91,6 +116,17 @@ DATABASES = {
         'NAME': config('DB_NAME', default='postgres'),
         'USER': config('DB_USER'),
         'PASSWORD': config('DB_PASSWORD'),
+        # CONN_MAX_AGE intentionally left at the default (0, reconnect
+        # every request) — tried 60s to cut down on the remote DB's
+        # connection-setup latency, but Django's dev server spawns an
+        # unbounded thread per request, so each thread parked its own
+        # persistent connection open for the full 60s. That blew straight
+        # through Supabase's session-pooler cap of 15 concurrent
+        # connections and locked the whole app out with
+        # "max clients reached". Safe to revisit behind a real WSGI
+        # server with a small fixed worker count (e.g. gunicorn
+        # --workers 4), or by pointing DB_HOST/DB_PORT at Supabase's
+        # transaction pooler instead of the session pooler.
     }
 }
 
@@ -130,9 +166,39 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # collectstatic's target dir; whitenoise serves from here
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# User-uploaded media (profile pictures, generated PDFs) needs storage that
+# survives restarts/redeploys and works across multiple instances — local
+# disk (FileSystemStorage, fine for local dev) doesn't guarantee that on
+# Azure App Service. Set these three once an Azure Storage Account exists
+# to switch media over to Blob Storage; leave them blank to keep using local
+# disk (e.g. for local dev, or a single-instance deployment with no need
+# for shared storage yet).
+AZURE_ACCOUNT_NAME = config('AZURE_ACCOUNT_NAME', default='')
+AZURE_ACCOUNT_KEY = config('AZURE_ACCOUNT_KEY', default='')
+AZURE_CONTAINER = config('AZURE_CONTAINER', default='media')
+
+STORAGES = {
+    'default': (
+        {'BACKEND': 'storages.backends.azure_storage.AzureStorage'}
+        if AZURE_ACCOUNT_NAME
+        else {'BACKEND': 'django.core.files.storage.FileSystemStorage'}
+    ),
+    'staticfiles': {
+        # Manifest storage requires collectstatic to have already run, which
+        # never happens in local dev — falls back to the plain storage
+        # runserver already knows how to serve so nothing breaks locally.
+        'BACKEND': (
+            'whitenoise.storage.CompressedManifestStaticFilesStorage'
+            if not DEBUG
+            else 'django.contrib.staticfiles.storage.StaticFilesStorage'
+        ),
+    },
+}
 
 
 # Tells Django to use the custom email-based User model (accounts.models.User)
@@ -142,6 +208,15 @@ AUTH_USER_MODEL = 'accounts.User'
 # Comma-separated list of allowed frontend origins, read from the
 # environment (e.g. the Next.js dev server / production domain).
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv())
+
+# Vercel preview deployments get a fresh, unpredictable URL per branch/PR
+# (e.g. smart-pmb-git-my-branch-username.vercel.app), so an exact-match
+# CORS_ALLOWED_ORIGINS entry can't cover them. This matches any of them by
+# pattern instead — set via env once the real Vercel project name is known;
+# left blank (the default), no regex is added and only CORS_ALLOWED_ORIGINS
+# applies, same as before.
+CORS_ALLOWED_ORIGIN_REGEXES = config('CORS_ALLOWED_ORIGIN_REGEXES', default='', cast=Csv())
+
 # Required so the browser will send/receive the httpOnly auth cookies the
 # frontend stores the JWT pair in.
 CORS_ALLOW_CREDENTIALS = True
@@ -151,7 +226,9 @@ CORS_ALLOW_CREDENTIALS = True
 # explicitly opts out with permission_classes = [AllowAny].
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # Custom subclass that eagerly loads role/permissions — see
+        # accounts/authentication.py's docstring for why.
+        'accounts.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -161,7 +238,16 @@ REST_FRAMEWORK = {
         # lockout in CustomTokenObtainPairSerializer — this slows down an
         # attacker hammering many different accounts from one IP.
         'login': '10/min',
+        # Caps how fast one IP can trigger forgot-password emails — this
+        # endpoint has no per-account lockout of its own (it's unauthenticated
+        # by definition), so this is its only abuse/spam guard.
+        'password_reset': '5/min',
     },
+    # Logs every exception any view raises to ErrorLog (see
+    # sysops/exception_handler.py) before falling back to DRF's normal
+    # response handling — general-purpose error visibility across the
+    # whole API, not just the hand-picked AuditLog actions.
+    'EXCEPTION_HANDLER': 'sysops.exception_handler.custom_exception_handler',
 }
 
 # Base URL of the Next.js frontend, used to build links embedded in
@@ -179,6 +265,14 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@smartpmb.local')
+
+# Text.lk SMS gateway, used to deliver the forgot-password OTP when the user
+# picks the SMS channel (accounts/sms.py). Left blank, send_otp_sms logs the
+# code instead of sending it, so the rest of the OTP flow stays testable
+# without a Text.lk account.
+TEXTLK_API_TOKEN = config('TEXTLK_API_TOKEN', default='')
+TEXTLK_SENDER_ID = config('TEXTLK_SENDER_ID', default='')
+TEXTLK_API_URL = config('TEXTLK_API_URL', default='https://app.text.lk/api/v3/sms/send')
 
 # Secret used to sign/verify JWTs; kept separate from SECRET_KEY so it can
 # be rotated independently without invalidating Django's other signed data

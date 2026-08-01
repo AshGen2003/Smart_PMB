@@ -14,6 +14,7 @@ import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { login, type FormState } from "@/app/actions/auth";
+import { useLanguage } from "@/app/components/LanguageProvider";
 import styles from "../AuthForm.module.css";
 
 const initialState: FormState = {};
@@ -33,10 +34,12 @@ export default function LoginForm() {
 
 /** Renders the email/password fields, a post-signup success banner, and error banner from a failed login attempt. */
 function LoginFormInner() {
+  const { t } = useLanguage();
   const [state, formAction, pending] = useActionState(login, initialState);
   const [showPassword, setShowPassword] = useState(false);
   const searchParams = useSearchParams();
   const justRegistered = searchParams.get("registered") === "1";
+  const justReset = searchParams.get("reset") === "1";
   const formRef = useRef<HTMLFormElement>(null);
 
   // Clear the email/password fields on every fresh load (this effect also
@@ -54,13 +57,18 @@ function LoginFormInner() {
         <span>Smart PMB</span>
       </div>
 
-      <h1 className={styles.title}>Welcome back</h1>
-      <p className={styles.subtitle}>Log in to your Smart PMB account.</p>
+      <h1 className={styles.title}>{t.login.title}</h1>
+      <p className={styles.subtitle}>{t.login.subtitle}</p>
 
       {justRegistered && !state.error && (
         <div className={clsx(styles.banner, styles.bannerSuccess)}>
-          Account created! Check your email for a confirmation link, then log
-          in below.
+          {t.login.registeredBanner}
+        </div>
+      )}
+
+      {justReset && !state.error && (
+        <div className={clsx(styles.banner, styles.bannerSuccess)}>
+          {t.login.resetBanner}
         </div>
       )}
 
@@ -73,7 +81,7 @@ function LoginFormInner() {
       <form ref={formRef} action={formAction} autoComplete="off" noValidate>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="email">
-            Email
+            {t.login.emailLabel}
           </label>
           <input
             id="email"
@@ -87,9 +95,14 @@ function LoginFormInner() {
         </div>
 
         <div className={styles.field}>
-          <label className={styles.label} htmlFor="password">
-            Password
-          </label>
+          <div className={styles.labelRow}>
+            <label className={styles.label} htmlFor="password">
+              {t.login.passwordLabel}
+            </label>
+            <Link href="/forgot-password" className={styles.inlineLink}>
+              {t.login.forgotPassword}
+            </Link>
+          </div>
           <div className={styles.inputWrapper}>
             <input
               id="password"
@@ -113,12 +126,16 @@ function LoginFormInner() {
 
         <button type="submit" className={styles.submitBtn} disabled={pending}>
           {pending && <Loader2 size={16} className={styles.spin} />}
-          {pending ? "Logging in…" : "Log in"}
+          {pending ? t.login.loggingIn : t.login.submit}
         </button>
       </form>
 
       <p className={styles.switchLine}>
-        Farmer without an account? <Link href="/signup/farmer">Sign up</Link>
+        {t.login.farmerPrompt} <Link href="/signup/farmer">{t.login.signUp}</Link>
+      </p>
+      <p className={styles.switchLine}>
+        {t.login.partnerPrompt}{" "}
+        <Link href="/signup/partner">{t.login.applyLicense}</Link>
       </p>
     </div>
   );

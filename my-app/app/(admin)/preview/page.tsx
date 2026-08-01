@@ -1,12 +1,15 @@
 /**
  * `/preview` — "Portal Preview": lets an admin see what navigation each
- * role can access (a live mockup of that role's sidebar) and enter a real,
- * read-only preview session as that role. Permission editing lives on
- * `/roles` — this page is just the sidebar view + Enter Preview.
- * Requires the `manage_roles` permission — the same gate as `/roles`.
+ * role can access (a live, clickable mockup of that role's sidebar, with a
+ * checkbox per button to grant/revoke it on the spot) and enter a real,
+ * read-only preview session as that role. The full role editor (rename,
+ * delete, and permissions with no sidebar button of their own) still lives
+ * on `/roles` — this page is the quick-toggle view for sidebar buttons
+ * specifically. Requires the `manage_roles` permission — the same gate as
+ * `/roles`.
  */
 import { requirePermission } from "@/app/lib/dal";
-import { apiFetch } from "@/app/lib/api";
+import { apiFetchCached } from "@/app/lib/api";
 import PreviewManager from "./PreviewManager";
 import type { RoleRow } from "../roles/RolesManager";
 
@@ -14,7 +17,9 @@ import type { RoleRow } from "../roles/RolesManager";
 export default async function PreviewPage() {
   await requirePermission("manage_roles");
 
-  const rolesRes = await apiFetch("/api/admin/roles/");
+  // Reference data shared with /roles and /residents — see
+  // apiFetchCached's docstring.
+  const rolesRes = await apiFetchCached("/api/admin/roles/", 300, ["roles"]);
   const allRoles = rolesRes.ok ? ((await rolesRes.json()) as RoleRow[]) : [];
   const roles = allRoles.filter((r) => r.slug !== "admin");
 

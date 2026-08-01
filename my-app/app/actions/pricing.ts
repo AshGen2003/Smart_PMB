@@ -6,7 +6,7 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { apiFetch } from "@/app/lib/api";
 import { firstErrorMessage } from "@/app/lib/errors";
 
@@ -51,6 +51,7 @@ export async function createPaddyType(
   }
 
   revalidatePath("/pricing");
+  updateTag("paddy-types");
   return {};
 }
 
@@ -80,6 +81,7 @@ export async function updatePaddyType(
   }
 
   revalidatePath("/pricing");
+  updateTag("paddy-types");
   return {};
 }
 
@@ -95,5 +97,6 @@ export async function deletePaddyType(paddyTypeId: number): Promise<{ error?: st
   }
 
   revalidatePath("/pricing");
+  updateTag("paddy-types");
   return {};
 }

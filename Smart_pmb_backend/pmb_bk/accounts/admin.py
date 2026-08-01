@@ -48,9 +48,13 @@ class UserAdmin(BaseUserAdmin):
 
 
 class RoleAdmin(admin.ModelAdmin):
-    """Admin config for Role, with a widget for assigning permissions."""
+    """
+    Admin config for Role. No filter_horizontal widget for `permissions`
+    here — Django admin doesn't support that widget once an M2M field
+    specifies a custom `through` model (see RolePermission); permissions
+    are managed via the app's own Roles page instead.
+    """
     list_display = ["name", "slug", "is_system"]
-    filter_horizontal = ["permissions"]
     search_fields = ["name", "slug"]
 
 

@@ -23,6 +23,7 @@ from rest_framework.routers import DefaultRouter
 from accounts.views import (
     AdminOverviewView,
     AdminUserViewSet,
+    LicenseApplicationViewSet,
     MessageCreateView,
     MessageHistoryView,
     MessageInboxView,
@@ -37,21 +38,34 @@ from farmers.views import (
     DriverFuelRecordViewSet,
     DriverMaintenanceRecordViewSet,
     DriverOptionsView,
+    FarmerHarvestViewSet,
     FuelRecordViewSet,
+    InventoryViewSet,
     MaintenanceRecordViewSet,
     OfficerHarvestViewSet,
     PaddyTypeViewSet,
     RouteViewSet,
+    TransactionLogViewSet,
     TransportationDashboardView,
     VehicleViewSet,
+    WarehouseManagerOptionsView,
     WarehouseViewSet,
 )
+from mills.views import (
+    LicenseViewSet,
+    MillingReportViewSet,
+    MillOptionsView,
+    OfficerInspectionViewSet,
+    OfficerLicenseViewSet,
+)
+from purchases.views import OfficerRiceRequestViewSet, RiceRequestViewSet
 from sysops.views import (
     AdminReportPdfView,
     AdminReportView,
     AuditLogViewSet,
     AuthLogViewSet,
     BackupRecordViewSet,
+    ErrorLogViewSet,
     SystemAlertViewSet,
     SystemConfigView,
 )
@@ -62,11 +76,22 @@ from sysops.views import (
 router = DefaultRouter()
 router.register('admin/users', AdminUserViewSet, basename='admin-users')
 router.register('admin/roles', RoleViewSet, basename='admin-roles')
+router.register('admin/license-applications', LicenseApplicationViewSet, basename='admin-license-applications')
 router.register('admin/warehouses', WarehouseViewSet, basename='admin-warehouses')
+router.register('admin/inventory', InventoryViewSet, basename='admin-inventory')
+router.register('admin/transaction-log', TransactionLogViewSet, basename='admin-transaction-log')
 router.register('admin/paddy-types', PaddyTypeViewSet, basename='admin-paddy-types')
 router.register('admin/harvests', OfficerHarvestViewSet, basename='admin-harvests')
+router.register('farmer/harvests', FarmerHarvestViewSet, basename='farmer-harvests')
+router.register('mill-owner/licenses', LicenseViewSet, basename='mill-owner-licenses')
+router.register('mill-owner/milling-reports', MillingReportViewSet, basename='mill-owner-milling-reports')
+router.register('admin/mill-licenses', OfficerLicenseViewSet, basename='admin-mill-licenses')
+router.register('admin/mill-inspections', OfficerInspectionViewSet, basename='admin-mill-inspections')
+router.register('purchaser/requests', RiceRequestViewSet, basename='purchaser-requests')
+router.register('admin/rice-requests', OfficerRiceRequestViewSet, basename='admin-rice-requests')
 router.register('admin/audit-logs', AuditLogViewSet, basename='admin-audit-logs')
 router.register('admin/auth-logs', AuthLogViewSet, basename='admin-auth-logs')
+router.register('admin/error-logs', ErrorLogViewSet, basename='admin-error-logs')
 router.register('admin/alerts', SystemAlertViewSet, basename='admin-alerts')
 router.register('admin/backups', BackupRecordViewSet, basename='admin-backups')
 router.register('admin/vehicles', VehicleViewSet, basename='admin-vehicles')
@@ -81,6 +106,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),  # Django's built-in admin site
     path('api/auth/', include('accounts.urls')),  # login/register/refresh/logout/me
     path('api/', include('farmers.urls')),  # farmer self-service + harvest submission endpoints
+    path('api/', include('mills.urls')),  # mill owner self-service endpoints
+    path('api/', include('purchases.urls')),  # authorized purchaser self-service endpoints
     path('api/admin/permissions/', PermissionListView.as_view()),
     path('api/admin/overview/', AdminOverviewView.as_view()),
     path('api/admin/overview/online/', OnlineRolesView.as_view()),
@@ -89,6 +116,8 @@ urlpatterns = [
     path('api/admin/reports/admin-summary/pdf/', AdminReportPdfView.as_view()),
     path('api/admin/transportation/dashboard/', TransportationDashboardView.as_view()),
     path('api/admin/drivers/', DriverOptionsView.as_view()),
+    path('api/admin/warehouse-managers/', WarehouseManagerOptionsView.as_view()),
+    path('api/admin/mills/', MillOptionsView.as_view()),
     path('api/messages/', MessageCreateView.as_view()),
     path('api/messages/inbox/', MessageInboxView.as_view()),
     path('api/messages/history/', MessageHistoryView.as_view()),

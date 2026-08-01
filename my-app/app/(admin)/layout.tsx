@@ -30,25 +30,33 @@ export default async function AdminLayout({
   // redirects to /login if there is no valid session.
   const user = await requireUser();
 
-  // Farmers/drivers have their own portal/shell (see app/farmer/layout.tsx,
-  // app/driver/layout.tsx) — bounce them out of the admin area if they
-  // land here directly (including via Portal Preview, since `user.role`
-  // reflects the previewed role while previewing).
+  // Farmers/drivers/partners have their own portal/shell (see
+  // app/farmer/layout.tsx, app/driver/layout.tsx, app/partner/layout.tsx) —
+  // bounce them out of the admin area if they land here directly (including
+  // via Portal Preview, since `user.role` reflects the previewed role while
+  // previewing).
   if (user.role === "farmer") {
     redirect("/farmer");
   }
   if (user.role === "driver") {
     redirect("/driver");
   }
+  if (user.role === "authorized_purchaser" || user.role === "mill_owner") {
+    redirect("/partner");
+  }
 
-  // Fetch the current user's profile (for the avatar image) and the global
-  // system config (idle-logout timeout, maintenance mode banner) in
-  // parallel since neither depends on the other.
-  const [meRes, configRes] = await Promise.all([
-    apiFetch("/api/auth/me/"),
-    apiFetch("/api/admin/system-config/"),
-  ]);
-  const me = meRes.ok ? await meRes.json() : null;
+  // An admin-set (or admin-reset) temporary password must be changed before
+  // this account reaches any real page — see accounts/views.py's
+  // AdminUserWriteSerializer and the /change-password page.
+  if (user.mustChangePassword) {
+    redirect("/change-password");
+  }
+
+  // Global system config (idle-logout timeout, maintenance mode banner) —
+  // profile picture/notification prefs come from `user` itself now
+  // (requireUser() already fetched them along with role/permissions, see
+  // lib/dal.ts), rather than this layout re-fetching /api/auth/me/ again.
+  const configRes = await apiFetch("/api/admin/system-config/");
   const config = configRes.ok ? await configRes.json() : null;
 
   return (
@@ -56,7 +64,8 @@ export default async function AdminLayout({
       userName={user.fullName ?? user.email}
       roleLabel={user.roleName}
       permissions={user.permissions}
-      profilePictureUrl={me?.profile_picture ?? null}
+      profilePictureUrl={user.profilePictureUrl}
+      notifyMessages={user.notifyMessages}
       idleMinutes={config?.idle_logout_minutes}
       maintenanceMode={config?.maintenance_mode ?? false}
       previewing={user.previewing}
