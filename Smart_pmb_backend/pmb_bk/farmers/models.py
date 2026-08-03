@@ -69,6 +69,18 @@ class Farmer(models.Model):
     # harvest of theirs being approved/rejected/collected creates a
     # dashboard notification (see farmers/views.py's _notify_farmer).
     notify_harvest_updates = models.BooleanField(default=True)
+    # User-controlled preference (Settings → Notifications): whether a
+    # harvest status change also sends an SMS to contact_number, via
+    # accounts/sms.py's send_sms — see farmers/views.py's _notify_farmer.
+    # Opt-in default-off since SMS costs money per message, unlike the
+    # free in-app notification notify_harvest_updates already gates.
+    notify_via_sms = models.BooleanField(default=False)
+    # Recalculated by farmers/scoring.py's recalculate_reliability_score
+    # whenever one of this farmer's harvests changes status (see
+    # OfficerHarvestViewSet.approve/reject/mark_collected) — 0-100, blends
+    # delivery consistency (collected vs rejected) and average grade over
+    # the trailing 12 months.
+    reliability_score = models.FloatField(default=0)
 
     def __str__(self):
         return f"{self.name} ({self.registration_no})"
@@ -181,6 +193,11 @@ class Harvest(models.Model):
     processed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
+    # Generated once, in OfficerHarvestViewSet.mark_collected, the moment a
+    # harvest becomes a real warehouse-tracked lot — public/trace/<lot_code>
+    # and its QR code (see farmers/views.py's public trace views) let anyone
+    # verify this lot's farm-to-warehouse journey without logging in.
+    lot_code = models.CharField(max_length=30, unique=True, null=True, blank=True, db_index=True)
 
     class Meta:
         ordering = ["-harvest_date"]

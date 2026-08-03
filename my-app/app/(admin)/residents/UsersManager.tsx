@@ -11,8 +11,9 @@
 import React, { useMemo, useState, useTransition } from "react";
 import { format } from "date-fns";
 import clsx from "clsx";
-import { KeyRound, LogOut, Pencil, Plus, Search, Trash2, Unlock } from "lucide-react";
+import { KeyRound, LogOut, Pencil, Plus, Search, Trash2, Unlock, UserCog } from "lucide-react";
 import { deleteUser, forceLogoutUser, resetUserPassword, unlockUser } from "@/app/actions/users";
+import { startImpersonation } from "@/app/actions/impersonation";
 import UserFormModal, { type DistrictOption, type EditableUser, type RoleOption } from "./UserFormModal";
 import DeleteUserModal from "./DeleteUserModal";
 import StyledSelect from "@/app/components/StyledSelect";
@@ -40,7 +41,11 @@ export type AdminUserRow = {
 /**
  * Renders the searchable/filterable user table plus the create/edit modal.
  * `currentUserId` is used to prevent a user from deleting/force-logging-out
- * themself; `canManageSystem` gates the unlock/force-logout controls.
+ * themself; `canManageSystem` gates the unlock/force-logout controls;
+ * `canImpersonate` (impersonate_users permission) gates the Impersonate
+ * button, itself hidden for the current user's own row and for any
+ * admin-role row (backend enforces the same rejections either way — see
+ * accounts/views.py's AdminUserViewSet.impersonate).
  */
 export default function UsersManager({
   users,
@@ -48,12 +53,14 @@ export default function UsersManager({
   districts,
   currentUserId,
   canManageSystem,
+  canImpersonate,
 }: {
   users: AdminUserRow[];
   roles: RoleOption[];
   districts: DistrictOption[];
   currentUserId: string;
   canManageSystem: boolean;
+  canImpersonate: boolean;
 }) {
   const [roleFilter, setRoleFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -133,6 +140,24 @@ export default function UsersManager({
       const result = await forceLogoutUser(user.id);
       if (result.error) setDeleteError(result.error);
       else setActionMessage(`${user.email} signed out everywhere.`);
+    });
+  }
+
+  function handleImpersonate(user: AdminUserRow) {
+    if (
+      !window.confirm(
+        `Impersonate ${user.email}? You'll be signed in as their real account (with real write access) until you return to your own.`
+      )
+    )
+      return;
+
+    setDeleteError(null);
+    setActionMessage(null);
+    startTransition(async () => {
+      // startImpersonation redirects on success (never returns) — only
+      // returns here on failure.
+      const result = await startImpersonation(user.id);
+      if (result?.error) setDeleteError(result.error);
     });
   }
 
@@ -260,6 +285,18 @@ export default function UsersManager({
                           onClick={() => handleForceLogout(u)}
                         >
                           <LogOut size={16} />
+                        </button>
+                      )}
+                      {canImpersonate && u.id !== currentUserId && u.role.slug !== "admin" && (
+                        <button
+                          type="button"
+                          className={styles.iconBtn}
+                          aria-label="Impersonate"
+                          title="Sign in as this account for support/debugging"
+                          disabled={isPending}
+                          onClick={() => handleImpersonate(u)}
+                        >
+                          <UserCog size={16} />
                         </button>
                       )}
                       <button

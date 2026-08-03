@@ -111,6 +111,25 @@
   background-color: rgba(239, 68, 68, 0.1);
 }
 
+.traceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  margin-left: 0.5rem;
+}
+
+.traceLink:hover {
+  background-color: var(--sidebar-hover);
+}
+
 /* Modal */
 .overlay {
   position: fixed;

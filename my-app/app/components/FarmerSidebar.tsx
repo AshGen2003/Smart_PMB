@@ -13,6 +13,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useLayout } from "./LayoutProvider";
+import { useLanguage } from "./LanguageProvider";
 import styles from "./Sidebar.module.css";
 import clsx from "clsx";
 import {
@@ -25,17 +26,18 @@ import {
   User,
 } from "lucide-react";
 
-const NAV_ITEMS = [
-  { label: "Dashboard", href: "/farmer", icon: LayoutDashboard, permission: "view_dashboard" },
-  { label: "Harvests", href: "/farmer/harvests", icon: Sprout, permission: "view_dashboard" },
-  { label: "Messages", href: "/farmer/messages", icon: MessageSquare, permission: "view_messages" },
-  { label: "Settings", href: "/farmer/settings", icon: Settings, permission: "view_settings" },
-];
-
 /** Renders the logo, collapse toggle, and the nav links this farmer's permissions allow, highlighting the active route. */
 export default function FarmerSidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
+  const { t } = useLanguage();
+
+  const NAV_ITEMS = [
+    { label: t.farmerSidebar.dashboard, href: "/farmer", icon: LayoutDashboard, permission: "view_dashboard" },
+    { label: t.farmerSidebar.harvests, href: "/farmer/harvests", icon: Sprout, permission: "view_dashboard" },
+    { label: t.farmerSidebar.messages, href: "/farmer/messages", icon: MessageSquare, permission: "view_messages" },
+    { label: t.farmerSidebar.settings, href: "/farmer/settings", icon: Settings, permission: "view_settings" },
+  ];
 
   const items = NAV_ITEMS.filter((item) => permissions.includes(item.permission));
 
@@ -77,7 +79,9 @@ export default function FarmerSidebar({ permissions }: { permissions: string[] }
               )}
               onClick={closeMobileSidebar}
             >
-              <Icon className={styles.navIcon} size={20} />
+              <span className={styles.navIconWrap}>
+                <Icon className={styles.navIcon} size={20} />
+              </span>
               <span className={styles.navLabel}>{item.label}</span>
             </Link>
           );
@@ -94,8 +98,10 @@ export default function FarmerSidebar({ permissions }: { permissions: string[] }
             )}
             onClick={closeMobileSidebar}
           >
-            <User className={styles.navIcon} size={20} />
-            <span className={styles.navLabel}>Profile</span>
+            <span className={styles.navIconWrap}>
+              <User className={styles.navIcon} size={20} />
+            </span>
+            <span className={styles.navLabel}>{t.farmerSidebar.profile}</span>
           </Link>
         )}
       </nav>

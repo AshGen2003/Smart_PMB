@@ -13,6 +13,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowRight, ShieldCheck, UserCheck, Users } from "lucide-react";
+import ChartLegend from "@/app/components/ChartLegend";
 import OnlineRolesPanel from "./OnlineRolesPanel";
 import styles from "./Dashboard.module.css";
 
@@ -104,20 +105,9 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
           </h3>
           <div className={styles.chartContainer}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.role_breakdown} margin={{ top: 20, right: 30, left: 0, bottom: 30 }}>
+              <BarChart data={data.role_breakdown} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--card-border)" />
-                <XAxis
-                  dataKey="name"
-                  stroke="var(--text-muted)"
-                  tick={{ fill: "var(--text-muted)" }}
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={0}
-                  angle={-35}
-                  textAnchor="end"
-                  height={60}
-                />
+                <XAxis dataKey="name" tick={false} tickLine={false} axisLine={false} height={8} />
                 <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip {...TOOLTIP_STYLE} />
                 <Bar dataKey="user_count" name="Users" radius={[4, 4, 0, 0]}>
@@ -128,6 +118,12 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <ChartLegend
+            items={data.role_breakdown.map((r, index) => ({
+              label: r.name,
+              color: ROLE_COLORS[index % ROLE_COLORS.length],
+            }))}
+          />
         </Link>
 
         <OnlineRolesPanel roleOrder={data.role_breakdown} />

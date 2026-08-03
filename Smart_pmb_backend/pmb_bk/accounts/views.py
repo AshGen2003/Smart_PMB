@@ -23,10 +23,11 @@ from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from sysops.utils import log_audit, log_auth
+from sysops.utils import get_config_value, log_audit, log_auth
 
 from .emails import (
     send_confirmation_email,
+    send_impersonation_notice_email,
     send_license_decision_email,
     send_otp_email,
     send_temp_password_email,
@@ -75,6 +76,9 @@ class RegisterFarmerView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        if not get_config_value("signups_enabled"):
+            return Response({"detail": "New signups are temporarily disabled."}, status=503)
+
         serializer = RegisterFarmerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         result = serializer.save()
@@ -102,6 +106,9 @@ class RegisterLicenseApplicantView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        if not get_config_value("signups_enabled"):
+            return Response({"detail": "New signups are temporarily disabled."}, status=503)
+
         serializer = RegisterLicenseApplicantSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         result = serializer.save()
@@ -288,13 +295,17 @@ class MeView(APIView):
         return request.build_absolute_uri(user.profile_picture.url)
 
     def _notification_prefs(self, user):
-        # notify_harvest_updates only exists on farmer_profile, so it's
-        # None (and the frontend hides that toggle) for every other role.
+        # notify_harvest_updates/notify_via_sms only exist on farmer_profile,
+        # so they're None (and the frontend hides those toggles) for every
+        # other role.
         farmer_profile = getattr(user, "farmer_profile", None)
         return {
             "notify_in_app_messages": user.notify_in_app_messages,
             "notify_harvest_updates": (
                 farmer_profile.notify_harvest_updates if farmer_profile else None
+            ),
+            "notify_via_sms": (
+                farmer_profile.notify_via_sms if farmer_profile else None
             ),
         }
 
@@ -331,6 +342,7 @@ class MeView(APIView):
                 "permissions": list(
                     user.role.permissions.values_list("codename", flat=True)
                 ),
+                "dashboard_widgets": list(user.role.dashboard_widgets),
                 **self._notification_prefs(user),
                 **self._account_status(user),
             }
@@ -361,6 +373,7 @@ class MeView(APIView):
                 "permissions": list(
                     user.role.permissions.values_list("codename", flat=True)
                 ),
+                "dashboard_widgets": list(user.role.dashboard_widgets),
                 **self._notification_prefs(user),
                 **self._account_status(user),
                 "access": str(token.access_token),
@@ -481,6 +494,49 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         log_audit(request.user, "reset_password", "accounts", user.email)
         return Response({"detail": "Password reset. A temporary password has been emailed to the user."})
 
+    @action(
+        detail=True, methods=["post"],
+        permission_classes=[HasPermission("impersonate_users")],
+    )
+    def impersonate(self, request, pk=None):
+        """
+        Mints a real JWT pair for the target user, so the caller genuinely
+        becomes that account (subject to the safety rails below) — distinct
+        from Portal Preview, which only ever swaps in sample data over the
+        admin's own real session. Scoped to "see what a non-admin user
+        sees": impersonating a superuser, another admin-role account, or
+        yourself is rejected outright, so this can't be used to chain
+        privilege or cover tracks between equally-privileged accounts.
+        """
+        user = self.get_object()
+        if user.id == request.user.id:
+            return Response({"detail": "You can't impersonate yourself."}, status=400)
+        if user.is_superuser:
+            return Response({"detail": "Cannot impersonate a superuser account."}, status=400)
+        if user.role_id and user.role.slug == "admin":
+            return Response({"detail": "Cannot impersonate another admin account."}, status=400)
+
+        token = CustomTokenObtainPairSerializer.get_token(user)
+        log_audit(
+            request.user, "start_impersonation", "accounts",
+            f"as {user.email} ({user.id})",
+        )
+        # Transparency notice to the impersonated account itself — the audit
+        # log above is only ever visible to other admins, so without this
+        # the account holder would have no way of knowing an admin was ever
+        # signed in as them. In-app (shows on their notification bell right
+        # away) and email (reaches them even if they're not logged in).
+        Message.objects.create(
+            sender=request.user,
+            recipient=user,
+            body=(
+                f"An administrator ({request.user.email}) signed in as your "
+                "account for support or troubleshooting purposes just now."
+            ),
+        )
+        send_impersonation_notice_email(user, request.user.email)
+        return Response({"access": str(token.access_token), "refresh": str(token)})
+
 
 class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -539,8 +595,12 @@ class RoleViewSet(viewsets.ModelViewSet):
     """
     Admin CRUD over Roles and the permissions assigned to them. Access is
     gated by RoleAccessPermission (read access is broader than write
-    access — see that class's docstring). System-seeded roles cannot be
-    deleted, nor can any role still assigned to at least one user.
+    access — see that class's docstring). A role still assigned to at
+    least one user can never be deleted (User.role is a required FK) —
+    system-seeded roles (is_system=True) have no extra deletion block
+    beyond that; the frontend just shows an additional warning before
+    deleting one, since several code paths look roles up by slug (see
+    Role.is_system's docstring in models.py).
     """
     permission_classes = [RoleAccessPermission]
     queryset = Role.objects.all().prefetch_related("permissions").order_by("name")
@@ -560,13 +620,6 @@ class RoleViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.is_system:
-            # Built-in roles (admin/officer/farmer) are load-bearing for
-            # the seed data and default-role logic in managers.py.
-            return Response(
-                {"detail": "System roles cannot be deleted."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
         if instance.users.exists():
             # Deleting a role out from under assigned users would break
             # the required (non-nullable) User.role foreign key.

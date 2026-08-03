@@ -82,7 +82,9 @@ export default function DriverSidebar({ permissions }: { permissions: string[] }
               )}
               onClick={closeMobileSidebar}
             >
-              <Icon className={styles.navIcon} size={20} />
+              <span className={styles.navIconWrap}>
+                <Icon className={styles.navIcon} size={20} />
+              </span>
               <span className={styles.navLabel}>{item.label}</span>
             </Link>
           );
@@ -99,7 +101,9 @@ export default function DriverSidebar({ permissions }: { permissions: string[] }
             )}
             onClick={closeMobileSidebar}
           >
-            <User className={styles.navIcon} size={20} />
+            <span className={styles.navIconWrap}>
+              <User className={styles.navIcon} size={20} />
+            </span>
             <span className={styles.navLabel}>Profile</span>
           </Link>
         )}

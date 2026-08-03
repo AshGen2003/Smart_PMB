@@ -48,6 +48,7 @@ export default async function PartnerLayout({
       profilePictureUrl={user.profilePictureUrl}
       notifyMessages={user.notifyMessages}
       previewing={user.previewing}
+      impersonating={user.impersonating}
     >
       {children}
     </PartnerShell>

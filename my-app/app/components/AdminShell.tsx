@@ -7,11 +7,13 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { LayoutProvider, useLayout } from "./LayoutProvider";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import IdleGuard from "./IdleGuard";
 import PreviewBanner from "./PreviewBanner";
+import ImpersonationBanner from "./ImpersonationBanner";
 import styles from "./DashboardShell.module.css";
 import clsx from "clsx";
 
@@ -25,6 +27,11 @@ interface AdminShellProps {
   idleMinutes?: number;
   maintenanceMode?: boolean;
   previewing?: { slug: string; name: string };
+  impersonating?: { email: string };
+  // Red-dot counts for the sidebar's Messages/System Requests nav items —
+  // see (admin)/layout.tsx for how these are computed.
+  unreadMessageCount?: number;
+  pendingRequestCount?: number;
 }
 
 /**
@@ -40,6 +47,9 @@ function LayoutWrapper({
   idleMinutes,
   maintenanceMode,
   previewing,
+  impersonating,
+  unreadMessageCount,
+  pendingRequestCount,
 }: Omit<AdminShellProps, "userName" | "roleLabel" | "profilePictureUrl">) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
@@ -55,16 +65,22 @@ function LayoutWrapper({
           isMobileSidebarOpen && styles.mobileOpen
         )}
       >
-        <Sidebar permissions={permissions} />
+        <Sidebar
+          permissions={permissions}
+          unreadMessageCount={unreadMessageCount}
+          pendingRequestCount={pendingRequestCount}
+        />
       </div>
       <div className={styles.mainWrapper}>
         {previewing && <PreviewBanner roleName={previewing.name} />}
+        {impersonating && <ImpersonationBanner adminEmail={impersonating.email} />}
         <div className={styles.headerArea}>
           <Header previewing={!!previewing} notifyMessages={notifyMessages} />
         </div>
         {maintenanceMode && (
           <div className={styles.maintenanceBanner}>
-            System maintenance mode is active — some changes may be delayed or reverted.
+            Maintenance mode is ON — everyone except admins is locked out right now.{" "}
+            <Link href="/maintenance">Turn off</Link>
           </div>
         )}
         <main className={styles.mainArea}>{children}</main>
@@ -89,6 +105,9 @@ export default function AdminShell({
   idleMinutes,
   maintenanceMode,
   previewing,
+  impersonating,
+  unreadMessageCount,
+  pendingRequestCount,
 }: AdminShellProps) {
   return (
     <LayoutProvider>
@@ -98,6 +117,9 @@ export default function AdminShell({
         idleMinutes={idleMinutes}
         maintenanceMode={maintenanceMode}
         previewing={previewing}
+        impersonating={impersonating}
+        unreadMessageCount={unreadMessageCount}
+        pendingRequestCount={pendingRequestCount}
       >
         {children}
       </LayoutWrapper>

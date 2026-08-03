@@ -22,6 +22,12 @@ function permissionsFromFormData(formData: FormData): string[] {
   return formData.getAll("permissions").map(String);
 }
 
+// Same repeated-checkbox pattern as permissionsFromFormData, for the
+// "Officer Dashboard Widgets" checklist.
+function dashboardWidgetsFromFormData(formData: FormData): string[] {
+  return formData.getAll("dashboard_widgets").map(String);
+}
+
 /**
  * Creates a new role with a name, description, and set of permissions.
  *
@@ -40,6 +46,7 @@ export async function createRole(
     name: String(formData.get("name") ?? "").trim(),
     description: String(formData.get("description") ?? "").trim(),
     permissions: permissionsFromFormData(formData),
+    dashboard_widgets: dashboardWidgetsFromFormData(formData),
   };
 
   const res = await apiFetch("/api/admin/roles/", {
@@ -77,6 +84,7 @@ export async function updateRole(
     name: String(formData.get("name") ?? "").trim(),
     description: String(formData.get("description") ?? "").trim(),
     permissions: permissionsFromFormData(formData),
+    dashboard_widgets: dashboardWidgetsFromFormData(formData),
   };
 
   const res = await apiFetch(`/api/admin/roles/${roleId}/`, {

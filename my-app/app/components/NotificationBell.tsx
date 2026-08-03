@@ -16,6 +16,7 @@ import { Bell, Loader2, Send } from "lucide-react";
 import clsx from "clsx";
 import StyledSelect from "./StyledSelect";
 import { SkeletonRows } from "./Skeleton";
+import { useLanguage } from "./LanguageProvider";
 import styles from "./NotificationBell.module.css";
 
 type MessageRow = {
@@ -72,6 +73,7 @@ export default function NotificationBell({
   // and the unread badge — compose still works, and /messages is unaffected.
   notifyMessages?: boolean;
 }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<MessageRow[] | null>(null);
   const [recipients, setRecipients] = useState<RecipientOption[] | null>(null);
@@ -154,7 +156,7 @@ export default function NotificationBell({
     const trimmed = body.trim();
     if (!trimmed) return;
     if (!restrictedCompose && !recipientId) {
-      setSendError("Choose who to send this to.");
+      setSendError(t.messagesHistory.chooseRecipient);
       return;
     }
 
@@ -173,14 +175,14 @@ export default function NotificationBell({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setSendError(data.body?.[0] || data.recipient?.[0] || data.detail || "Failed to send.");
+        setSendError(data.body?.[0] || data.recipient?.[0] || data.detail || t.messagesHistory.failedToSend);
         return;
       }
       setBody("");
       setRecipientId("");
       setSendSuccess(true);
     } catch {
-      setSendError("Failed to send. Check your connection.");
+      setSendError(t.messagesHistory.failedConnection);
     } finally {
       setSending(false);
     }
@@ -192,7 +194,7 @@ export default function NotificationBell({
         type="button"
         className={styles.iconBtn}
         onClick={() => setOpen((o) => !o)}
-        aria-label="Notifications"
+        aria-label={t.notificationBell.ariaLabel}
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -205,34 +207,32 @@ export default function NotificationBell({
       {open && (
         <div className={styles.panel} role="menu">
           <div className={styles.panelHeader}>
-            Messages
+            {t.notificationBell.messagesHeader}
             {!previewing && (
               <Link
                 href={messagesHref}
                 className={styles.viewAllLink}
                 onClick={() => setOpen(false)}
               >
-                View all
+                {t.notificationBell.viewAll}
               </Link>
             )}
           </div>
 
           {previewing ? (
-            <p className={styles.previewNote}>Messaging isn&apos;t available while previewing.</p>
+            <p className={styles.previewNote}>{t.notificationBell.previewNote}</p>
           ) : (
             <>
               {!notifyMessages ? (
                 <p className={styles.previewNote}>
-                  Message alerts are turned off in Settings — new messages
-                  won&apos;t show up here, but you can still send one below
-                  or check <Link href={messagesHref}>the full inbox</Link>.
+                  {t.notificationBell.mutedNotePrefix} <Link href={messagesHref}>{t.notificationBell.mutedNoteLink}</Link>.
                 </p>
               ) : (
               <div className={styles.list}>
                 {messages === null ? (
                   <SkeletonRows count={3} />
                 ) : messages.length === 0 ? (
-                  <p className={styles.emptyState}>No messages yet.</p>
+                  <p className={styles.emptyState}>{t.notificationBell.noMessagesYet}</p>
                 ) : (
                   messages.map((m) => (
                     <div
@@ -241,13 +241,13 @@ export default function NotificationBell({
                     >
                       <div className={styles.messageMeta}>
                         <span className={styles.messageSender}>
-                          {m.sender_name || "Unknown"}
+                          {m.sender_name || t.messagesHistory.unknownSender}
                           {m.sender_role && (
                             <span className={styles.messageSenderRole}> · {m.sender_role}</span>
                           )}
                           {m.recipient === null && (
                             <span className={styles.requestBadge}>
-                              Request → {m.target_role_label ?? "Admin"}
+                              {t.messagesHistory.requestTo} {m.target_role_label ?? t.messagesHistory.roleAdmin}
                             </span>
                           )}
                         </span>
@@ -260,7 +260,7 @@ export default function NotificationBell({
                           className={styles.markReadBtn}
                           onClick={() => markRead(m.id)}
                         >
-                          Mark read
+                          {t.messagesHistory.markRead}
                         </button>
                       )}
                     </div>
@@ -271,11 +271,11 @@ export default function NotificationBell({
 
               <div className={styles.composeArea}>
                 <p className={styles.composeLabel}>
-                  {restrictedCompose ? "Send a request to" : "Message a user"}
+                  {restrictedCompose ? t.messagesHistory.composeLabelFarmer : t.messagesHistory.composeLabelStaff}
                 </p>
 
                 {sendError && <div className={styles.composeError}>{sendError}</div>}
-                {sendSuccess && <div className={styles.composeSuccess}>Sent.</div>}
+                {sendSuccess && <div className={styles.composeSuccess}>{t.messagesHistory.sent}</div>}
 
                 {restrictedCompose ? (
                   <StyledSelect
@@ -283,8 +283,8 @@ export default function NotificationBell({
                     value={targetRole}
                     onChange={(v) => setTargetRole(v as "admin" | "pmb_officer")}
                     options={[
-                      { value: "admin", label: "Admin" },
-                      { value: "pmb_officer", label: "PMB Officer" },
+                      { value: "admin", label: t.messagesHistory.roleAdmin },
+                      { value: "pmb_officer", label: t.messagesHistory.roleOfficer },
                     ]}
                   />
                 ) : (
@@ -292,14 +292,14 @@ export default function NotificationBell({
                     compact
                     value={recipientId}
                     onChange={setRecipientId}
-                    placeholder="Select a user…"
+                    placeholder={t.messagesHistory.selectUserPlaceholder}
                     options={(recipients ?? []).map((r) => ({ value: r.id, label: `${r.full_name} (${r.role_name})` }))}
                   />
                 )}
 
                 <textarea
                   className={styles.composeInput}
-                  placeholder={restrictedCompose ? "Describe what you need help with…" : "Write a message…"}
+                  placeholder={restrictedCompose ? t.messagesHistory.bodyPlaceholderFarmer : t.messagesHistory.bodyPlaceholderStaff}
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                   rows={3}
@@ -312,7 +312,7 @@ export default function NotificationBell({
                   onClick={handleSend}
                 >
                   {sending ? <Loader2 size={14} className={styles.spin} /> : <Send size={14} />}
-                  {sending ? "Sending…" : "Send"}
+                  {sending ? t.messagesHistory.sending : t.messagesHistory.send}
                 </button>
               </div>
             </>

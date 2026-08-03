@@ -3,59 +3,39 @@
  * and driver/help — one component so the three portal-specific pages don't
  * each hand-maintain their own copy of the shared "Account & Notifications"
  * section. Plain accordion via native <details>/<summary> (styled in
- * HelpFaq.module.css), so no client-side state is needed for this page.
+ * HelpFaq.module.css). Client Component (for useLanguage()) since the
+ * common section and the farmer section are translated; the other roles'
+ * sections aren't yet (see ROLE_SECTIONS) and stay in English regardless
+ * of language.
  */
+"use client";
+
+import { useLanguage } from "./LanguageProvider";
 import styles from "./HelpFaq.module.css";
 
 type FaqItem = { q: string; a: string };
 type FaqSection = { title: string; items: FaqItem[] };
 
-const COMMON_SECTION: FaqSection = {
-  title: "Account & notifications",
-  items: [
-    {
-      q: "How do I change my password or profile picture?",
-      a: "Go to Settings → Account. Setting a new password requires entering your current one first, as a safeguard in case your session was left open on a shared device.",
-    },
-    {
-      q: "How do I switch between light and dark mode?",
-      a: "Use the sun/moon icon in the top header, or the theme switch under Settings → Appearance — both control the same setting and stay in sync.",
-    },
-    {
-      q: "How do notifications work, and how do I turn them off?",
-      a: "The bell icon in the header alerts you when someone sends you a message or request. Go to Settings → Notifications to turn message alerts off — you can still send and read messages either way, you just won't get the badge/alert. Farmers have a second toggle there for harvest-status updates.",
-    },
-    {
-      q: "How do I contact someone directly?",
-      a: "Click the bell icon for a quick note, or open Messages from the sidebar for the full history and a larger compose box.",
-    },
-  ],
-};
-
-const ROLE_SECTIONS: Record<"farmer" | "driver" | "admin" | "partner", FaqSection> = {
-  farmer: {
-    title: "For farmers",
-    items: [
-      {
-        q: "What do the harvest statuses on my dashboard mean?",
-        a: "Pending — your officer has recorded the delivery but hasn't reviewed it yet. Verified — it's been approved and graded, and payment is now pending. Collected — the paddy has been moved to a warehouse and payment is complete. Rejected — the submission wasn't accepted; contact your PMB officer if you're not sure why.",
-      },
-      {
-        q: "Who records my harvest delivery?",
-        a: "Your PMB officer logs each delivery when you bring paddy in, including its grade, moisture level, and unit price — there's no separate self-submission form on your end.",
-      },
-      {
-        q: "How will I know when my payment status changes?",
-        a: "You'll get a notification on your dashboard each time a submission is approved, rejected, or collected, as long as harvest-status notifications are turned on in Settings.",
-      },
-    ],
-  },
+const ROLE_SECTIONS: Record<"driver" | "warehouse_manager" | "admin" | "partner", FaqSection> = {
   driver: {
     title: "For drivers",
     items: [
       {
         q: "What's the difference between Vehicle Details and Vehicle Log?",
         a: "Vehicle Details shows the fixed information about the vehicle assigned to you (type, capacity, registration). Vehicle Log is where you record trip-by-trip activity.",
+      },
+    ],
+  },
+  warehouse_manager: {
+    title: "For warehouse managers",
+    items: [
+      {
+        q: "Why can I only see one warehouse?",
+        a: "Your account is tied to the single warehouse a PMB officer has appointed you to manage. If that assignment changes, what you see here updates automatically.",
+      },
+      {
+        q: "Can I add or remove stock myself?",
+        a: "No — this view is read-only. Stock changes (harvest collections, manual adjustments) are recorded by PMB officers; you'll always see the current totals here.",
       },
     ],
   },
@@ -99,8 +79,34 @@ const ROLE_SECTIONS: Record<"farmer" | "driver" | "admin" | "partner", FaqSectio
   },
 };
 
-export function HelpFaq({ role }: { role: "farmer" | "driver" | "admin" | "partner" }) {
-  const sections = [ROLE_SECTIONS[role], COMMON_SECTION];
+export function HelpFaq({ role }: { role: "farmer" | "driver" | "warehouse_manager" | "admin" | "partner" }) {
+  const { t } = useLanguage();
+
+  // The common section is translated for every role. Per-role sections are
+  // only translated for farmers so far — other roles keep ROLE_SECTIONS'
+  // static English content regardless of language.
+  const commonSection: FaqSection = {
+    title: t.helpFaqCommon.title,
+    items: [
+      { q: t.helpFaqCommon.q1, a: t.helpFaqCommon.a1 },
+      { q: t.helpFaqCommon.q2, a: t.helpFaqCommon.a2 },
+      { q: t.helpFaqCommon.q3, a: t.helpFaqCommon.a3 },
+      { q: t.helpFaqCommon.q4, a: t.helpFaqCommon.a4 },
+    ],
+  };
+  const roleSection: FaqSection =
+    role === "farmer"
+      ? {
+          title: t.helpFaqFarmer.title,
+          items: [
+            { q: t.helpFaqFarmer.q1, a: t.helpFaqFarmer.a1 },
+            { q: t.helpFaqFarmer.q2, a: t.helpFaqFarmer.a2 },
+            { q: t.helpFaqFarmer.q3, a: t.helpFaqFarmer.a3 },
+          ],
+        }
+      : ROLE_SECTIONS[role];
+
+  const sections = [roleSection, commonSection];
 
   return (
     <div className={styles.page}>

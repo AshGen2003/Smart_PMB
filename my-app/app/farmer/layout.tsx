@@ -36,6 +36,7 @@ export default async function FarmerLayout({
       profilePictureUrl={user.profilePictureUrl}
       notifyMessages={user.notifyMessages}
       previewing={user.previewing}
+      impersonating={user.impersonating}
     >
       {children}
     </FarmerShell>

@@ -20,13 +20,14 @@ import {
   TrendingUp,
   TrendingDown
 } from "lucide-react";
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell 
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell
 } from "recharts";
 import { format } from "date-fns";
 import clsx from "clsx";
 import { SkeletonDashboard } from "@/app/components/Skeleton";
+import ChartLegend from "@/app/components/ChartLegend";
 
 // Mock data — this component is a static placeholder and does not fetch
 // anything from the backend.
@@ -45,6 +46,12 @@ const PAYMENT_DATA = [
   { name: 'Pending', value: 15, color: '#f59e0b' },
   { name: 'Overdue', value: 10, color: '#ef4444' },
 ];
+
+const LEGEND_STYLE = {
+  wrapperStyle: { fontSize: 12, color: "var(--text-muted)" },
+  iconType: "circle" as const,
+  iconSize: 8,
+};
 
 const RECENT_TRANSACTIONS = [
   { id: 'TRX-101', resident: 'Alice Smith', unit: 'A-102', amount: '$1,200', status: 'paid', date: '2026-07-01' },
@@ -144,7 +151,8 @@ export default function GenericDashboard() {
                   labelStyle={{ color: 'var(--foreground)' }}
                   itemStyle={{ color: 'var(--foreground)' }}
                 />
-                <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={3} dot={{ fill: 'var(--accent)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+                <Legend {...LEGEND_STYLE} />
+                <Line type="monotone" dataKey="value" name="Revenue" stroke="var(--primary)" strokeWidth={3} dot={{ fill: 'var(--accent)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -177,6 +185,7 @@ export default function GenericDashboard() {
               </PieChart>
             </ResponsiveContainer>
           </div>
+          <ChartLegend items={PAYMENT_DATA.map((entry) => ({ label: entry.name, color: entry.color }))} />
         </div>
       </div>
 

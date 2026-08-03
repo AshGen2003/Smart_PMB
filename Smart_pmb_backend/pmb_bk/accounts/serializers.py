@@ -15,8 +15,9 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from farmers.models import District, Farmer
 from mills.models import Mill
 from purchases.models import AuthorizedPurchaser
-from sysops.utils import get_config_value, log_auth
+from sysops.utils import get_config_value, log_auth, raise_repeated_login_failure_alert
 
+from .constants import OFFICER_DASHBOARD_WIDGETS
 from .models import LicenseApplication, Message, Permission, PmbOfficer, Role, User
 
 
@@ -87,6 +88,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 if locked_now:
                     user.locked_until = timezone.now() + timedelta(minutes=lockout_minutes)
                     user.failed_login_attempts = 0
+                else:
+                    # Only an early-warning heads-up for streaks still short
+                    # of the actual lockout threshold — once locked_now is
+                    # True the counter is reset above, so this deliberately
+                    # doesn't fire again on the same request.
+                    raise_repeated_login_failure_alert(user)
                 user.save(update_fields=["failed_login_attempts", "locked_until"])
                 if request:
                     log_auth(
@@ -340,6 +347,7 @@ class SelfProfileSerializer(serializers.Serializer):
     # Farmer-only preference; silently ignored (see save()) for any user
     # without a farmer_profile, so it's safe to accept from every caller.
     notify_harvest_updates = serializers.BooleanField(required=False)
+    notify_via_sms = serializers.BooleanField(required=False)
 
     def validate(self, attrs):
         # Changing the password requires re-confirming the current one,
@@ -364,6 +372,7 @@ class SelfProfileSerializer(serializers.Serializer):
         new_password = self.validated_data.get("new_password")
         notify_in_app_messages = self.validated_data.get("notify_in_app_messages")
         notify_harvest_updates = self.validated_data.get("notify_harvest_updates")
+        notify_via_sms = self.validated_data.get("notify_via_sms")
 
         if full_name is not None:
             user.full_name = full_name.strip()
@@ -383,9 +392,16 @@ class SelfProfileSerializer(serializers.Serializer):
 
         user.save()
 
-        if notify_harvest_updates is not None and hasattr(user, "farmer_profile"):
-            user.farmer_profile.notify_harvest_updates = notify_harvest_updates
-            user.farmer_profile.save(update_fields=["notify_harvest_updates"])
+        if hasattr(user, "farmer_profile"):
+            farmer_update_fields = []
+            if notify_harvest_updates is not None:
+                user.farmer_profile.notify_harvest_updates = notify_harvest_updates
+                farmer_update_fields.append("notify_harvest_updates")
+            if notify_via_sms is not None:
+                user.farmer_profile.notify_via_sms = notify_via_sms
+                farmer_update_fields.append("notify_via_sms")
+            if farmer_update_fields:
+                user.farmer_profile.save(update_fields=farmer_update_fields)
 
         return user
 
@@ -617,6 +633,7 @@ class RoleSerializer(serializers.ModelSerializer):
             "is_system",
             "permissions",
             "user_count",
+            "dashboard_widgets",
         ]
 
     def get_permissions(self, obj):
@@ -632,10 +649,13 @@ class RoleWriteSerializer(serializers.ModelSerializer):
     permissions = serializers.ListField(
         child=serializers.CharField(), required=False, write_only=True
     )
+    dashboard_widgets = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
 
     class Meta:
         model = Role
-        fields = ["id", "name", "description", "permissions"]
+        fields = ["id", "name", "description", "permissions", "dashboard_widgets"]
         read_only_fields = ["id"]
 
     def validate_name(self, value):
@@ -659,6 +679,17 @@ class RoleWriteSerializer(serializers.ModelSerializer):
                 f"Unknown permission(s): {', '.join(sorted(missing))}"
             )
         return permissions
+
+    def validate_dashboard_widgets(self, keys):
+        # Same "reject unknown values" defensiveness as validate_permissions
+        # above — keeps the stored list limited to widget keys
+        # OfficerDashboardPanel.tsx actually knows how to render.
+        unknown = set(keys) - set(OFFICER_DASHBOARD_WIDGETS)
+        if unknown:
+            raise serializers.ValidationError(
+                f"Unknown dashboard widget(s): {', '.join(sorted(unknown))}"
+            )
+        return keys
 
     def create(self, validated_data):
         permissions = validated_data.pop("permissions", [])
@@ -727,13 +758,13 @@ class MessageCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request = self.context["request"]
-        is_restricted = request.user.role.slug in ("farmer", "driver")
+        is_restricted = request.user.role.slug in ("farmer", "driver", "warehouse_manager")
 
         if attrs.get("recipient") is not None:
             if is_restricted:
-                # Farmers and drivers can only send a request to a role
-                # (recipient=None + target_role) — not message a specific
-                # user directly like staff can.
+                # Farmers, drivers, and warehouse managers can only send a
+                # request to a role (recipient=None + target_role) — not
+                # message a specific user directly like staff can.
                 raise serializers.ValidationError(
                     "You can only send a request to Admin or PMB Officer, not message a specific user."
                 )

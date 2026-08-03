@@ -37,9 +37,14 @@ export async function enterPreview(roleSlug: string) {
   redirect("/dashboard");
 }
 
-/** Ends the current preview (if any) and returns to the real admin dashboard. */
+/**
+ * Ends the current preview (if any) and returns to the Preview Portal page
+ * (not the dashboard) — an admin exiting one preview is usually about to
+ * start another, so this saves them re-navigating back to /preview every
+ * single time.
+ */
 export async function exitPreview() {
   const cookieStore = await cookies();
   cookieStore.delete(PREVIEW_COOKIE);
-  redirect("/dashboard");
+  redirect("/preview");
 }

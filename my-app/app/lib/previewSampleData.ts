@@ -31,6 +31,8 @@ export const PREVIEW_WAREHOUSES = [
     location: "Sample data",
     managed_by: null,
     managed_by_name: null,
+    utilization_pct: 37,
+    remaining_capacity: "252000.00",
   },
   {
     id: 2,
@@ -48,6 +50,8 @@ export const PREVIEW_WAREHOUSES = [
     location: "Sample data",
     managed_by: null,
     managed_by_name: null,
+    utilization_pct: 32,
+    remaining_capacity: "204000.00",
   },
   {
     id: 3,
@@ -65,6 +69,8 @@ export const PREVIEW_WAREHOUSES = [
     location: "Sample data",
     managed_by: null,
     managed_by_name: null,
+    utilization_pct: 23,
+    remaining_capacity: "192000.00",
   },
 ];
 
@@ -115,6 +121,7 @@ export const PREVIEW_HARVESTS = [
     id: 1,
     farmer: 1,
     farmer_name: "Sample Farmer A",
+    farmer_reliability_score: 88,
     paddy_type: 1,
     paddy_type_name: "Nadu",
     warehouse: 1,
@@ -128,11 +135,13 @@ export const PREVIEW_HARVESTS = [
     unit_price: "120.00",
     status: "collected" as const,
     processed_by_name: "Sample Officer",
+    lot_code: "PMB-000001-A1B2C3",
   },
   {
     id: 2,
     farmer: 2,
     farmer_name: "Sample Farmer B",
+    farmer_reliability_score: 45,
     paddy_type: 2,
     paddy_type_name: "Samba",
     warehouse: 2,
@@ -146,11 +155,13 @@ export const PREVIEW_HARVESTS = [
     unit_price: null,
     status: "pending" as const,
     processed_by_name: null,
+    lot_code: null,
   },
   {
     id: 3,
     farmer: 1,
     farmer_name: "Sample Farmer A",
+    farmer_reliability_score: 88,
     paddy_type: 1,
     paddy_type_name: "Nadu",
     warehouse: 1,
@@ -164,6 +175,7 @@ export const PREVIEW_HARVESTS = [
     unit_price: "120.00",
     status: "verified" as const,
     processed_by_name: "Sample Officer",
+    lot_code: null,
   },
 ];
 
@@ -244,6 +256,10 @@ export const PREVIEW_OFFICER_REPORTS = {
       { period: "Jul", quantity_kg: 2650, amount: 318000 },
     ],
   },
+  price_forecast: [
+    { paddy_type: "Nadu", current_price: 115, suggested_price: 118, based_on_points: 4 },
+    { paddy_type: "Samba", current_price: 128, suggested_price: 126, based_on_points: 4 },
+  ],
 };
 
 const PREVIEW_VEHICLES = [

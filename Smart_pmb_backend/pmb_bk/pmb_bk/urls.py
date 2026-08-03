@@ -66,7 +66,9 @@ from sysops.views import (
     AuthLogViewSet,
     BackupRecordViewSet,
     ErrorLogViewSet,
+    StripeWebhookView,
     SystemAlertViewSet,
+    SystemChangeRequestViewSet,
     SystemConfigView,
 )
 
@@ -101,6 +103,7 @@ router.register('admin/fuel-records', FuelRecordViewSet, basename='admin-fuel-re
 router.register('admin/maintenance-records', MaintenanceRecordViewSet, basename='admin-maintenance-records')
 router.register('driver/fuel-records', DriverFuelRecordViewSet, basename='driver-fuel-records')
 router.register('driver/maintenance-records', DriverMaintenanceRecordViewSet, basename='driver-maintenance-records')
+router.register('system-requests', SystemChangeRequestViewSet, basename='system-requests')
 
 urlpatterns = [
     path('admin/', admin.site.urls),  # Django's built-in admin site
@@ -118,6 +121,7 @@ urlpatterns = [
     path('api/admin/drivers/', DriverOptionsView.as_view()),
     path('api/admin/warehouse-managers/', WarehouseManagerOptionsView.as_view()),
     path('api/admin/mills/', MillOptionsView.as_view()),
+    path('api/stripe/webhook/', StripeWebhookView.as_view()),
     path('api/messages/', MessageCreateView.as_view()),
     path('api/messages/inbox/', MessageInboxView.as_view()),
     path('api/messages/history/', MessageHistoryView.as_view()),

@@ -32,6 +32,7 @@ export default async function DriverSettingsPage() {
       <NotificationSettings
         notifyMessages={user.notifyMessages}
         notifyHarvestUpdates={user.notifyHarvestUpdates}
+        notifyViaSms={user.notifyViaSms}
       />
       <HelpCenterSettings role="driver" />
       <SupportSettings messagesHref="/driver/messages" />

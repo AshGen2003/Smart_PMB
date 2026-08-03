@@ -2,26 +2,39 @@
 # dashboard/notifications, and the PMB officer/admin-facing management of
 # warehouses, paddy types, and the harvest approval workflow (the core
 # business logic of the whole system lives in OfficerHarvestViewSet below).
+import io
+import secrets
 from datetime import timedelta
 
-from django.db.models import Count, F, Sum
+import qrcode
+from django.conf import settings
+from django.db import transaction
+from django.db.models import Avg, Count, F, Sum
 from django.db.models.functions import TruncWeek
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import Message, User
+from accounts.emails import send_temp_password_email
+from accounts.models import Message, Role, User
 from accounts.permissions import HasAnyPermission, HasPermission
+from accounts.serializers import generate_temp_password
+from accounts.sms import send_sms
 from sysops.models import SystemAlert
+from sysops.serializers import SystemAlertSerializer
 from sysops.utils import log_audit
 
 from .pdf import build_officer_report_pdf
 from .reports import build_officer_report_data
+from .scoring import recalculate_reliability_score
 
 from .models import (
     Delivery,
@@ -64,7 +77,9 @@ from .serializers import (
     TransactionVerificationSerializer,
     TransactionVerificationWriteSerializer,
     VehicleSerializer,
+    WarehouseManagerSelfUpdateSerializer,
     WarehouseSerializer,
+    WarehouseStockAdjustmentSerializer,
     WarehouseWriteSerializer,
 )
 from .models import District
@@ -144,6 +159,7 @@ class FarmerDashboardView(APIView):
                     "province": farmer.province.name if farmer.province else None,
                     "bank_account": farmer.bank_account,
                     "bank_name": farmer.bank_name,
+                    "reliability_score": farmer.reliability_score,
                 },
                 "kpis": {
                     "total_harvests": farmer.harvests.count(),
@@ -273,19 +289,225 @@ class WarehouseViewSet(viewsets.ModelViewSet):
         self._sync_province(warehouse)
         log_audit(self.request.user, "update_warehouse", "farmers", warehouse.name)
 
+    @action(detail=True, methods=["post"], url_path="adjust-stock")
+    def adjust_stock(self, request, pk=None):
+        """
+        Manually adds or removes stock for one paddy type (+ optional
+        grade) at this warehouse — one of two write paths onto
+        Warehouse.current_stock/Inventory besides the automatic
+        harvest-collection and rice-request-fulfillment flows (the other is
+        WarehouseManagerAdjustStockView below, for the warehouse's own
+        manager). Logged as a TransactionLog entry with
+        reason="manual_adjustment", same shape as those two flows (see
+        _log_transaction's docstring).
+        """
+        warehouse = self.get_object()
+        payload = WarehouseStockAdjustmentSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        error = _adjust_warehouse_stock(
+            warehouse, payload.validated_data, request.user, "manual_stock_adjustment"
+        )
+        if error:
+            return Response({"detail": error}, status=400)
+        return Response(WarehouseSerializer(warehouse).data)
+
+    @action(
+        detail=True, methods=["post"], url_path="appoint-manager",
+        permission_classes=[HasPermission("appoint_warehouse_managers")],
+    )
+    def appoint_manager(self, request, pk=None):
+        """
+        Assigns this warehouse's `managed_by` to a warehouse_manager
+        account — either an existing one (pass `user_id`) or a brand new
+        one (pass `email`/`full_name`, created the same way
+        AdminUserWriteSerializer.create makes any other admin-created
+        account: a generated temp password, must_change_password=True,
+        emailed via send_temp_password_email). Enforces "one manager, one
+        warehouse" by clearing `managed_by` on any other warehouse this
+        user previously managed — the model's FK only enforces the
+        opposite direction (one warehouse, one manager).
+        """
+        warehouse = self.get_object()
+        manager_role = Role.objects.filter(slug="warehouse_manager").first()
+        if not manager_role:
+            return Response(
+                {"detail": "The warehouse_manager role is not configured."}, status=500
+            )
+
+        user_id = request.data.get("user_id")
+        if user_id:
+            user = get_object_or_404(User, pk=user_id)
+            if user.role_id != manager_role.id:
+                return Response(
+                    {"detail": "Selected user is not a warehouse manager."}, status=400
+                )
+        else:
+            email = (request.data.get("email") or "").strip()
+            full_name = (request.data.get("full_name") or "").strip()
+            if not email or not full_name:
+                return Response(
+                    {"detail": "Email and full name are required to create a new manager."},
+                    status=400,
+                )
+            if User.objects.filter(email__iexact=email).exists():
+                return Response({"detail": "A user with this email already exists."}, status=400)
+
+            temp_password = generate_temp_password()
+            user = User(email=email, full_name=full_name, role=manager_role)
+            user.set_password(temp_password)
+            user.must_change_password = True
+            user.save()
+            send_temp_password_email(user, temp_password)
+
+        with transaction.atomic():
+            Warehouse.objects.filter(managed_by=user).exclude(pk=warehouse.pk).update(managed_by=None)
+            warehouse.managed_by = user
+            warehouse.save(update_fields=["managed_by"])
+
+        log_audit(
+            request.user, "appoint_warehouse_manager", "farmers",
+            f"{warehouse.name} -> {user.email}",
+        )
+        return Response(WarehouseSerializer(warehouse).data)
+
 
 class WarehouseManagerOptionsView(generics.ListAPIView):
-    """GET /api/admin/warehouse-managers/ — lightweight list of PMB Officer accounts, for the Warehouse form's "managed by" picker."""
+    """GET /api/admin/warehouse-managers/ — lightweight list of PMB Officer and Warehouse Manager accounts, for the Warehouse form's "managed by" picker and the appoint-manager modal's "existing manager" dropdown."""
 
     permission_classes = [HasPermission("manage_warehouses")]
 
     def get_queryset(self):
-        return User.objects.filter(role__slug="pmb_officer").order_by("full_name")
+        return User.objects.filter(role__slug__in=["pmb_officer", "warehouse_manager"]).order_by("full_name")
 
     def list(self, request, *args, **kwargs):
         return Response(
-            [{"id": str(u.id), "name": u.full_name} for u in self.get_queryset()]
+            [
+                {"id": str(u.id), "name": u.full_name, "role": u.role.slug}
+                for u in self.get_queryset()
+            ]
         )
+
+
+class WarehouseManagerDashboardView(APIView):
+    """
+    GET /api/warehouse-manager/dashboard/ — the single warehouse this
+    logged-in warehouse_manager account manages (via Warehouse.managed_by),
+    with its Inventory breakdown, recent TransactionLog entries, and any
+    open capacity SystemAlerts for it. PATCH lets the manager update just
+    their warehouse's `contact_number`/`status` (see
+    WarehouseManagerSelfUpdateSerializer — everything structural stays
+    officer/admin-only). No "manage_warehouses" permission is required for
+    either — access is scoped by identity (only this user's own warehouse
+    is ever returned/editable), same pattern as DriverDashboardView's
+    `driver=request.user` filter.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_own_warehouse(self, request):
+        return Warehouse.objects.select_related("district", "province").filter(
+            managed_by=request.user
+        ).first()
+
+    def _dashboard_payload(self, warehouse):
+        inventory = Inventory.objects.filter(warehouse=warehouse).select_related(
+            "paddy_type", "updated_by"
+        )
+        transactions = TransactionLog.objects.filter(warehouse=warehouse).order_by("-created_at")[:20]
+        # Read-only: alert_type encodes the warehouse id the same way
+        # _raise_high_capacity_alert/farmers.forecasting's predictive
+        # version already do — acknowledging/resolving stays an
+        # officer/admin-only action (SystemAlertViewSet, "manage_system"),
+        # since SystemAlert covers alert types well beyond warehouse
+        # capacity and isn't scoped to be safely self-served here.
+        alerts = SystemAlert.objects.filter(
+            alert_type__in=[
+                f"high_capacity_warehouse_{warehouse.id}",
+                f"predicted_capacity_warehouse_{warehouse.id}",
+            ],
+            status=SystemAlert.Status.OPEN,
+        ).order_by("-created_at")
+
+        return {
+            "warehouse": WarehouseSerializer(warehouse).data,
+            "inventory": InventorySerializer(inventory, many=True).data,
+            "transactions": TransactionLogSerializer(transactions, many=True).data,
+            "alerts": SystemAlertSerializer(alerts, many=True).data,
+        }
+
+    def get(self, request):
+        warehouse = self._get_own_warehouse(request)
+        if not warehouse:
+            return Response(
+                {"detail": "You are not currently assigned to manage a warehouse."}, status=404
+            )
+        return Response(self._dashboard_payload(warehouse))
+
+    def patch(self, request):
+        warehouse = self._get_own_warehouse(request)
+        if not warehouse:
+            return Response(
+                {"detail": "You are not currently assigned to manage a warehouse."}, status=404
+            )
+
+        serializer = WarehouseManagerSelfUpdateSerializer(
+            warehouse, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        log_audit(request.user, "update_warehouse_info", "farmers", warehouse.name)
+        return Response(self._dashboard_payload(warehouse))
+
+
+class WarehouseManagerAdjustStockView(APIView):
+    """
+    POST /api/warehouse-manager/adjust-stock/ — lets a warehouse_manager
+    manually add/remove stock for the single warehouse they manage (via
+    Warehouse.managed_by). Same underlying logic as
+    WarehouseViewSet.adjust_stock (see _adjust_warehouse_stock above),
+    scoped by identity rather than "manage_warehouses" — same access
+    pattern as WarehouseManagerDashboardView.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        warehouse = Warehouse.objects.filter(managed_by=request.user).first()
+        if not warehouse:
+            return Response(
+                {"detail": "You are not currently assigned to manage a warehouse."}, status=404
+            )
+
+        payload = WarehouseStockAdjustmentSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        error = _adjust_warehouse_stock(
+            warehouse, payload.validated_data, request.user, "manager_stock_adjustment"
+        )
+        if error:
+            return Response({"detail": error}, status=400)
+        return Response(WarehouseSerializer(warehouse).data)
+
+
+class WarehouseManagerTransactionsView(APIView):
+    """
+    GET /api/warehouse-manager/transactions/ — the full stock-movement
+    history for the logged-in manager's own warehouse, unlike
+    WarehouseManagerDashboardView's dashboard summary which caps at the 20
+    most recent. Same identity-scoped access pattern as the other
+    warehouse-manager views.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        warehouse = Warehouse.objects.filter(managed_by=request.user).first()
+        if not warehouse:
+            return Response(
+                {"detail": "You are not currently assigned to manage a warehouse."}, status=404
+            )
+
+        transactions = TransactionLog.objects.filter(warehouse=warehouse).order_by("-created_at")[:200]
+        return Response(TransactionLogSerializer(transactions, many=True).data)
 
 
 class InventoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -357,7 +579,7 @@ class PaddyTypeViewSet(viewsets.ModelViewSet):
 
 def _log_transaction(
     warehouse, transaction_type, quantity_change, paddy_type, grade=None,
-    harvest=None, rice_request=None, updated_by=None,
+    harvest=None, rice_request=None, updated_by=None, notes="",
 ):
     """
     Records a TransactionLog entry and updates the matching Inventory line
@@ -366,8 +588,9 @@ def _log_transaction(
     Warehouse.current_stock, which stays the single source of truth for
     the aggregate number and is updated separately by the caller. Called
     from OfficerHarvestViewSet.mark_collected below (positive
-    quantity_change) and purchases.OfficerRiceRequestViewSet.fulfill
-    (negative quantity_change).
+    quantity_change), purchases.OfficerRiceRequestViewSet.fulfill (negative
+    quantity_change), and WarehouseViewSet.adjust_stock above (either sign,
+    the only caller that passes `notes`).
     """
     TransactionLog.objects.create(
         warehouse=warehouse,
@@ -375,7 +598,7 @@ def _log_transaction(
         quantity_change=quantity_change,
         harvest=harvest,
         rice_request=rice_request,
-        notes="",
+        notes=notes,
     )
     inventory, _ = Inventory.objects.get_or_create(
         warehouse=warehouse, paddy_type=paddy_type, grade=grade,
@@ -386,10 +609,12 @@ def _log_transaction(
 
 
 def _notify_farmer(harvest, message):
-    """Creates a Notification the farmer sees on their dashboard — so a status change doesn't only show up if they happen to check back. Skipped if the farmer has turned harvest-update notifications off in Settings."""
-    if not harvest.farmer.notify_harvest_updates:
-        return
-    Notification.objects.create(farmer=harvest.farmer, message=message)
+    """Creates a Notification the farmer sees on their dashboard — so a status change doesn't only show up if they happen to check back. Skipped if the farmer has turned harvest-update notifications off in Settings. Also sends an SMS via Text.lk if the farmer has opted into notify_via_sms."""
+    farmer = harvest.farmer
+    if farmer.notify_harvest_updates:
+        Notification.objects.create(farmer=farmer, message=message)
+    if farmer.notify_via_sms and farmer.contact_number:
+        send_sms(farmer.contact_number, message)
 
 
 def _raise_high_capacity_alert(warehouse, new_stock):
@@ -418,6 +643,58 @@ def _raise_high_capacity_alert(warehouse, new_stock):
     )
 
 
+def _adjust_warehouse_stock(warehouse, data, user, log_action):
+    """
+    Applies a validated WarehouseStockAdjustmentSerializer payload to a
+    warehouse's stock: computes the signed quantity, blocks removing more
+    than what's actually on hand, atomically updates
+    Warehouse.current_stock, writes a TransactionLog entry, raises a
+    capacity alert on add, and audit-logs under `log_action` (kept distinct
+    per caller — WarehouseViewSet.adjust_stock for officer/admin vs.
+    WarehouseManagerAdjustStockView for the warehouse's own manager — so
+    the audit trail shows who actually acted). Returns an error message
+    string if validation fails (caller turns that into a 400), or None on
+    success.
+    """
+    quantity = data["quantity"] if data["direction"] == "add" else -data["quantity"]
+    paddy_type = data["paddy_type"]
+    grade = data.get("grade") or None
+
+    if quantity < 0:
+        inventory = Inventory.objects.filter(
+            warehouse=warehouse, paddy_type=paddy_type, grade=grade
+        ).first()
+        available = inventory.quantity if inventory else 0
+        if available + quantity < 0:
+            return f"Only {available} kg of this paddy type/grade is available to remove."
+        if warehouse.current_stock + quantity < 0:
+            return "Cannot remove more stock than the warehouse currently holds."
+
+    with transaction.atomic():
+        Warehouse.objects.filter(pk=warehouse.pk).update(
+            current_stock=F("current_stock") + quantity
+        )
+        warehouse.refresh_from_db(fields=["current_stock"])
+        _log_transaction(
+            warehouse,
+            TransactionLog.TransactionType.MANUAL_ADJUSTMENT,
+            quantity,
+            paddy_type=paddy_type,
+            grade=grade,
+            updated_by=user,
+            notes=data.get("notes", ""),
+        )
+
+    if quantity > 0:
+        _raise_high_capacity_alert(warehouse, warehouse.current_stock)
+
+    log_audit(
+        user, log_action, "farmers",
+        f"{warehouse.name}: {'+' if quantity >= 0 else ''}{quantity} kg {paddy_type.type_name}",
+    )
+    return None
+
+
 class OfficerHarvestViewSet(viewsets.ModelViewSet):
     """
     PMB officer management of Harvest records: CRUD plus the three
@@ -429,6 +706,8 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
     queryset = Harvest.objects.select_related(
         "farmer", "paddy_type", "warehouse", "processed_by"
     ).order_by("-harvest_date")
+    filter_backends = [OrderingFilter]
+    ordering_fields = ["harvest_date", "farmer__reliability_score"]
 
     def get_permissions(self):
         if self.action in ("list", "retrieve"):
@@ -502,6 +781,7 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
         harvest.status = Harvest.Status.REJECTED
         harvest.processed_by = request.user
         harvest.save(update_fields=["status", "processed_by"])
+        recalculate_reliability_score(harvest.farmer)
         log_audit(request.user, "reject_harvest", "farmers", f"Harvest #{harvest.id}")
         _notify_farmer(
             harvest,
@@ -528,7 +808,11 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
 
         harvest.status = Harvest.Status.COLLECTED
         harvest.processed_by = request.user
-        harvest.save(update_fields=["status", "processed_by"])
+        update_fields = ["status", "processed_by"]
+        if not harvest.lot_code:
+            harvest.lot_code = f"PMB-{harvest.id:06d}-{secrets.token_hex(3).upper()}"
+            update_fields.append("lot_code")
+        harvest.save(update_fields=update_fields)
 
         Payment.objects.filter(harvest=harvest).update(
             status=Payment.Status.COMPLETED, payment_date=timezone.now().date()
@@ -553,6 +837,7 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
                     updated_by=request.user,
                 )
 
+        recalculate_reliability_score(harvest.farmer)
         log_audit(request.user, "collect_harvest", "farmers", f"Harvest #{harvest.id}")
         _notify_farmer(
             harvest,
@@ -579,6 +864,104 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
         verification = serializer.save(harvest=harvest, verified_by=request.user)
         log_audit(request.user, "verify_transaction", "farmers", f"Harvest #{harvest.id}")
         return Response(TransactionVerificationSerializer(verification).data, status=201)
+
+
+class PublicHarvestTraceView(APIView):
+    """
+    Public (no auth) farm-to-warehouse traceability lookup by lot_code —
+    proof a collected lot passed through real, quality-checked, verified
+    channels. Only farmer registration_no + district are exposed, never
+    name/NIC/contact/bank details (see this feature's privacy scope).
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, lot_code):
+        harvest = get_object_or_404(
+            Harvest.objects.select_related("farmer", "farmer__district", "paddy_type", "warehouse", "warehouse__district"),
+            lot_code=lot_code,
+        )
+        farmer = harvest.farmer
+        warehouse = harvest.warehouse
+        return Response(
+            {
+                "lot_code": harvest.lot_code,
+                "paddy_type": harvest.paddy_type.type_name if harvest.paddy_type else None,
+                "variety": harvest.paddy_type.variety if harvest.paddy_type else None,
+                "quantity_kg": harvest.quantity_kg,
+                "grade": harvest.grade,
+                "quality_check": harvest.quality_check,
+                "harvest_date": harvest.harvest_date,
+                "purchase_date": harvest.purchase_date,
+                "status": harvest.status,
+                "warehouse_name": warehouse.name if warehouse else None,
+                "warehouse_district": warehouse.district.name if warehouse and warehouse.district else None,
+                "farmer_registration_no": farmer.registration_no,
+                "farmer_district": farmer.district.name if farmer.district else None,
+            }
+        )
+
+
+class PublicHarvestTraceQrView(APIView):
+    """Generates a QR PNG (on the fly, never stored) encoding the public trace page's URL for this lot."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, lot_code):
+        get_object_or_404(Harvest, lot_code=lot_code)
+        img = qrcode.make(f"{settings.FRONTEND_URL}/trace/{lot_code}")
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        return HttpResponse(buffer.getvalue(), content_type="image/png")
+
+
+@method_decorator(cache_page(60 * 15), name="get")
+class PublicTransparencyStatsView(APIView):
+    """
+    Public (no auth) aggregate-only stats for the /transparency page: total
+    volume purchased, guaranteed price trend, and warehouse/district/farmer
+    counts. Never exposes any per-farmer or per-harvest data. Cached for 15
+    minutes since it's unauthenticated and cheap to serve slightly stale.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        current_year = timezone.now().year
+        total_purchased_kg = Harvest.objects.filter(
+            status=Harvest.Status.COLLECTED, harvest_date__year=current_year
+        ).aggregate(total=Sum("quantity_kg"))["total"] or 0
+
+        since = timezone.now().date() - timedelta(days=365)
+        price_by_paddy_type = []
+        for paddy_type in PaddyType.objects.filter(is_active=True):
+            avg_price = paddy_type.price_records.filter(
+                effective_date__gte=since
+            ).aggregate(avg=Avg("guaranteed_price"))["avg"]
+            price_by_paddy_type.append(
+                {
+                    "paddy_type": paddy_type.type_name,
+                    "average_price": float(avg_price) if avg_price is not None else float(paddy_type.guaranteed_price),
+                    "current_price": float(paddy_type.guaranteed_price),
+                }
+            )
+
+        active_warehouses = Warehouse.objects.filter(status=Warehouse.Status.ACTIVE)
+        district_count = District.objects.filter(warehouses__in=active_warehouses).distinct().count()
+
+        return Response(
+            {
+                "year": current_year,
+                "total_purchased_kg": float(total_purchased_kg),
+                "monthly_volume": _harvest_trend(
+                    Harvest.objects.filter(status=Harvest.Status.COLLECTED), weeks=12
+                ),
+                "price_by_paddy_type": price_by_paddy_type,
+                "active_warehouse_count": active_warehouses.count(),
+                "district_count": district_count,
+                "registered_farmer_count": Farmer.objects.count(),
+            }
+        )
 
 
 class OfficerDashboardView(APIView):

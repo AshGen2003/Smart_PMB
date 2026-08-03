@@ -50,6 +50,7 @@ export default async function PartnerSettingsPage() {
       <NotificationSettings
         notifyMessages={user.notifyMessages}
         notifyHarvestUpdates={user.notifyHarvestUpdates}
+        notifyViaSms={user.notifyViaSms}
       />
       <HelpCenterSettings role="partner" />
       <SupportSettings messagesHref="/partner/messages" />

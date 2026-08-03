@@ -41,6 +41,7 @@ import {
   BadgeCheck,
   FileCheck,
   Package,
+  Receipt,
 } from "lucide-react";
 
 // Full set of possible sidebar links. `permission` gates a link behind a
@@ -87,14 +88,54 @@ const NAV_ITEMS = [
     permissions: ["monitor_operations", "record_purchases"],
   },
   { label: "Reports", href: "/reports", icon: BarChart3, permission: "generate_reports" },
+  {
+    label: "System Requests",
+    href: "/system-requests",
+    icon: Receipt,
+    permission: "manage_system_requests",
+  },
+  {
+    label: "My Requests",
+    href: "/system-requests/mine",
+    icon: Receipt,
+    permission: "request_system_changes",
+  },
   { label: "Roles", href: "/roles", icon: ShieldCheck, permission: "manage_roles" },
   { label: "Preview Portal", href: "/preview", icon: Eye, permission: "manage_roles" },
   { label: "Messages", href: "/messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", href: "/settings", icon: Settings, permission: "view_settings" },
 ] as const;
 
+/**
+ * hrefs that should show a small red dot on their nav icon when the
+ * matching count is positive — Messages (unread count) and the two
+ * System Requests entries (admin's pending queue / officer's
+ * payment-pending requests, see (admin)/layout.tsx for how each count is
+ * computed). A dot is a presence signal only (no number), so both
+ * "System Requests" and "My Requests" key off the same count — a given
+ * user only ever sees one of the two links anyway (see each item's
+ * `permission` above).
+ */
+function dotHrefs(unreadMessageCount: number, pendingRequestCount: number): Set<string> {
+  const hrefs = new Set<string>();
+  if (unreadMessageCount > 0) hrefs.add("/messages");
+  if (pendingRequestCount > 0) {
+    hrefs.add("/system-requests");
+    hrefs.add("/system-requests/mine");
+  }
+  return hrefs;
+}
+
 /** Renders the logo, collapse toggle, and the nav links visible to the current user's permission set, highlighting the active route. */
-export default function Sidebar({ permissions }: { permissions: string[] }) {
+export default function Sidebar({
+  permissions,
+  unreadMessageCount = 0,
+  pendingRequestCount = 0,
+}: {
+  permissions: string[];
+  unreadMessageCount?: number;
+  pendingRequestCount?: number;
+}) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
 
@@ -104,6 +145,8 @@ export default function Sidebar({ permissions }: { permissions: string[] }) {
     if ("permission" in item) return permissions.includes(item.permission);
     return true;
   });
+
+  const dots = dotHrefs(unreadMessageCount, pendingRequestCount);
 
   return (
     <aside
@@ -143,7 +186,10 @@ export default function Sidebar({ permissions }: { permissions: string[] }) {
               )}
               onClick={closeMobileSidebar}
             >
-              <Icon className={styles.navIcon} size={20} />
+              <span className={styles.navIconWrap}>
+                <Icon className={styles.navIcon} size={20} />
+                {dots.has(item.href) && <span className={styles.navDot} aria-hidden="true" />}
+              </span>
               <span className={styles.navLabel}>{item.label}</span>
             </Link>
           );
@@ -160,7 +206,9 @@ export default function Sidebar({ permissions }: { permissions: string[] }) {
             )}
             onClick={closeMobileSidebar}
           >
-            <User className={styles.navIcon} size={20} />
+            <span className={styles.navIconWrap}>
+              <User className={styles.navIcon} size={20} />
+            </span>
             <span className={styles.navLabel}>Profile</span>
           </Link>
         )}

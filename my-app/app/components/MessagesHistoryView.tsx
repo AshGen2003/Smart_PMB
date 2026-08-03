@@ -13,6 +13,7 @@ import clsx from "clsx";
 import { Loader2, Send } from "lucide-react";
 import StyledSelect from "./StyledSelect";
 import { SkeletonRows } from "./Skeleton";
+import { useLanguage } from "./LanguageProvider";
 import styles from "./MessagesHistoryView.module.css";
 
 export type MessageRow = {
@@ -65,6 +66,7 @@ export default function MessagesHistoryView({
   initialMessages: MessageRow[];
   initialHasMore: boolean;
 }) {
+  const { t } = useLanguage();
   const [filter, setFilter] = useState<Filter>("all");
   const [messages, setMessages] = useState(initialMessages);
   const [page, setPage] = useState(1);
@@ -92,7 +94,7 @@ export default function MessagesHistoryView({
       setPage(1);
       setHasMore(data.next !== null);
     } catch {
-      setLoadError("Failed to load messages.");
+      setLoadError(t.messagesHistory.failedToLoad);
     } finally {
       setSwitching(false);
     }
@@ -107,7 +109,7 @@ export default function MessagesHistoryView({
       setPage((p) => p + 1);
       setHasMore(data.next !== null);
     } catch {
-      setLoadError("Failed to load more messages.");
+      setLoadError(t.messagesHistory.failedToLoadMore);
     } finally {
       setLoadingMore(false);
     }
@@ -133,7 +135,7 @@ export default function MessagesHistoryView({
     const trimmed = body.trim();
     if (!trimmed) return;
     if (!isFarmer && !recipientId) {
-      setSendError("Choose who to send this to.");
+      setSendError(t.messagesHistory.chooseRecipient);
       return;
     }
 
@@ -152,14 +154,14 @@ export default function MessagesHistoryView({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setSendError(data.body?.[0] || data.recipient?.[0] || data.detail || "Failed to send.");
+        setSendError(data.body?.[0] || data.recipient?.[0] || data.detail || t.messagesHistory.failedToSend);
         return;
       }
       setBody("");
       setRecipientId("");
       setSendSuccess(true);
     } catch {
-      setSendError("Failed to send. Check your connection.");
+      setSendError(t.messagesHistory.failedConnection);
     } finally {
       setSending(false);
     }
@@ -171,30 +173,28 @@ export default function MessagesHistoryView({
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <div>
-          <h1 className={styles.pageTitle}>Messages</h1>
+          <h1 className={styles.pageTitle}>{t.messagesHistory.title}</h1>
           <p className={styles.pageSubtitle}>
-            {isFarmer
-              ? "Requests you've sent to the admin team, and their replies."
-              : "Requests from users, direct messages, and your own replies."}
+            {isFarmer ? t.messagesHistory.subtitleFarmer : t.messagesHistory.subtitleStaff}
           </p>
         </div>
       </div>
 
       <div className={styles.composeCard}>
         <p className={styles.composeLabel}>
-          {isFarmer ? "Send a request to" : "Message a user"}
+          {isFarmer ? t.messagesHistory.composeLabelFarmer : t.messagesHistory.composeLabelStaff}
         </p>
 
         {sendError && <div className={styles.banner}>{sendError}</div>}
-        {sendSuccess && <div className={styles.bannerSuccess}>Sent.</div>}
+        {sendSuccess && <div className={styles.bannerSuccess}>{t.messagesHistory.sent}</div>}
 
         {isFarmer ? (
           <StyledSelect
             value={targetRole}
             onChange={(v) => setTargetRole(v as "admin" | "pmb_officer")}
             options={[
-              { value: "admin", label: "Admin" },
-              { value: "pmb_officer", label: "PMB Officer" },
+              { value: "admin", label: t.messagesHistory.roleAdmin },
+              { value: "pmb_officer", label: t.messagesHistory.roleOfficer },
             ]}
           />
         ) : (
@@ -202,14 +202,14 @@ export default function MessagesHistoryView({
             value={recipientId}
             onFocus={loadRecipientsIfNeeded}
             onChange={setRecipientId}
-            placeholder="Select a user…"
+            placeholder={t.messagesHistory.selectUserPlaceholder}
             options={(recipients ?? []).map((r) => ({ value: r.id, label: `${r.full_name} (${r.role_name})` }))}
           />
         )}
 
         <textarea
           className={styles.composeInput}
-          placeholder={isFarmer ? "Describe what you need help with…" : "Write a message…"}
+          placeholder={isFarmer ? t.messagesHistory.bodyPlaceholderFarmer : t.messagesHistory.bodyPlaceholderStaff}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={3}
@@ -222,7 +222,7 @@ export default function MessagesHistoryView({
           onClick={handleSend}
         >
           {sending ? <Loader2 size={14} className={styles.spin} /> : <Send size={14} />}
-          {sending ? "Sending…" : "Send"}
+          {sending ? t.messagesHistory.sending : t.messagesHistory.send}
         </button>
       </div>
 
@@ -233,14 +233,14 @@ export default function MessagesHistoryView({
             className={clsx(styles.tab, filter === "all" && styles.tabActive)}
             onClick={() => handleFilterChange("all")}
           >
-            All
+            {t.messagesHistory.allTab}
           </button>
           <button
             type="button"
             className={clsx(styles.tab, filter === "unread" && styles.tabActive)}
             onClick={() => handleFilterChange("unread")}
           >
-            Unread
+            {t.messagesHistory.unreadTab}
             {unreadCount > 0 && <span className={styles.tabCount}>{unreadCount}</span>}
           </button>
         </div>
@@ -251,7 +251,7 @@ export default function MessagesHistoryView({
           <SkeletonRows count={5} />
         ) : messages.length === 0 ? (
           <p className={styles.emptyState}>
-            {filter === "unread" ? "No unread messages." : "No messages yet."}
+            {filter === "unread" ? t.messagesHistory.noUnread : t.messagesHistory.noMessages}
           </p>
         ) : (
           <div className={styles.list}>
@@ -259,11 +259,11 @@ export default function MessagesHistoryView({
               <div key={m.id} className={clsx(styles.messageRow, !m.is_read && styles.messageUnread)}>
                 <div className={styles.messageMeta}>
                   <span className={styles.messageSender}>
-                    {m.sender_name || "Unknown"}
+                    {m.sender_name || t.messagesHistory.unknownSender}
                     {m.sender_role && <span className={styles.messageSenderRole}> · {m.sender_role}</span>}
                     {m.recipient === null && (
                       <span className={styles.requestBadge}>
-                        Request → {m.target_role_label ?? "Admin"}
+                        {t.messagesHistory.requestTo} {m.target_role_label ?? t.messagesHistory.roleAdmin}
                       </span>
                     )}
                   </span>
@@ -272,7 +272,7 @@ export default function MessagesHistoryView({
                 <p className={styles.messageBody}>{m.body}</p>
                 {!m.is_read && (
                   <button type="button" className={styles.markReadBtn} onClick={() => markRead(m.id)}>
-                    Mark read
+                    {t.messagesHistory.markRead}
                   </button>
                 )}
               </div>
@@ -283,7 +283,7 @@ export default function MessagesHistoryView({
         {hasMore && !switching && (
           <button type="button" className={styles.loadMoreBtn} disabled={loadingMore} onClick={loadMore}>
             {loadingMore && <Loader2 size={14} className={styles.spin} />}
-            {loadingMore ? "Loading…" : "Load more"}
+            {loadingMore ? t.messagesHistory.loading : t.messagesHistory.loadMore}
           </button>
         )}
       </div>

@@ -39,6 +39,7 @@ export default async function UsersPage() {
       districts={districts}
       currentUserId={currentUser.id}
       canManageSystem={currentUser.permissions.includes("manage_system")}
+      canImpersonate={currentUser.permissions.includes("impersonate_users")}
     />
   );
 }

@@ -35,6 +35,7 @@ export default async function DriverLayout({
       profilePictureUrl={user.profilePictureUrl}
       notifyMessages={user.notifyMessages}
       previewing={user.previewing}
+      impersonating={user.impersonating}
     >
       {children}
     </DriverShell>

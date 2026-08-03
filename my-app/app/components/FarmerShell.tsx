@@ -17,6 +17,7 @@ import FarmerSidebar from "./FarmerSidebar";
 import Header from "./Header";
 import IdleRefreshGuard from "./IdleRefreshGuard";
 import PreviewBanner from "./PreviewBanner";
+import ImpersonationBanner from "./ImpersonationBanner";
 import styles from "./DashboardShell.module.css";
 import clsx from "clsx";
 
@@ -27,6 +28,7 @@ interface FarmerShellProps {
   profilePictureUrl?: string | null;
   notifyMessages?: boolean;
   previewing?: { slug: string; name: string };
+  impersonating?: { email: string };
 }
 
 /**
@@ -40,6 +42,7 @@ function LayoutWrapper({
   permissions,
   notifyMessages,
   previewing,
+  impersonating,
 }: Omit<FarmerShellProps, "userName" | "profilePictureUrl">) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
@@ -57,6 +60,7 @@ function LayoutWrapper({
       </div>
       <div className={styles.mainWrapper}>
         {previewing && <PreviewBanner roleName={previewing.name} />}
+        {impersonating && <ImpersonationBanner adminEmail={impersonating.email} />}
         <div className={styles.headerArea}>
           <Header
             messagesHref="/farmer/messages"
@@ -77,10 +81,16 @@ export default function FarmerShell({
   permissions,
   notifyMessages,
   previewing,
+  impersonating,
 }: FarmerShellProps) {
   return (
     <LayoutProvider>
-      <LayoutWrapper permissions={permissions} notifyMessages={notifyMessages} previewing={previewing}>
+      <LayoutWrapper
+        permissions={permissions}
+        notifyMessages={notifyMessages}
+        previewing={previewing}
+        impersonating={impersonating}
+      >
         {children}
       </LayoutWrapper>
     </LayoutProvider>

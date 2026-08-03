@@ -115,6 +115,34 @@
   color: var(--danger);
 }
 
+.successBanner {
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  background-color: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+}
+
+.warningBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  margin-top: 0.75rem;
+  background-color: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--foreground);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.warningBox svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--accent);
+}
+
 .emptyState {
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -511,6 +539,29 @@
 }
 
 .primaryBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.dangerBtn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--danger);
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dangerBtn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.dangerBtn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }

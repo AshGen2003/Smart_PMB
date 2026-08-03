@@ -42,6 +42,7 @@ export default async function FarmerSettingsPage() {
       <NotificationSettings
         notifyMessages={user.notifyMessages}
         notifyHarvestUpdates={user.notifyHarvestUpdates}
+        notifyViaSms={user.notifyViaSms}
       />
       <HelpCenterSettings role="farmer" />
       <SupportSettings messagesHref="/farmer/messages" />

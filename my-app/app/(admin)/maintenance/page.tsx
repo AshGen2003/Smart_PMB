@@ -47,6 +47,9 @@ export default async function MaintenancePage() {
         login_lockout_threshold: 5,
         login_lockout_minutes: 15,
         maintenance_mode: false,
+        payments_enabled: true,
+        sms_enabled: true,
+        signups_enabled: true,
       };
 
   return (

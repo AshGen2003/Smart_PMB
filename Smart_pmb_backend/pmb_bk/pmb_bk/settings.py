@@ -76,6 +76,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # serves static files directly — must stay right after SecurityMiddleware
     'corsheaders.middleware.CorsMiddleware',
+    'sysops.middleware.MaintenanceModeMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -273,6 +274,13 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@smartpmb.loc
 TEXTLK_API_TOKEN = config('TEXTLK_API_TOKEN', default='')
 TEXTLK_SENDER_ID = config('TEXTLK_SENDER_ID', default='')
 TEXTLK_API_URL = config('TEXTLK_API_URL', default='https://app.text.lk/api/v3/sms/send')
+
+# Stripe (test mode) — powers the system-change-request payment flow
+# (sysops.views.SystemChangeRequestViewSet.accept/StripeWebhookView). Left
+# blank, accept() fails with a clear error instead of silently no-oping, so
+# a missing key is caught immediately rather than discovered at payment time.
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 
 # Secret used to sign/verify JWTs; kept separate from SECRET_KEY so it can
 # be rotated independently without invalidating Django's other signed data

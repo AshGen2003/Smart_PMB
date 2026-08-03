@@ -17,6 +17,7 @@ import WarehouseDetailModal, {
   type InventoryLine,
   type TransactionLogEntry,
 } from "./WarehouseDetailModal";
+import type { PaddyTypeOption } from "./WarehouseStockAdjustModal";
 import styles from "./Warehouses.module.css";
 
 /** Shape of a warehouse row as returned by `GET /api/admin/warehouses/`. */
@@ -36,9 +37,11 @@ export type WarehouseRow = {
   location: string;
   managed_by: string | null;
   managed_by_name: string | null;
+  utilization_pct: number;
+  remaining_capacity: string;
 };
 
-export type OfficerOption = { id: string; name: string };
+export type OfficerOption = { id: string; name: string; role: "pmb_officer" | "warehouse_manager" };
 
 const STATUS_LABEL: Record<WarehouseRow["status"], string> = {
   active: "Active",
@@ -61,6 +64,8 @@ export default function WarehousesManager({
   officers,
   inventory,
   transactions,
+  paddyTypes,
+  permissions,
   canWrite = true,
 }: {
   warehouses: WarehouseRow[];
@@ -68,6 +73,8 @@ export default function WarehousesManager({
   officers: OfficerOption[];
   inventory: InventoryLine[];
   transactions: TransactionLogEntry[];
+  paddyTypes: PaddyTypeOption[];
+  permissions: string[];
   // False for viewers who can only see warehouses (Portal Preview, or a
   // future read-only role) — hides the create/edit/delete affordances.
   canWrite?: boolean;
@@ -250,9 +257,13 @@ export default function WarehousesManager({
 
       {detailWarehouse && (
         <WarehouseDetailModal
-          warehouseName={detailWarehouse.name}
+          warehouse={detailWarehouse}
           inventory={inventory.filter((i) => i.warehouse === detailWarehouse.id)}
           transactions={transactions.filter((t) => t.warehouse === detailWarehouse.id)}
+          paddyTypes={paddyTypes}
+          managers={officers.filter((o) => o.role === "warehouse_manager")}
+          permissions={permissions}
+          canWrite={canWrite}
           onClose={() => setDetailWarehouse(null)}
         />
       )}

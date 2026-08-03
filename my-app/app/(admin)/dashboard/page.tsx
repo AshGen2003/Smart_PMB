@@ -44,7 +44,7 @@ export default async function DashboardPage() {
   // the previewing), so only the officer sample dashboard is needed here.
   if (user.previewing) {
     return showOfficerPanel ? (
-      <OfficerDashboardPanel data={PREVIEW_OFFICER_DASHBOARD} />
+      <OfficerDashboardPanel data={PREVIEW_OFFICER_DASHBOARD} enabledWidgets={user.dashboardWidgets} />
     ) : (
       <GenericDashboard />
     );
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
       {overviewData && <AdminOverviewPanel data={overviewData} />}
-      {officerData && <OfficerDashboardPanel data={officerData} />}
+      {officerData && <OfficerDashboardPanel data={officerData} enabledWidgets={user.dashboardWidgets} />}
     </div>
   );
 }

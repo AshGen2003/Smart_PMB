@@ -36,6 +36,7 @@ export default async function SettingsPage() {
       <NotificationSettings
         notifyMessages={user.notifyMessages}
         notifyHarvestUpdates={user.notifyHarvestUpdates}
+        notifyViaSms={user.notifyViaSms}
       />
       <HelpCenterSettings role="admin" />
       <SupportSettings messagesHref="/messages" />

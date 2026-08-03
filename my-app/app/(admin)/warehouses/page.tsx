@@ -10,10 +10,15 @@
  */
 import { requirePermission } from "@/app/lib/dal";
 import { apiFetch, apiFetchCached } from "@/app/lib/api";
-import { PREVIEW_DISTRICTS, PREVIEW_WAREHOUSES } from "@/app/lib/previewSampleData";
+import {
+  PREVIEW_DISTRICTS,
+  PREVIEW_PADDY_TYPE_OPTIONS,
+  PREVIEW_WAREHOUSES,
+} from "@/app/lib/previewSampleData";
 import WarehousesManager, { type OfficerOption, type WarehouseRow } from "./WarehousesManager";
 import type { DistrictOption } from "./WarehouseFormModal";
 import type { InventoryLine, TransactionLogEntry } from "./WarehouseDetailModal";
+import type { PaddyTypeOption } from "./WarehouseStockAdjustModal";
 
 /** Server Component: gates access, fetches warehouses, the district/officer lists (for the create/edit form's pickers), and the inventory/transaction-log detail data. */
 export default async function WarehousesPage() {
@@ -33,28 +38,33 @@ export default async function WarehousesPage() {
         officers={[]}
         inventory={[]}
         transactions={[]}
+        paddyTypes={PREVIEW_PADDY_TYPE_OPTIONS}
+        permissions={user.permissions}
         canWrite={false}
       />
     );
   }
 
   // Warehouses are also reused as reference data on /approvals and
-  // /transportation; districts are static seed data with no admin-editable
-  // UI at all — see apiFetchCached's docstring. revalidateTag("warehouses")
+  // /transportation; districts/paddy-types are largely static reference
+  // data — see apiFetchCached's docstring. revalidateTag("warehouses")
   // in actions/warehouses.ts keeps the warehouse list fresh on mutation.
-  const [warehousesRes, districtsRes, officersRes, inventoryRes, transactionsRes] = await Promise.all([
-    apiFetchCached("/api/admin/warehouses/", 300, ["warehouses"]),
-    apiFetchCached("/api/districts/", 3600, ["districts"]),
-    apiFetch("/api/admin/warehouse-managers/"),
-    apiFetch("/api/admin/inventory/"),
-    apiFetch("/api/admin/transaction-log/"),
-  ]);
+  const [warehousesRes, districtsRes, officersRes, inventoryRes, transactionsRes, paddyTypesRes] =
+    await Promise.all([
+      apiFetchCached("/api/admin/warehouses/", 300, ["warehouses"]),
+      apiFetchCached("/api/districts/", 3600, ["districts"]),
+      apiFetch("/api/admin/warehouse-managers/"),
+      apiFetch("/api/admin/inventory/"),
+      apiFetch("/api/admin/transaction-log/"),
+      apiFetchCached("/api/admin/paddy-types/", 300, ["paddy-types"]),
+    ]);
 
   const warehouses = warehousesRes.ok ? ((await warehousesRes.json()) as WarehouseRow[]) : [];
   const districts = districtsRes.ok ? ((await districtsRes.json()) as DistrictOption[]) : [];
   const officers = officersRes.ok ? ((await officersRes.json()) as OfficerOption[]) : [];
   const inventory = inventoryRes.ok ? ((await inventoryRes.json()) as InventoryLine[]) : [];
   const transactions = transactionsRes.ok ? ((await transactionsRes.json()) as TransactionLogEntry[]) : [];
+  const paddyTypes = paddyTypesRes.ok ? ((await paddyTypesRes.json()) as PaddyTypeOption[]) : [];
 
   return (
     <WarehousesManager
@@ -63,6 +73,8 @@ export default async function WarehousesPage() {
       officers={officers}
       inventory={inventory}
       transactions={transactions}
+      paddyTypes={paddyTypes}
+      permissions={user.permissions}
       canWrite={canWrite}
     />
   );

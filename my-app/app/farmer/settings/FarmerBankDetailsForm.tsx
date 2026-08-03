@@ -10,6 +10,7 @@ import React, { useActionState } from "react";
 import { Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { updateBankDetails, type BankDetailsFormState } from "@/app/actions/farmer";
+import { useLanguage } from "@/app/components/LanguageProvider";
 import styles from "@/app/components/SettingsSections.module.css";
 
 const initialState: BankDetailsFormState = {};
@@ -21,21 +22,20 @@ export default function FarmerBankDetailsForm({
   bankAccount: string;
   bankName: string;
 }) {
+  const { t } = useLanguage();
   const [state, formAction, pending] = useActionState(updateBankDetails, initialState);
 
   return (
     <div className={styles.card}>
-      <h2 className={styles.cardTitle}>Bank details</h2>
-      <p className={styles.cardSubtitle}>
-        Where your harvest payments are sent. Only you can see this.
-      </p>
+      <h2 className={styles.cardTitle}>{t.settingsBankDetails.title}</h2>
+      <p className={styles.cardSubtitle}>{t.settingsBankDetails.subtitle}</p>
 
       {state.error && <div className={clsx(styles.banner, styles.bannerError)}>{state.error}</div>}
 
       <form action={formAction} noValidate>
         <div className={styles.row2}>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="bank_name">Bank name</label>
+            <label className={styles.label} htmlFor="bank_name">{t.settingsBankDetails.bankName}</label>
             <input
               id="bank_name"
               name="bank_name"
@@ -45,7 +45,7 @@ export default function FarmerBankDetailsForm({
             />
           </div>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="bank_account">Account number</label>
+            <label className={styles.label} htmlFor="bank_account">{t.settingsBankDetails.accountNumber}</label>
             <input
               id="bank_account"
               name="bank_account"
@@ -58,7 +58,7 @@ export default function FarmerBankDetailsForm({
 
         <button type="submit" className={styles.submitBtn} disabled={pending}>
           {pending && <Loader2 size={16} className={styles.spin} />}
-          {pending ? "Saving…" : "Save bank details"}
+          {pending ? t.settingsBankDetails.saving : t.settingsBankDetails.save}
         </button>
       </form>
     </div>

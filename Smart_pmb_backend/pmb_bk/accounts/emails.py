@@ -70,6 +70,28 @@ def send_temp_password_email(user, temp_password):
     )
 
 
+def send_impersonation_notice_email(user, admin_email):
+    """
+    Emails an account holder that an admin signed in as their real account
+    (see accounts/views.py's AdminUserViewSet.impersonate) — a transparency
+    notice, not something they can act on or opt out of, since impersonation
+    itself is already permission-gated and audit-logged on the admin side.
+    """
+    send_mail(
+        subject="An administrator accessed your Smart PMB account",
+        message=(
+            f"Hi {user.full_name or user.email},\n\n"
+            f"An administrator ({admin_email}) signed in as your Smart PMB "
+            "account for support or troubleshooting purposes just now.\n\n"
+            "This is a routine notice — you don't need to do anything. If "
+            "this seems unexpected, contact the PMB office."
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
 def send_license_decision_email(application):
     """Emails the applicant once an officer/admin approves or rejects their licensing application."""
     user = application.user

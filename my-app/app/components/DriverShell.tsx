@@ -14,6 +14,7 @@ import DriverSidebar from "./DriverSidebar";
 import Header from "./Header";
 import IdleRefreshGuard from "./IdleRefreshGuard";
 import PreviewBanner from "./PreviewBanner";
+import ImpersonationBanner from "./ImpersonationBanner";
 import styles from "./DashboardShell.module.css";
 import clsx from "clsx";
 
@@ -24,6 +25,7 @@ interface DriverShellProps {
   profilePictureUrl?: string | null;
   notifyMessages?: boolean;
   previewing?: { slug: string; name: string };
+  impersonating?: { email: string };
 }
 
 /**
@@ -37,6 +39,7 @@ function LayoutWrapper({
   permissions,
   notifyMessages,
   previewing,
+  impersonating,
 }: Omit<DriverShellProps, "userName" | "profilePictureUrl">) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
@@ -54,6 +57,7 @@ function LayoutWrapper({
       </div>
       <div className={styles.mainWrapper}>
         {previewing && <PreviewBanner roleName={previewing.name} />}
+        {impersonating && <ImpersonationBanner adminEmail={impersonating.email} />}
         <div className={styles.headerArea}>
           <Header
             messagesHref="/driver/messages"
@@ -74,10 +78,16 @@ export default function DriverShell({
   permissions,
   notifyMessages,
   previewing,
+  impersonating,
 }: DriverShellProps) {
   return (
     <LayoutProvider>
-      <LayoutWrapper permissions={permissions} notifyMessages={notifyMessages} previewing={previewing}>
+      <LayoutWrapper
+        permissions={permissions}
+        notifyMessages={notifyMessages}
+        previewing={previewing}
+        impersonating={impersonating}
+      >
         {children}
       </LayoutWrapper>
     </LayoutProvider>

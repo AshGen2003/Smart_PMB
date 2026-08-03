@@ -20,7 +20,7 @@ export type DistrictOption = {
   province: { name: string } | null;
 };
 
-export type OfficerOption = { id: string; name: string };
+export type OfficerOption = { id: string; name: string; role: "pmb_officer" | "warehouse_manager" };
 
 /** Subset of warehouse fields needed to pre-fill the form when editing. */
 export type EditableWarehouse = {
@@ -199,8 +199,11 @@ export default function WarehouseFormModal({
                 id="managed_by"
                 name="managed_by"
                 defaultValue={warehouse?.managed_by ?? ""}
-                placeholder="Select a PMB officer"
-                options={officers.map((o) => ({ value: o.id, label: o.name }))}
+                placeholder="Select an officer or warehouse manager"
+                options={officers.map((o) => ({
+                  value: o.id,
+                  label: `${o.name} (${o.role === "warehouse_manager" ? "Warehouse Manager" : "PMB Officer"})`,
+                }))}
               />
             </div>
 

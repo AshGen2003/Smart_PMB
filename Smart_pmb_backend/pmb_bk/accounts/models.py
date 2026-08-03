@@ -12,6 +12,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
 
+from .constants import default_officer_dashboard_widgets
 from .managers import UserManager
 
 # A user counts as "online" if their last_activity falls within this many
@@ -51,12 +52,26 @@ class Role(models.Model):
     # slug stable regardless of later renames avoids breaking those checks.
     slug = models.SlugField(max_length=100, unique=True)
     description = models.TextField(blank=True)
-    # Blocks deletion only (see accounts/views.py RoleViewSet) — never blocks
-    # renaming or permission changes.
+    # Flags a built-in, seed-data role (Admin/PMB Officer/Farmer/Driver/
+    # etc.) purely for the frontend's extra confirmation warning before
+    # deleting one (see RolesManager.tsx) — several code paths look roles
+    # up by slug (farmer self-registration, license approval, warehouse-
+    # manager appointment), so deleting one of these, even with zero users
+    # currently assigned, can break a feature elsewhere. Never blocks
+    # renaming, permission changes, or (as of the confirmation-dialog
+    # change) deletion itself — RoleViewSet.destroy only still refuses
+    # when the role has users assigned (User.role is a required FK).
     is_system = models.BooleanField(default=False)
     permissions = models.ManyToManyField(
         Permission, through="RolePermission", blank=True, related_name="roles"
     )
+    # Which of OfficerDashboardPanel.tsx's fixed widget catalog (see
+    # constants.py) this role's dashboard shows — lets an admin tailor the
+    # officer dashboard per role from /roles without touching frontend code.
+    # Defaults to every widget enabled so a newly created role looks
+    # identical to today's fixed dashboard until an admin deliberately
+    # edits it.
+    dashboard_widgets = models.JSONField(default=default_officer_dashboard_widgets, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

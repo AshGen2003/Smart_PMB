@@ -173,6 +173,7 @@ export default function LandingPage() {
               <a href="#about">{t.footer.about}</a>
               <a href="#features">{t.footer.features}</a>
               <a href="#get-started">{t.footer.getStarted}</a>
+              <Link href="/transparency">{t.footer.transparency}</Link>
             </div>
             <div className={styles.footerLinkGroup}>
               <h4>{t.footer.accessHeading}</h4>

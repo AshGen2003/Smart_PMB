@@ -7,6 +7,8 @@ import logging
 import requests
 from django.conf import settings
 
+from sysops.utils import get_config_value
+
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT_SECONDS = 10
@@ -24,9 +26,13 @@ def _to_international(phone_number: str) -> str:
     return digits
 
 
-def send_otp_sms(phone_number: str, code: str) -> None:
+def send_sms(phone_number: str, message: str) -> None:
+    """Sends a plain-text SMS via Text.lk, or logs it if no gateway token is configured."""
+    if not get_config_value("sms_enabled"):
+        logger.info("[SMS SKIPPED — sms_enabled is off] Would send to %s: %s", phone_number, message)
+        return
     if not settings.TEXTLK_API_TOKEN:
-        logger.info("[SMS STUB] Would send OTP %s to %s", code, phone_number)
+        logger.info("[SMS STUB] Would send to %s: %s", phone_number, message)
         return
 
     try:
@@ -40,7 +46,7 @@ def send_otp_sms(phone_number: str, code: str) -> None:
                 "recipient": _to_international(phone_number),
                 "sender_id": settings.TEXTLK_SENDER_ID,
                 "type": "plain",
-                "message": f"Your Smart PMB password reset code is {code}. It expires in 10 minutes.",
+                "message": message,
             },
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
@@ -50,11 +56,17 @@ def send_otp_sms(phone_number: str, code: str) -> None:
         body = response.json()
         if body.get("status") != "success":
             logger.error(
-                "Text.lk rejected OTP SMS to %s: %s", phone_number, body.get("message", body)
+                "Text.lk rejected SMS to %s: %s", phone_number, body.get("message", body)
             )
     except requests.RequestException:
-        # Never let an SMS gateway failure surface to the requester — same
-        # anti-enumeration reasoning as the rest of ForgotPasswordView, and
-        # a transient gateway outage shouldn't 500 the whole request. Log it
-        # so it's visible in ops without leaking to the client.
-        logger.exception("Failed to send OTP SMS via Text.lk to %s", phone_number)
+        # Never let an SMS gateway failure surface to the caller — a
+        # transient gateway outage shouldn't break the request that
+        # triggered it. Log it so it's visible in ops without leaking out.
+        logger.exception("Failed to send SMS via Text.lk to %s", phone_number)
+
+
+def send_otp_sms(phone_number: str, code: str) -> None:
+    send_sms(
+        phone_number,
+        f"Your Smart PMB password reset code is {code}. It expires in 10 minutes.",
+    )

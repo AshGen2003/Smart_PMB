@@ -16,10 +16,10 @@ import { apiFetch } from "@/app/lib/api";
 import AdminShell from "@/app/components/AdminShell";
 
 /**
- * Verifies the visitor is logged in and not a farmer/driver, then wraps
- * the page content in the AdminShell (sidebar + header). Farmers/drivers
- * are redirected to their own portal since this layout is only for
- * admin/officer roles.
+ * Verifies the visitor is logged in and not a farmer/driver/PMB officer/
+ * etc, then wraps the page content in the AdminShell (sidebar + header).
+ * Those roles are redirected to their own portal since this layout is
+ * only for admin (and, via Portal Preview, any role being previewed).
  */
 export default async function AdminLayout({
   children,
@@ -41,6 +41,12 @@ export default async function AdminLayout({
   if (user.role === "driver") {
     redirect("/driver");
   }
+  if (user.role === "warehouse_manager") {
+    redirect("/warehouse-manager");
+  }
+  if (user.role === "pmb_officer") {
+    redirect("/officer");
+  }
   if (user.role === "authorized_purchaser" || user.role === "mill_owner") {
     redirect("/partner");
   }
@@ -59,6 +65,33 @@ export default async function AdminLayout({
   const configRes = await apiFetch("/api/admin/system-config/");
   const config = configRes.ok ? await configRes.json() : null;
 
+  // Red-dot counts for the Sidebar's Messages/System Requests nav items —
+  // fetched here (once per navigation) rather than polled client-side, to
+  // avoid duplicating NotificationBell.tsx's own inbox polling. Preview
+  // never fetches real data (see previewSampleData.ts's docstring), and
+  // messages respects the same notifyMessages mute the bell already does.
+  const [inboxRes, systemRequestsRes] = await Promise.all([
+    !user.previewing && user.notifyMessages ? apiFetch("/api/messages/inbox/") : null,
+    !user.previewing &&
+    (user.permissions.includes("manage_system_requests") ||
+      user.permissions.includes("request_system_changes"))
+      ? apiFetch("/api/system-requests/")
+      : null,
+  ]);
+
+  const inbox: { is_read: boolean }[] = inboxRes?.ok ? await inboxRes.json() : [];
+  const unreadMessageCount = inbox.filter((m) => !m.is_read).length;
+
+  const systemRequests: { status: string }[] = systemRequestsRes?.ok
+    ? await systemRequestsRes.json()
+    : [];
+  // Admins see the count of new requests waiting for a decision; officers
+  // see the count of accepted requests still awaiting their payment —
+  // each audience's own "needs your attention" state.
+  const pendingRequestCount = user.permissions.includes("manage_system_requests")
+    ? systemRequests.filter((r) => r.status === "pending").length
+    : systemRequests.filter((r) => r.status === "payment_pending").length;
+
   return (
     <AdminShell
       userName={user.fullName ?? user.email}
@@ -69,6 +102,9 @@ export default async function AdminLayout({
       idleMinutes={config?.idle_logout_minutes}
       maintenanceMode={config?.maintenance_mode ?? false}
       previewing={user.previewing}
+      impersonating={user.impersonating}
+      unreadMessageCount={unreadMessageCount}
+      pendingRequestCount={pendingRequestCount}
     >
       {children}
     </AdminShell>
