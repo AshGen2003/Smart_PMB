@@ -7,3 +7,7 @@ Thumbs.db
 
 # Local AI assistant tooling (not project code)
 .claude/
+
+# Postman workspace sync files (local API-testing scratch, not project code)
+.postman/
+postman/
