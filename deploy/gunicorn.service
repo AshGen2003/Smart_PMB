@@ -1,0 +1,20 @@
+[Unit]
+Description=Smart PMB Django backend (Gunicorn)
+After=network.target
+
+[Service]
+# Replace deploy_user with whatever Linux user owns the checkout (e.g. azureuser).
+User=deploy_user
+Group=www-data
+WorkingDirectory=/home/deploy_user/smart-pmb/Smart_pmb_backend/pmb_bk
+EnvironmentFile=/home/deploy_user/smart-pmb/Smart_pmb_backend/pmb_bk/.env
+ExecStart=/home/deploy_user/smart-pmb/Smart_pmb_backend/pmb_bk/venv/bin/gunicorn \
+    --bind 127.0.0.1:8000 \
+    --workers 4 \
+    --timeout 600 \
+    pmb_bk.wsgi:application
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
