@@ -22,6 +22,7 @@ from .models import (
     TransactionVerification,
     Vehicle,
     Warehouse,
+    WarehouseTransferRequest,
 )
 
 
@@ -90,7 +91,7 @@ class TransactionLogSerializer(serializers.ModelSerializer):
         model = TransactionLog
         fields = [
             "id", "warehouse", "warehouse_name", "transaction_type",
-            "quantity_change", "harvest", "rice_request", "notes", "created_at",
+            "quantity_change", "harvest", "rice_request", "transfer_request", "notes", "created_at",
         ]
 
 
@@ -234,6 +235,39 @@ class WarehouseStockAdjustmentSerializer(serializers.Serializer):
     quantity = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.01"))
     direction = serializers.ChoiceField(choices=["add", "remove"])
     notes = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class WarehouseTransferRequestSerializer(serializers.ModelSerializer):
+    """Read representation of a WarehouseTransferRequest, with warehouse/paddy-type/user names resolved for display."""
+
+    from_warehouse_name = serializers.CharField(source="from_warehouse.name", default=None)
+    to_warehouse_name = serializers.CharField(source="to_warehouse.name", default=None)
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+    requested_by_name = serializers.CharField(source="requested_by.full_name", default=None)
+    reviewed_by_name = serializers.CharField(source="reviewed_by.full_name", default=None)
+
+    class Meta:
+        model = WarehouseTransferRequest
+        fields = [
+            "id", "from_warehouse", "from_warehouse_name", "to_warehouse", "to_warehouse_name",
+            "paddy_type", "paddy_type_name", "grade", "quantity_kg",
+            "requested_by", "requested_by_name", "status",
+            "reviewed_by", "reviewed_by_name", "review_notes", "notes",
+            "requested_date", "resolved_date",
+        ]
+
+
+class WarehouseTransferRequestWriteSerializer(serializers.ModelSerializer):
+    """
+    Create representation for a warehouse manager's own transfer request —
+    `to_warehouse`/`requested_by`/`status` are always set server-side (see
+    WarehouseManagerTransferRequestViewSet.perform_create in views.py), so
+    they're deliberately excluded here rather than trusted from the client.
+    """
+
+    class Meta:
+        model = WarehouseTransferRequest
+        fields = ["id", "from_warehouse", "paddy_type", "grade", "quantity_kg", "notes"]
 
 
 class OfficerHarvestSerializer(serializers.ModelSerializer):

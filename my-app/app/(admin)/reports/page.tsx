@@ -52,6 +52,8 @@ export default async function ReportsPage() {
         stock_report: [],
         transaction_report: [],
         charts: { grade_distribution: [], payment_status_breakdown: [], monthly_purchases: [] },
+        price_forecast: [],
+        yield_forecast: [],
       };
 
   return <ReportsManager data={data} />;

@@ -70,6 +70,32 @@ def send_temp_password_email(user, temp_password):
     )
 
 
+def send_impersonation_otp_email(user, admin_email, code):
+    """
+    Emails the account holder a one-time code to relay back to the
+    requesting admin before AdminUserViewSet.impersonate will let that
+    admin sign in as them — this is the consent step itself. Unlike
+    send_impersonation_notice_email below (sent only after access already
+    happened), nothing happens here unless the recipient chooses to hand
+    the code over.
+    """
+    send_mail(
+        subject="Someone wants to sign in as your Smart PMB account",
+        message=(
+            f"Hi {user.full_name or user.email},\n\n"
+            f"An administrator ({admin_email}) has requested to sign in as "
+            "your Smart PMB account for support or troubleshooting "
+            f"purposes. If you agree, share this code with them:\n\n{code}\n\n"
+            "This code expires in 10 minutes. If you didn't expect this or "
+            "don't want to grant access, just ignore this email — without "
+            "the code, the request can't go through."
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
 def send_impersonation_notice_email(user, admin_email):
     """
     Emails an account holder that an admin signed in as their real account

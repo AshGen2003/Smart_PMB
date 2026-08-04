@@ -18,6 +18,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -52,6 +53,7 @@ from .models import (
     TransactionLog,
     Vehicle,
     Warehouse,
+    WarehouseTransferRequest,
 )
 from .permissions import CanViewVehicles, IsDriver, IsFarmer
 from .serializers import (
@@ -80,6 +82,8 @@ from .serializers import (
     WarehouseManagerSelfUpdateSerializer,
     WarehouseSerializer,
     WarehouseStockAdjustmentSerializer,
+    WarehouseTransferRequestSerializer,
+    WarehouseTransferRequestWriteSerializer,
     WarehouseWriteSerializer,
 )
 from .models import District
@@ -510,6 +514,208 @@ class WarehouseManagerTransactionsView(APIView):
         return Response(TransactionLogSerializer(transactions, many=True).data)
 
 
+class WarehouseManagerTransferOptionsView(APIView):
+    """
+    GET /api/warehouse-manager/transfer-options/ — every other warehouse's
+    basic info plus its Inventory breakdown, so a manager can see what's
+    actually available before requesting a transfer into their own
+    warehouse. Read-only; the requesting manager's own warehouse is
+    excluded (see WarehouseManagerTransferRequestViewSet.perform_create's
+    matching "not from your own warehouse" check).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        own_warehouse = Warehouse.objects.filter(managed_by=request.user).first()
+        if not own_warehouse:
+            return Response(
+                {"detail": "You are not currently assigned to manage a warehouse."}, status=404
+            )
+        warehouses = Warehouse.objects.exclude(pk=own_warehouse.pk).select_related("district")
+        inventory = Inventory.objects.filter(
+            warehouse__in=warehouses, quantity__gt=0
+        ).select_related("warehouse", "paddy_type")
+
+        return Response(
+            {
+                "warehouses": [
+                    {
+                        "id": w.id,
+                        "name": w.name,
+                        "district_name": w.district.name if w.district else None,
+                    }
+                    for w in warehouses
+                ],
+                "inventory": InventorySerializer(inventory, many=True).data,
+            }
+        )
+
+
+class WarehouseManagerTransferRequestViewSet(viewsets.ModelViewSet):
+    """
+    Self-service transfer requests for a warehouse_manager: list their own
+    outgoing requests and submit new ones. No update/delete — once
+    submitted, only an officer can approve/reject it (see
+    WarehouseTransferRequestViewSet below). `to_warehouse` is always the
+    requesting manager's own warehouse, forced server-side in
+    perform_create — never trusted from the client, so a manager can only
+    ever request stock *into* the one warehouse they're assigned to (same
+    "own appointed warehouse only" constraint every other manager-facing
+    view in this file enforces).
+    """
+
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_queryset(self):
+        return WarehouseTransferRequest.objects.filter(
+            requested_by=self.request.user
+        ).select_related("from_warehouse", "to_warehouse", "paddy_type", "reviewed_by")
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return WarehouseTransferRequestWriteSerializer
+        return WarehouseTransferRequestSerializer
+
+    def perform_create(self, serializer):
+        own_warehouse = Warehouse.objects.filter(managed_by=self.request.user).first()
+        if not own_warehouse:
+            raise ValidationError("You are not currently assigned to manage a warehouse.")
+
+        from_warehouse = serializer.validated_data["from_warehouse"]
+        if from_warehouse.pk == own_warehouse.pk:
+            raise ValidationError("Cannot request a transfer from your own warehouse.")
+
+        paddy_type = serializer.validated_data["paddy_type"]
+        grade = serializer.validated_data.get("grade") or None
+        quantity_kg = serializer.validated_data["quantity_kg"]
+        inventory = Inventory.objects.filter(
+            warehouse=from_warehouse, paddy_type=paddy_type, grade=grade
+        ).first()
+        available = inventory.quantity if inventory else 0
+        if available < quantity_kg:
+            raise ValidationError(
+                f"Only {available} kg of this paddy type/grade is available at the selected warehouse."
+            )
+
+        serializer.save(to_warehouse=own_warehouse, requested_by=self.request.user)
+
+
+class WarehouseTransferRequestViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Officer-facing review queue for warehouse managers' transfer requests:
+    list/view all, plus approve/reject. Unlike purchases.RiceRequest, both
+    warehouses are already fixed at request time, so `approve` moves the
+    stock in one atomic step rather than a separate "fulfill" action.
+    """
+
+    permission_classes = [HasPermission("manage_warehouses")]
+    queryset = WarehouseTransferRequest.objects.select_related(
+        "from_warehouse", "to_warehouse", "paddy_type", "requested_by", "reviewed_by"
+    )
+    serializer_class = WarehouseTransferRequestSerializer
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        transfer = self.get_object()
+        if transfer.status != WarehouseTransferRequest.Status.PENDING:
+            return Response(
+                {"detail": "Only pending transfer requests can be approved."}, status=400
+            )
+
+        inventory = Inventory.objects.filter(
+            warehouse=transfer.from_warehouse, paddy_type=transfer.paddy_type, grade=transfer.grade
+        ).first()
+        available = inventory.quantity if inventory else 0
+        if available < transfer.quantity_kg or transfer.from_warehouse.current_stock < transfer.quantity_kg:
+            return Response(
+                {"detail": "The source warehouse no longer has enough stock for this transfer."},
+                status=400,
+            )
+
+        with transaction.atomic():
+            Warehouse.objects.filter(pk=transfer.from_warehouse.pk).update(
+                current_stock=F("current_stock") - transfer.quantity_kg
+            )
+            Warehouse.objects.filter(pk=transfer.to_warehouse.pk).update(
+                current_stock=F("current_stock") + transfer.quantity_kg
+            )
+            _log_transaction(
+                transfer.from_warehouse,
+                TransactionLog.TransactionType.TRANSFER_OUT,
+                -transfer.quantity_kg,
+                paddy_type=transfer.paddy_type,
+                grade=transfer.grade,
+                transfer_request=transfer,
+                updated_by=request.user,
+            )
+            _log_transaction(
+                transfer.to_warehouse,
+                TransactionLog.TransactionType.TRANSFER_IN,
+                transfer.quantity_kg,
+                paddy_type=transfer.paddy_type,
+                grade=transfer.grade,
+                transfer_request=transfer,
+                updated_by=request.user,
+            )
+            transfer.to_warehouse.refresh_from_db(fields=["current_stock"])
+            transfer.status = WarehouseTransferRequest.Status.APPROVED
+            transfer.reviewed_by = request.user
+            transfer.resolved_date = timezone.now()
+            transfer.save(update_fields=["status", "reviewed_by", "resolved_date"])
+
+        _raise_high_capacity_alert(transfer.to_warehouse, transfer.to_warehouse.current_stock)
+        log_audit(
+            request.user, "approve_warehouse_transfer", "farmers",
+            f"WarehouseTransferRequest #{transfer.id}",
+        )
+
+        for manager, body in (
+            (
+                transfer.from_warehouse.managed_by,
+                f"{transfer.quantity_kg}kg of {transfer.paddy_type.type_name} was transferred "
+                f"out to {transfer.to_warehouse.name}.",
+            ),
+            (
+                transfer.to_warehouse.managed_by,
+                f"{transfer.quantity_kg}kg of {transfer.paddy_type.type_name} was transferred "
+                f"in from {transfer.from_warehouse.name}.",
+            ),
+        ):
+            if manager:
+                Message.objects.create(sender=request.user, recipient=manager, body=body)
+
+        return Response(WarehouseTransferRequestSerializer(transfer).data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        transfer = self.get_object()
+        if transfer.status != WarehouseTransferRequest.Status.PENDING:
+            return Response(
+                {"detail": "Only pending transfer requests can be rejected."}, status=400
+            )
+        transfer.status = WarehouseTransferRequest.Status.REJECTED
+        transfer.review_notes = request.data.get("review_notes", "")
+        transfer.reviewed_by = request.user
+        transfer.resolved_date = timezone.now()
+        transfer.save(update_fields=["status", "review_notes", "reviewed_by", "resolved_date"])
+        log_audit(
+            request.user, "reject_warehouse_transfer", "farmers",
+            f"WarehouseTransferRequest #{transfer.id}",
+        )
+        if transfer.requested_by:
+            Message.objects.create(
+                sender=request.user,
+                recipient=transfer.requested_by,
+                body=(
+                    f"Your transfer request for {transfer.quantity_kg}kg of "
+                    f"{transfer.paddy_type.type_name} was rejected."
+                ),
+            )
+        return Response(WarehouseTransferRequestSerializer(transfer).data)
+
+
 class InventoryViewSet(viewsets.ReadOnlyModelViewSet):
     """Read-only per-warehouse/paddy-type/grade stock breakdown — see Inventory's docstring in models.py."""
 
@@ -568,6 +774,7 @@ class PaddyTypeViewSet(viewsets.ModelViewSet):
             PriceRecord.objects.create(
                 paddy_type=paddy_type, guaranteed_price=paddy_type.guaranteed_price
             )
+            _notify_price_change(paddy_type, previous_price)
 
     @action(detail=True, methods=["get"], url_path="price-history")
     def price_history(self, request, pk=None):
@@ -579,7 +786,7 @@ class PaddyTypeViewSet(viewsets.ModelViewSet):
 
 def _log_transaction(
     warehouse, transaction_type, quantity_change, paddy_type, grade=None,
-    harvest=None, rice_request=None, updated_by=None, notes="",
+    harvest=None, rice_request=None, transfer_request=None, updated_by=None, notes="",
 ):
     """
     Records a TransactionLog entry and updates the matching Inventory line
@@ -589,8 +796,9 @@ def _log_transaction(
     the aggregate number and is updated separately by the caller. Called
     from OfficerHarvestViewSet.mark_collected below (positive
     quantity_change), purchases.OfficerRiceRequestViewSet.fulfill (negative
-    quantity_change), and WarehouseViewSet.adjust_stock above (either sign,
-    the only caller that passes `notes`).
+    quantity_change), WarehouseViewSet.adjust_stock above (either sign, the
+    only caller that passes `notes`), and
+    WarehouseTransferRequestViewSet.approve (called twice, once per side).
     """
     TransactionLog.objects.create(
         warehouse=warehouse,
@@ -598,6 +806,7 @@ def _log_transaction(
         quantity_change=quantity_change,
         harvest=harvest,
         rice_request=rice_request,
+        transfer_request=transfer_request,
         notes=notes,
     )
     inventory, _ = Inventory.objects.get_or_create(
@@ -615,6 +824,25 @@ def _notify_farmer(harvest, message):
         Notification.objects.create(farmer=farmer, message=message)
     if farmer.notify_via_sms and farmer.contact_number:
         send_sms(farmer.contact_number, message)
+
+
+def _notify_price_change(paddy_type, previous_price):
+    """
+    Tells every farmer a PaddyType's guaranteed price just changed — reuses
+    the same notify_harvest_updates/notify_via_sms preference toggles
+    _notify_farmer uses above rather than adding a third Settings option,
+    since this is the same "farmer notification preferences" concept.
+    """
+    direction = "increased" if paddy_type.guaranteed_price > previous_price else "decreased"
+    message = (
+        f"The guaranteed price for {paddy_type.type_name} has {direction} "
+        f"from Rs. {previous_price} to Rs. {paddy_type.guaranteed_price}."
+    )
+    for farmer in Farmer.objects.all():
+        if farmer.notify_harvest_updates:
+            Notification.objects.create(farmer=farmer, message=message)
+        if farmer.notify_via_sms and farmer.contact_number:
+            send_sms(farmer.contact_number, message)
 
 
 def _raise_high_capacity_alert(warehouse, new_stock):

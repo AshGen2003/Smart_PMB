@@ -69,7 +69,14 @@
   --chart-3: #f59e0b;
   --chart-4: #f43f5e;
   --chart-5: #8b5cf6;
+  --chart-6: #10b981;
+  --chart-7: #ec4899;
   --chart-neutral: #64748b;
+
+  /* Reserved exclusively for the "admin" role in the per-role dashboard
+     color mapping (see lib/roleColors.ts) — a clean, unambiguous blue,
+     distinct from --chart-2's indigo. */
+  --chart-blue: #3b82f6;
 }
 
 :root[data-theme='dark'] {

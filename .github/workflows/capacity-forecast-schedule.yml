@@ -1,0 +1,37 @@
+name: Run warehouse capacity forecast
+
+# This project has no in-process task scheduler, so the daily predictive
+# warehouse-capacity check (farmers/forecasting.py's
+# forecast_warehouse_capacity_risk, raising a SystemAlert for any warehouse
+# projected to fill up soon) is driven from here instead: once a day, hit
+# the backend's POST /api/internal/run-capacity-forecasts/ endpoint
+# (sysops.views.RunCapacityForecastsView), which runs
+# `manage.py check_capacity_forecasts` and returns its output.
+#
+# Requires two repo configuration values before this can actually run:
+#   - Settings > Secrets and variables > Actions > Variables:
+#       BACKEND_BASE_URL — the deployed Azure App Service URL, e.g.
+#       https://smart-pmb-backend.azurewebsites.net (no trailing slash).
+#   - Settings > Secrets and variables > Actions > Secrets:
+#       INTERNAL_TASK_SECRET — must exactly match the App Service's own
+#       INTERNAL_TASK_SECRET application setting (see .env.example).
+on:
+  schedule:
+    # 03:00 UTC daily — outside normal business hours in Sri Lanka (UTC+5:30,
+    # so this lands at 08:30 local), well before officers start their day.
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  run-forecast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call run-capacity-forecasts endpoint
+        run: |
+          if [ -z "${{ vars.BACKEND_BASE_URL }}" ] || [ -z "${{ secrets.INTERNAL_TASK_SECRET }}" ]; then
+            echo "::error::BACKEND_BASE_URL (repo variable) and/or INTERNAL_TASK_SECRET (repo secret) are not set — see this workflow's header comment."
+            exit 1
+          fi
+          curl --fail-with-body -sS -X POST \
+            -H "X-Internal-Task-Secret: ${{ secrets.INTERNAL_TASK_SECRET }}" \
+            "${{ vars.BACKEND_BASE_URL }}/api/internal/run-capacity-forecasts/"

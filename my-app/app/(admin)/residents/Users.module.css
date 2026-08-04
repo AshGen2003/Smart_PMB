@@ -351,6 +351,34 @@
   margin-bottom: 1rem;
 }
 
+.impersonateModalIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.resendCodeBtn {
+  display: block;
+  margin: 0.75rem auto 0;
+  background: none;
+  border: none;
+  color: var(--primary-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.resendCodeBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .deleteModalBody {
   font-size: 0.9rem;
   line-height: 1.5;

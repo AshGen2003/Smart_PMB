@@ -8,9 +8,9 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Search, Send } from "lucide-react";
 import StyledSelect from "./StyledSelect";
 import { SkeletonRows } from "./Skeleton";
 import { useLanguage } from "./LanguageProvider";
@@ -49,9 +49,10 @@ function formatTime(iso: string) {
   });
 }
 
-async function fetchPage(filter: Filter, page: number) {
+async function fetchPage(filter: Filter, page: number, search: string) {
   const params = new URLSearchParams({ page: String(page) });
   if (filter === "unread") params.set("unread", "1");
+  if (search.trim()) params.set("q", search.trim());
   const res = await fetch(`/api/messages/history?${params}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to load messages");
   return (await res.json()) as { count: number; next: string | null; results: MessageRow[] };
@@ -68,6 +69,11 @@ export default function MessagesHistoryView({
 }) {
   const { t } = useLanguage();
   const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
+  // Debounced copy of `search` — what's actually been sent to the server.
+  // Keeps every keystroke from firing its own request while still updating
+  // the input instantly.
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [messages, setMessages] = useState(initialMessages);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -83,13 +89,11 @@ export default function MessagesHistoryView({
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendSuccess, setSendSuccess] = useState(false);
 
-  async function handleFilterChange(next: Filter) {
-    if (next === filter) return;
-    setFilter(next);
+  async function loadFirstPage(nextFilter: Filter, nextSearch: string) {
     setSwitching(true);
     setLoadError(null);
     try {
-      const data = await fetchPage(next, 1);
+      const data = await fetchPage(nextFilter, 1, nextSearch);
       setMessages(data.results);
       setPage(1);
       setHasMore(data.next !== null);
@@ -100,11 +104,37 @@ export default function MessagesHistoryView({
     }
   }
 
+  function handleFilterChange(next: Filter) {
+    if (next === filter) return;
+    setFilter(next);
+    loadFirstPage(next, appliedSearch);
+  }
+
+  // Debounce raw typing into `appliedSearch` — only actually re-fetches
+  // once typing pauses for 350ms, not on every keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setAppliedSearch(search.trim()), 350);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Skips the very first run (mount) so it doesn't redundantly re-fetch the
+  // initialMessages the server already fetched — only fires when
+  // appliedSearch actually changes to something new afterward.
+  const skipNextSearchEffect = useRef(true);
+  useEffect(() => {
+    if (skipNextSearchEffect.current) {
+      skipNextSearchEffect.current = false;
+      return;
+    }
+    loadFirstPage(filter, appliedSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only appliedSearch changing should retrigger this; filter changes go through handleFilterChange instead
+  }, [appliedSearch]);
+
   async function loadMore() {
     setLoadingMore(true);
     setLoadError(null);
     try {
-      const data = await fetchPage(filter, page + 1);
+      const data = await fetchPage(filter, page + 1, appliedSearch);
       setMessages((prev) => [...prev, ...data.results]);
       setPage((p) => p + 1);
       setHasMore(data.next !== null);
@@ -227,22 +257,35 @@ export default function MessagesHistoryView({
       </div>
 
       <div className={styles.container}>
-        <div className={styles.tabsRow}>
-          <button
-            type="button"
-            className={clsx(styles.tab, filter === "all" && styles.tabActive)}
-            onClick={() => handleFilterChange("all")}
-          >
-            {t.messagesHistory.allTab}
-          </button>
-          <button
-            type="button"
-            className={clsx(styles.tab, filter === "unread" && styles.tabActive)}
-            onClick={() => handleFilterChange("unread")}
-          >
-            {t.messagesHistory.unreadTab}
-            {unreadCount > 0 && <span className={styles.tabCount}>{unreadCount}</span>}
-          </button>
+        <div className={styles.toolbarRow}>
+          <div className={styles.tabsRow}>
+            <button
+              type="button"
+              className={clsx(styles.tab, filter === "all" && styles.tabActive)}
+              onClick={() => handleFilterChange("all")}
+            >
+              {t.messagesHistory.allTab}
+            </button>
+            <button
+              type="button"
+              className={clsx(styles.tab, filter === "unread" && styles.tabActive)}
+              onClick={() => handleFilterChange("unread")}
+            >
+              {t.messagesHistory.unreadTab}
+              {unreadCount > 0 && <span className={styles.tabCount}>{unreadCount}</span>}
+            </button>
+          </div>
+
+          <div className={styles.searchWrap}>
+            <Search size={15} className={styles.searchIcon} />
+            <input
+              type="text"
+              className={styles.searchInput}
+              placeholder={t.messagesHistory.searchPlaceholder}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
         {loadError && <div className={styles.banner}>{loadError}</div>}
@@ -251,7 +294,11 @@ export default function MessagesHistoryView({
           <SkeletonRows count={5} />
         ) : messages.length === 0 ? (
           <p className={styles.emptyState}>
-            {filter === "unread" ? t.messagesHistory.noUnread : t.messagesHistory.noMessages}
+            {appliedSearch
+              ? t.messagesHistory.noSearchResults
+              : filter === "unread"
+              ? t.messagesHistory.noUnread
+              : t.messagesHistory.noMessages}
           </p>
         ) : (
           <div className={styles.list}>

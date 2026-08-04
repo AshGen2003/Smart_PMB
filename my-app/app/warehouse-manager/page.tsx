@@ -13,16 +13,20 @@ import WarehouseManagerDashboardView, {
   type InventoryLine,
   type TransactionLogEntry,
   type AlertRow,
+  type TransferRequestRow,
 } from "./WarehouseManagerDashboardView";
 import type { PaddyTypeOption } from "./StockAdjustModal";
+import type { TransferWarehouseOption, TransferInventoryLine } from "./TransferRequestModal";
 import styles from "./WarehouseManagerDashboard.module.css";
 
 export default async function WarehouseManagerDashboardPage() {
   await requirePermission("view_dashboard");
 
-  const [res, paddyTypesRes] = await Promise.all([
+  const [res, paddyTypesRes, transferOptionsRes, transferRequestsRes] = await Promise.all([
     apiFetch("/api/warehouse-manager/dashboard/"),
     apiFetchCached("/api/admin/paddy-types/", 300, ["paddy-types"]),
+    apiFetch("/api/warehouse-manager/transfer-options/"),
+    apiFetch("/api/warehouse-manager/transfer-requests/"),
   ]);
 
   if (!res.ok) {
@@ -46,6 +50,11 @@ export default async function WarehouseManagerDashboardPage() {
     alerts: AlertRow[];
   } = await res.json();
   const paddyTypes: PaddyTypeOption[] = paddyTypesRes.ok ? await paddyTypesRes.json() : [];
+  const transferOptions: { warehouses: TransferWarehouseOption[]; inventory: TransferInventoryLine[] } =
+    transferOptionsRes.ok ? await transferOptionsRes.json() : { warehouses: [], inventory: [] };
+  const transferRequests: TransferRequestRow[] = transferRequestsRes.ok
+    ? await transferRequestsRes.json()
+    : [];
 
   return (
     <WarehouseManagerDashboardView
@@ -54,6 +63,9 @@ export default async function WarehouseManagerDashboardPage() {
       transactions={data.transactions}
       alerts={data.alerts}
       paddyTypes={paddyTypes}
+      transferWarehouses={transferOptions.warehouses}
+      transferInventory={transferOptions.inventory}
+      transferRequests={transferRequests}
     />
   );
 }

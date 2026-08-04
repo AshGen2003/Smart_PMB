@@ -260,6 +260,10 @@ export const PREVIEW_OFFICER_REPORTS = {
     { paddy_type: "Nadu", current_price: 115, suggested_price: 118, based_on_points: 4 },
     { paddy_type: "Samba", current_price: 128, suggested_price: 126, based_on_points: 4 },
   ],
+  yield_forecast: [
+    { paddy_type: "Nadu", last_month_kg: 4200, suggested_next_month_kg: 4350, based_on_points: 4 },
+    { paddy_type: "Samba", last_month_kg: 3100, suggested_next_month_kg: 3050, based_on_points: 4 },
+  ],
 };
 
 const PREVIEW_VEHICLES = [

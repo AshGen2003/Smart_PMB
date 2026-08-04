@@ -27,6 +27,7 @@ from accounts.views import (
     MessageCreateView,
     MessageHistoryView,
     MessageInboxView,
+    MessageMarkAllReadView,
     MessageMarkReadView,
     MessageRecipientsView,
     OnlineRolesView,
@@ -49,6 +50,8 @@ from farmers.views import (
     TransportationDashboardView,
     VehicleViewSet,
     WarehouseManagerOptionsView,
+    WarehouseManagerTransferRequestViewSet,
+    WarehouseTransferRequestViewSet,
     WarehouseViewSet,
 )
 from mills.views import (
@@ -66,6 +69,7 @@ from sysops.views import (
     AuthLogViewSet,
     BackupRecordViewSet,
     ErrorLogViewSet,
+    RunCapacityForecastsView,
     StripeWebhookView,
     SystemAlertViewSet,
     SystemChangeRequestViewSet,
@@ -80,6 +84,11 @@ router.register('admin/users', AdminUserViewSet, basename='admin-users')
 router.register('admin/roles', RoleViewSet, basename='admin-roles')
 router.register('admin/license-applications', LicenseApplicationViewSet, basename='admin-license-applications')
 router.register('admin/warehouses', WarehouseViewSet, basename='admin-warehouses')
+router.register('admin/warehouse-transfers', WarehouseTransferRequestViewSet, basename='admin-warehouse-transfers')
+router.register(
+    'warehouse-manager/transfer-requests', WarehouseManagerTransferRequestViewSet,
+    basename='warehouse-manager-transfer-requests',
+)
 router.register('admin/inventory', InventoryViewSet, basename='admin-inventory')
 router.register('admin/transaction-log', TransactionLogViewSet, basename='admin-transaction-log')
 router.register('admin/paddy-types', PaddyTypeViewSet, basename='admin-paddy-types')
@@ -122,10 +131,12 @@ urlpatterns = [
     path('api/admin/warehouse-managers/', WarehouseManagerOptionsView.as_view()),
     path('api/admin/mills/', MillOptionsView.as_view()),
     path('api/stripe/webhook/', StripeWebhookView.as_view()),
+    path('api/internal/run-capacity-forecasts/', RunCapacityForecastsView.as_view()),
     path('api/messages/', MessageCreateView.as_view()),
     path('api/messages/inbox/', MessageInboxView.as_view()),
     path('api/messages/history/', MessageHistoryView.as_view()),
     path('api/messages/recipients/', MessageRecipientsView.as_view()),
+    path('api/messages/mark-all-read/', MessageMarkAllReadView.as_view()),
     path('api/messages/<int:pk>/read/', MessageMarkReadView.as_view()),
     path('api/', include(router.urls)),
 ]

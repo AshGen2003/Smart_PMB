@@ -24,7 +24,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowRight, BarChart3, Download, FileDown, Package, Receipt, Search, TrendingUp } from "lucide-react";
+import { ArrowRight, BarChart3, Download, FileDown, Package, Receipt, Search, Sprout, TrendingUp } from "lucide-react";
 import ChartLegend from "@/app/components/ChartLegend";
 import styles from "./Reports.module.css";
 
@@ -84,6 +84,13 @@ type PriceForecastRow = {
   based_on_points: number;
 };
 
+type YieldForecastRow = {
+  paddy_type: string;
+  last_month_kg: number;
+  suggested_next_month_kg: number;
+  based_on_points: number;
+};
+
 export type ReportsData = {
   stock_report: StockRow[];
   transaction_report: TransactionRow[];
@@ -93,6 +100,7 @@ export type ReportsData = {
     monthly_purchases: { period: string; quantity_kg: number; amount: number }[];
   };
   price_forecast: PriceForecastRow[];
+  yield_forecast: YieldForecastRow[];
 };
 
 /** Builds a CSV string from headers + rows, quoting/escaping any value that contains a comma, quote, or newline. */
@@ -358,6 +366,44 @@ export default function ReportsManager({
                     <td>Rs. {p.current_price.toLocaleString()}</td>
                     <td>Rs. {p.suggested_price.toLocaleString()}</td>
                     <td>{p.based_on_points} price point(s)</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {data.yield_forecast.length > 0 && (
+        <div className={styles.container}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionLabel}>
+              <Sprout size={15} style={{ verticalAlign: "-3px", marginRight: "6px" }} />
+              Projected Harvest Yield
+            </h2>
+          </div>
+          <p className={styles.muted} style={{ marginBottom: "0.75rem" }}>
+            A simple trend projection from recent approved-harvest volume —
+            advisory only, for planning warehouse capacity and logistics
+            ahead of time.
+          </p>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Paddy type</th>
+                  <th>Last month (kg)</th>
+                  <th>Projected next month (kg)</th>
+                  <th>Based on</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.yield_forecast.map((y) => (
+                  <tr key={y.paddy_type}>
+                    <td>{y.paddy_type}</td>
+                    <td>{y.last_month_kg.toLocaleString()}</td>
+                    <td>{y.suggested_next_month_kg.toLocaleString()}</td>
+                    <td>{y.based_on_points} month(s)</td>
                   </tr>
                 ))}
               </tbody>

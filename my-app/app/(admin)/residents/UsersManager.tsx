@@ -13,9 +13,10 @@ import { format } from "date-fns";
 import clsx from "clsx";
 import { KeyRound, LogOut, Pencil, Plus, Search, Trash2, Unlock, UserCog } from "lucide-react";
 import { deleteUser, forceLogoutUser, resetUserPassword, unlockUser } from "@/app/actions/users";
-import { startImpersonation } from "@/app/actions/impersonation";
+import { overrideImpersonation, requestImpersonationOtp, startImpersonation } from "@/app/actions/impersonation";
 import UserFormModal, { type DistrictOption, type EditableUser, type RoleOption } from "./UserFormModal";
 import DeleteUserModal from "./DeleteUserModal";
+import ImpersonateConfirmModal from "./ImpersonateConfirmModal";
 import StyledSelect from "@/app/components/StyledSelect";
 import Toast, { type ToastState } from "@/app/components/Toast";
 import styles from "./Users.module.css";
@@ -54,6 +55,7 @@ export default function UsersManager({
   currentUserId,
   canManageSystem,
   canImpersonate,
+  canOverrideImpersonation,
 }: {
   users: AdminUserRow[];
   roles: RoleOption[];
@@ -61,6 +63,7 @@ export default function UsersManager({
   currentUserId: string;
   canManageSystem: boolean;
   canImpersonate: boolean;
+  canOverrideImpersonation: boolean;
 }) {
   const [roleFilter, setRoleFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -70,6 +73,7 @@ export default function UsersManager({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUserRow | null>(null);
+  const [impersonateTarget, setImpersonateTarget] = useState<AdminUserRow | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -143,22 +147,29 @@ export default function UsersManager({
     });
   }
 
+  // Opens the confirmation modal rather than impersonating immediately —
+  // the modal itself drives the two-step request-code/enter-code flow via
+  // the two handlers below, so it can show errors inline and let the admin
+  // retry a wrong code without losing the modal's state.
   function handleImpersonate(user: AdminUserRow) {
-    if (
-      !window.confirm(
-        `Impersonate ${user.email}? You'll be signed in as their real account (with real write access) until you return to your own.`
-      )
-    )
-      return;
+    setImpersonateTarget(user);
+  }
 
-    setDeleteError(null);
-    setActionMessage(null);
-    startTransition(async () => {
-      // startImpersonation redirects on success (never returns) — only
-      // returns here on failure.
-      const result = await startImpersonation(user.id);
-      if (result?.error) setDeleteError(result.error);
-    });
+  async function handleRequestImpersonationOtp(): Promise<{ error?: string }> {
+    if (!impersonateTarget) return { error: "No account selected." };
+    return requestImpersonationOtp(impersonateTarget.id);
+  }
+
+  async function confirmImpersonate(code: string): Promise<{ error?: string } | void> {
+    if (!impersonateTarget) return;
+    // Redirects on success (never returns) — only returns here on failure.
+    return startImpersonation(impersonateTarget.id, code);
+  }
+
+  async function handleOverrideImpersonation(reason: string): Promise<{ error?: string } | void> {
+    if (!impersonateTarget) return;
+    // Redirects on success (never returns) — only returns here on failure.
+    return overrideImpersonation(impersonateTarget.id, reason);
   }
 
   return (
@@ -363,6 +374,17 @@ export default function UsersManager({
           pending={isPending}
           onConfirm={confirmDelete}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {impersonateTarget && (
+        <ImpersonateConfirmModal
+          email={impersonateTarget.email}
+          canOverride={canOverrideImpersonation}
+          onRequestCode={handleRequestImpersonationOtp}
+          onConfirm={confirmImpersonate}
+          onOverride={handleOverrideImpersonation}
+          onClose={() => setImpersonateTarget(null)}
         />
       )}
 

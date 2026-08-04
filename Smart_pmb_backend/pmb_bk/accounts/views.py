@@ -28,11 +28,21 @@ from sysops.utils import get_config_value, log_audit, log_auth
 from .emails import (
     send_confirmation_email,
     send_impersonation_notice_email,
+    send_impersonation_otp_email,
     send_license_decision_email,
     send_otp_email,
     send_temp_password_email,
 )
-from .models import ONLINE_WINDOW, LicenseApplication, Message, PasswordResetOTP, Permission, Role, User
+from .models import (
+    ONLINE_WINDOW,
+    ImpersonationOTP,
+    LicenseApplication,
+    Message,
+    PasswordResetOTP,
+    Permission,
+    Role,
+    User,
+)
 from .otp import MAX_OTP_ATTEMPTS, OTP_EXPIRY_MINUTES, generate_otp_code
 from .permissions import HasPermission, RoleAccessPermission
 from .serializers import (
@@ -494,6 +504,58 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         log_audit(request.user, "reset_password", "accounts", user.email)
         return Response({"detail": "Password reset. A temporary password has been emailed to the user."})
 
+    def _impersonation_target_error(self, request, user):
+        """
+        Shared eligibility checks for both impersonate actions below —
+        scoped to "see what a non-admin user sees": impersonating a
+        superuser, another admin-role account, or yourself is rejected
+        outright, so this can't be used to chain privilege or cover tracks
+        between equally-privileged accounts. Returns a Response on
+        rejection, or None if the target is eligible.
+        """
+        if user.id == request.user.id:
+            return Response({"detail": "You can't impersonate yourself."}, status=400)
+        if user.is_superuser:
+            return Response({"detail": "Cannot impersonate a superuser account."}, status=400)
+        if user.role_id and user.role.slug == "admin":
+            return Response({"detail": "Cannot impersonate another admin account."}, status=400)
+        return None
+
+    @action(
+        detail=True, methods=["post"], url_path="impersonate/request-otp",
+        permission_classes=[HasPermission("impersonate_users")],
+    )
+    def request_impersonation_otp(self, request, pk=None):
+        """
+        First step of impersonation: emails the target account holder a
+        one-time code and does nothing else — impersonate() below won't
+        mint a session until that same code comes back. This is what makes
+        impersonation something the account holder actively consents to in
+        the moment, rather than something an admin can just do to them.
+        """
+        user = self.get_object()
+        error = self._impersonation_target_error(request, user)
+        if error:
+            return error
+
+        # Only the newest code (per requesting admin) is ever valid — burn
+        # whatever came before it.
+        ImpersonationOTP.objects.filter(user=user, requested_by=request.user, consumed_at__isnull=True).delete()
+
+        code = generate_otp_code()
+        ImpersonationOTP.objects.create(
+            user=user,
+            requested_by=request.user,
+            code_hash=make_password(code),
+            expires_at=timezone.now() + timedelta(minutes=OTP_EXPIRY_MINUTES),
+        )
+        send_impersonation_otp_email(user, request.user.email, code)
+        log_audit(
+            request.user, "request_impersonation_otp", "accounts",
+            f"for {user.email} ({user.id})",
+        )
+        return Response({"detail": f"A code has been emailed to {user.email}."})
+
     @action(
         detail=True, methods=["post"],
         permission_classes=[HasPermission("impersonate_users")],
@@ -501,37 +563,105 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     def impersonate(self, request, pk=None):
         """
         Mints a real JWT pair for the target user, so the caller genuinely
-        becomes that account (subject to the safety rails below) — distinct
-        from Portal Preview, which only ever swaps in sample data over the
-        admin's own real session. Scoped to "see what a non-admin user
-        sees": impersonating a superuser, another admin-role account, or
-        yourself is rejected outright, so this can't be used to chain
-        privilege or cover tracks between equally-privileged accounts.
+        becomes that account — distinct from Portal Preview, which only
+        ever swaps in sample data over the admin's own real session.
+        Requires a valid, unexpired code from request_impersonation_otp
+        above, obtained from the account holder themselves — without it,
+        the eligibility checks passing isn't enough to actually sign in.
         """
         user = self.get_object()
-        if user.id == request.user.id:
-            return Response({"detail": "You can't impersonate yourself."}, status=400)
-        if user.is_superuser:
-            return Response({"detail": "Cannot impersonate a superuser account."}, status=400)
-        if user.role_id and user.role.slug == "admin":
-            return Response({"detail": "Cannot impersonate another admin account."}, status=400)
+        error = self._impersonation_target_error(request, user)
+        if error:
+            return error
+
+        code = request.data.get("code", "")
+        if not code:
+            return Response(
+                {"detail": "Enter the code the account holder shared with you."}, status=400
+            )
+
+        otp = ImpersonationOTP.objects.filter(
+            user=user, requested_by=request.user, consumed_at__isnull=True
+        ).first()
+        if not otp or otp.expires_at < timezone.now():
+            return Response(
+                {"detail": "This code is invalid or has expired. Request a new one."}, status=400
+            )
+        if otp.attempts >= MAX_OTP_ATTEMPTS:
+            otp.consumed_at = timezone.now()
+            otp.save(update_fields=["consumed_at"])
+            return Response(
+                {"detail": "Too many incorrect attempts. Request a new code."}, status=400
+            )
+        if not check_password(code, otp.code_hash):
+            otp.attempts += 1
+            otp.save(update_fields=["attempts"])
+            remaining = MAX_OTP_ATTEMPTS - otp.attempts
+            return Response(
+                {"detail": f"Incorrect code. {remaining} attempt(s) remaining."}, status=400
+            )
+
+        otp.consumed_at = timezone.now()
+        otp.save(update_fields=["consumed_at"])
 
         token = CustomTokenObtainPairSerializer.get_token(user)
         log_audit(
             request.user, "start_impersonation", "accounts",
             f"as {user.email} ({user.id})",
         )
-        # Transparency notice to the impersonated account itself — the audit
-        # log above is only ever visible to other admins, so without this
-        # the account holder would have no way of knowing an admin was ever
-        # signed in as them. In-app (shows on their notification bell right
-        # away) and email (reaches them even if they're not logged in).
+        # Transparency notice to the impersonated account itself, confirming
+        # the access they just consented to via the code actually happened
+        # — the audit log above is only ever visible to other admins. In-app
+        # (shows on their notification bell right away) and email (reaches
+        # them even if they're not logged in).
         Message.objects.create(
             sender=request.user,
             recipient=user,
             body=(
                 f"An administrator ({request.user.email}) signed in as your "
                 "account for support or troubleshooting purposes just now."
+            ),
+        )
+        send_impersonation_notice_email(user, request.user.email)
+        return Response({"access": str(token.access_token), "refresh": str(token)})
+
+    @action(
+        detail=True, methods=["post"], url_path="impersonate/override",
+        permission_classes=[HasPermission("override_impersonation_otp")],
+    )
+    def impersonate_override(self, request, pk=None):
+        """
+        Break-glass path for when the account holder can't be reached to
+        relay a code (locked out, unresponsive, etc.) — mints a session
+        without one, gated behind a strictly stronger permission than
+        ordinary impersonate_users. Requires a written reason, which goes
+        into both the audit log and the account holder's notice, so the
+        bypass is exactly as visible as the normal flow, just after the
+        fact instead of before.
+        """
+        user = self.get_object()
+        error = self._impersonation_target_error(request, user)
+        if error:
+            return error
+
+        reason = request.data.get("reason", "").strip()
+        if not reason:
+            return Response(
+                {"detail": "A reason is required to override the consent code."}, status=400
+            )
+
+        token = CustomTokenObtainPairSerializer.get_token(user)
+        log_audit(
+            request.user, "override_impersonation", "accounts",
+            f"as {user.email} ({user.id}) — reason: {reason}",
+        )
+        Message.objects.create(
+            sender=request.user,
+            recipient=user,
+            body=(
+                f"An administrator ({request.user.email}) signed in as your account "
+                "for support or troubleshooting purposes just now, without the usual "
+                f"emailed code because you couldn't be reached. Reason given: {reason}"
             ),
         )
         send_impersonation_notice_email(user, request.user.email)
@@ -647,8 +777,13 @@ class AdminOverviewView(APIView):
     permission_classes = [HasPermission("manage_users")]
 
     def get(self, request):
+        # "slug" is a tie-breaker: without it, roles with equal member_count
+        # have no defined order and Postgres can return them differently on
+        # every request — which, combined with the frontend's now-removed
+        # color-by-array-position, used to make role colors flicker between
+        # loads even though nothing had changed.
         roles = Role.objects.annotate(member_count=Count("users")).order_by(
-            "-member_count"
+            "-member_count", "slug"
         )
         recent_users = User.objects.select_related("role").order_by(
             "-date_joined"
@@ -751,8 +886,11 @@ class MessageHistoryView(generics.ListAPIView):
     """
     GET /api/messages/history/ — full, paginated message history behind
     the notification bell's "View all" link. Same visibility rules as the
-    inbox (see `_visible_messages`) but without the 50-item cap, and with
-    an optional `?unread=1` filter for the history page's "Unread only" tab.
+    inbox (see `_visible_messages`) but without the 50-item cap, with an
+    optional `?unread=1` filter for the history page's "Unread only" tab,
+    and an optional `?q=` free-text search across sender/recipient name or
+    email and the message body — matches server-side so it searches the
+    whole history, not just whatever page happens to be loaded.
     """
 
     permission_classes = [IsAuthenticated]
@@ -763,6 +901,15 @@ class MessageHistoryView(generics.ListAPIView):
         qs = _visible_messages(self.request.user)
         if self.request.query_params.get("unread") == "1":
             qs = qs.filter(is_read=False)
+        query = self.request.query_params.get("q", "").strip()
+        if query:
+            qs = qs.filter(
+                Q(body__icontains=query)
+                | Q(sender__full_name__icontains=query)
+                | Q(sender__email__icontains=query)
+                | Q(recipient__full_name__icontains=query)
+                | Q(recipient__email__icontains=query)
+            )
         return qs
 
 
@@ -795,6 +942,23 @@ class MessageMarkReadView(APIView):
         message.is_read = True
         message.save(update_fields=["is_read"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MessageMarkAllReadView(APIView):
+    """
+    POST /api/messages/mark-all-read/ — marks every message currently
+    visible to the caller (see `_visible_messages`) as read in one bulk
+    update, for the notification bell's "Mark all as read" button. Same
+    shared-inbox semantics as MessageMarkReadView: a shared (recipient=null)
+    request-to-admin message is marked read for every admin/officer once
+    any one of them clicks it.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        updated = _visible_messages(request.user).filter(is_read=False).update(is_read=True)
+        return Response({"updated": updated})
 
 
 class MessageRecipientsView(generics.ListAPIView):

@@ -212,6 +212,15 @@ export default function StyledSelect({
           <ul
             ref={panelRef}
             role="listbox"
+            // Marks this portaled node so a host popover with its own
+            // "close on outside click" listener (e.g. NotificationBell.tsx)
+            // can recognize a click here as still "inside" itself — since
+            // this list is portaled to document.body, a plain
+            // ancestorEl.contains(e.target) check from the host would
+            // otherwise never see it as a descendant and would close the
+            // host (unmounting this list) on mousedown, before the click's
+            // own selection ever gets to run.
+            data-styled-select-panel=""
             className={styles.panel}
             style={{
               position: "fixed",

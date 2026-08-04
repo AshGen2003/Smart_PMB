@@ -35,14 +35,17 @@ export default async function OfficerLayout({
   const configRes = await apiFetch("/api/admin/system-config/");
   const config = configRes.ok ? await configRes.json() : null;
 
-  // Red-dot counts for the sidebar's Messages/My Requests nav items — same
-  // computation as (admin)/layout.tsx, skipped during Portal Preview (the
-  // previewed role's inbox/requests have no meaning for the real admin's
-  // own JWT-authenticated account underneath).
-  const [inboxRes, systemRequestsRes] = await Promise.all([
+  // Red-dot counts for the sidebar's Messages/My Requests/Licenses nav
+  // items — same computation as (admin)/layout.tsx, skipped during Portal
+  // Preview (the previewed role's inbox/requests have no meaning for the
+  // real admin's own JWT-authenticated account underneath).
+  const [inboxRes, systemRequestsRes, licenseApplicationsRes] = await Promise.all([
     !user.previewing && user.notifyMessages ? apiFetch("/api/messages/inbox/") : null,
     !user.previewing && user.permissions.includes("request_system_changes")
       ? apiFetch("/api/system-requests/")
+      : null,
+    !user.previewing && user.permissions.includes("approve_licenses")
+      ? apiFetch("/api/admin/license-applications/?status=pending")
       : null,
   ]);
 
@@ -54,6 +57,10 @@ export default async function OfficerLayout({
     : [];
   const pendingRequestCount = systemRequests.filter((r) => r.status === "payment_pending").length;
 
+  const pendingLicenseCount: number = licenseApplicationsRes?.ok
+    ? (await licenseApplicationsRes.json()).length
+    : 0;
+
   return (
     <OfficerShell
       permissions={user.permissions}
@@ -62,6 +69,7 @@ export default async function OfficerLayout({
       maintenanceMode={config?.maintenance_mode ?? false}
       unreadMessageCount={unreadMessageCount}
       pendingRequestCount={pendingRequestCount}
+      pendingLicenseCount={pendingLicenseCount}
       previewing={user.previewing}
       impersonating={user.impersonating}
     >

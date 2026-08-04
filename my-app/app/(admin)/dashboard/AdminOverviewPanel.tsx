@@ -9,11 +9,13 @@
  */
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowRight, ShieldCheck, UserCheck, Users } from "lucide-react";
 import ChartLegend from "@/app/components/ChartLegend";
+import { buildRoleColorMap } from "@/app/lib/roleColors";
 import OnlineRolesPanel from "./OnlineRolesPanel";
 import styles from "./Dashboard.module.css";
 
@@ -43,25 +45,22 @@ const TOOLTIP_STYLE = {
   itemStyle: { color: "var(--foreground)" },
 };
 
-// One fixed color per role slot, shared between the bar chart, the "Users
-// by Role" table bullet, and the "Recent Accounts" table bullet (the
-// latter looked up by role name) so a role's bar and any table row
-// belonging to it are identifiable at a glance.
-const ROLE_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-  "var(--chart-neutral)",
-];
-
 /** Renders KPI cards, role-breakdown charts, and role-breakdown/recent-accounts tables. */
 export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }) {
+  // One fixed color per role, shared between the bar chart, the "Users by
+  // Role"/"Recent Accounts" table bullets, and the "Online Now" panel (see
+  // lib/roleColors.ts) — admin is always blue, every other role gets a
+  // stable color assigned by slug (not by `data.role_breakdown`'s own
+  // member-count order, which shifts as counts change and, for tied
+  // counts, has no defined order at all).
+  const roleColorMap = useMemo(() => buildRoleColorMap(data.role_breakdown), [data.role_breakdown]);
+
+  const colorForSlug = (slug: string) => roleColorMap[slug] ?? "var(--chart-neutral)";
+
   // Looks up a role's fixed color by name, for the table bullets below.
   const roleColorOf = (roleName: string) => {
-    const index = data.role_breakdown.findIndex((r) => r.name === roleName);
-    return ROLE_COLORS[(index < 0 ? 0 : index) % ROLE_COLORS.length];
+    const role = data.role_breakdown.find((r) => r.name === roleName);
+    return role ? colorForSlug(role.slug) : "var(--chart-neutral)";
   };
 
   return (
@@ -111,22 +110,22 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
                 <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip {...TOOLTIP_STYLE} />
                 <Bar dataKey="user_count" name="Users" radius={[4, 4, 0, 0]}>
-                  {data.role_breakdown.map((r, index) => (
-                    <Cell key={r.slug} fill={ROLE_COLORS[index % ROLE_COLORS.length]} />
+                  {data.role_breakdown.map((r) => (
+                    <Cell key={r.slug} fill={colorForSlug(r.slug)} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
           <ChartLegend
-            items={data.role_breakdown.map((r, index) => ({
+            items={data.role_breakdown.map((r) => ({
               label: r.name,
-              color: ROLE_COLORS[index % ROLE_COLORS.length],
+              color: colorForSlug(r.slug),
             }))}
           />
         </Link>
 
-        <OnlineRolesPanel roleOrder={data.role_breakdown} />
+        <OnlineRolesPanel roleColors={roleColorMap} />
       </div>
 
       <div className={styles.tablesGrid}>
@@ -143,13 +142,13 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
               </tr>
             </thead>
             <tbody>
-              {data.role_breakdown.map((r, i) => (
+              {data.role_breakdown.map((r) => (
                 <tr key={r.slug}>
                   <td>
                     <div className={styles.userNameRow}>
                       <span
                         className={styles.userColorDot}
-                        style={{ backgroundColor: ROLE_COLORS[i % ROLE_COLORS.length] }}
+                        style={{ backgroundColor: colorForSlug(r.slug) }}
                         aria-hidden
                       />
                       {r.name}

@@ -30,6 +30,7 @@ import {
   Settings,
   ShieldCheck,
   Warehouse,
+  ArrowRightLeft,
   Coins,
   ClipboardCheck,
   Eye,
@@ -64,6 +65,12 @@ const NAV_ITEMS = [
     label: "Warehouses",
     href: "/warehouses",
     icon: Warehouse,
+    permission: "manage_warehouses",
+  },
+  {
+    label: "Warehouse Transfers",
+    href: "/warehouse-transfers",
+    icon: ArrowRightLeft,
     permission: "manage_warehouses",
   },
   { label: "Pricing", href: "/pricing", icon: Coins, permission: "manage_pricing" },
@@ -108,21 +115,26 @@ const NAV_ITEMS = [
 
 /**
  * hrefs that should show a small red dot on their nav icon when the
- * matching count is positive — Messages (unread count) and the two
- * System Requests entries (admin's pending queue / officer's
- * payment-pending requests, see (admin)/layout.tsx for how each count is
- * computed). A dot is a presence signal only (no number), so both
- * "System Requests" and "My Requests" key off the same count — a given
- * user only ever sees one of the two links anyway (see each item's
- * `permission` above).
+ * matching count is positive — Messages (unread count), the two System
+ * Requests entries (admin's pending queue / officer's payment-pending
+ * requests), and Licenses (pending purchaser/mill-owner self-registrations
+ * awaiting review; see (admin)/layout.tsx for how each count is computed).
+ * A dot is a presence signal only (no number), so both "System Requests"
+ * and "My Requests" key off the same count — a given user only ever sees
+ * one of the two links anyway (see each item's `permission` above).
  */
-function dotHrefs(unreadMessageCount: number, pendingRequestCount: number): Set<string> {
+function dotHrefs(
+  unreadMessageCount: number,
+  pendingRequestCount: number,
+  pendingLicenseCount: number
+): Set<string> {
   const hrefs = new Set<string>();
   if (unreadMessageCount > 0) hrefs.add("/messages");
   if (pendingRequestCount > 0) {
     hrefs.add("/system-requests");
     hrefs.add("/system-requests/mine");
   }
+  if (pendingLicenseCount > 0) hrefs.add("/licenses");
   return hrefs;
 }
 
@@ -131,10 +143,12 @@ export default function Sidebar({
   permissions,
   unreadMessageCount = 0,
   pendingRequestCount = 0,
+  pendingLicenseCount = 0,
 }: {
   permissions: string[];
   unreadMessageCount?: number;
   pendingRequestCount?: number;
+  pendingLicenseCount?: number;
 }) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
@@ -146,7 +160,7 @@ export default function Sidebar({
     return true;
   });
 
-  const dots = dotHrefs(unreadMessageCount, pendingRequestCount);
+  const dots = dotHrefs(unreadMessageCount, pendingRequestCount, pendingLicenseCount);
 
   return (
     <aside

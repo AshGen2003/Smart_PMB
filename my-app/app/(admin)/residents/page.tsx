@@ -40,6 +40,7 @@ export default async function UsersPage() {
       currentUserId={currentUser.id}
       canManageSystem={currentUser.permissions.includes("manage_system")}
       canImpersonate={currentUser.permissions.includes("impersonate_users")}
+      canOverrideImpersonation={currentUser.permissions.includes("override_impersonation_otp")}
     />
   );
 }

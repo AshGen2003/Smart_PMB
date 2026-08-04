@@ -28,10 +28,11 @@ interface AdminShellProps {
   maintenanceMode?: boolean;
   previewing?: { slug: string; name: string };
   impersonating?: { email: string };
-  // Red-dot counts for the sidebar's Messages/System Requests nav items —
-  // see (admin)/layout.tsx for how these are computed.
+  // Red-dot counts for the sidebar's Messages/System Requests/Licenses nav
+  // items — see (admin)/layout.tsx for how these are computed.
   unreadMessageCount?: number;
   pendingRequestCount?: number;
+  pendingLicenseCount?: number;
 }
 
 /**
@@ -50,6 +51,7 @@ function LayoutWrapper({
   impersonating,
   unreadMessageCount,
   pendingRequestCount,
+  pendingLicenseCount,
 }: Omit<AdminShellProps, "userName" | "roleLabel" | "profilePictureUrl">) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
@@ -69,6 +71,7 @@ function LayoutWrapper({
           permissions={permissions}
           unreadMessageCount={unreadMessageCount}
           pendingRequestCount={pendingRequestCount}
+          pendingLicenseCount={pendingLicenseCount}
         />
       </div>
       <div className={styles.mainWrapper}>
@@ -108,6 +111,7 @@ export default function AdminShell({
   impersonating,
   unreadMessageCount,
   pendingRequestCount,
+  pendingLicenseCount,
 }: AdminShellProps) {
   return (
     <LayoutProvider>
@@ -120,6 +124,7 @@ export default function AdminShell({
         impersonating={impersonating}
         unreadMessageCount={unreadMessageCount}
         pendingRequestCount={pendingRequestCount}
+        pendingLicenseCount={pendingLicenseCount}
       >
         {children}
       </LayoutWrapper>

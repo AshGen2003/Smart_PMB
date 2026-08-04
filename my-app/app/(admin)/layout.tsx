@@ -70,12 +70,15 @@ export default async function AdminLayout({
   // avoid duplicating NotificationBell.tsx's own inbox polling. Preview
   // never fetches real data (see previewSampleData.ts's docstring), and
   // messages respects the same notifyMessages mute the bell already does.
-  const [inboxRes, systemRequestsRes] = await Promise.all([
+  const [inboxRes, systemRequestsRes, licenseApplicationsRes] = await Promise.all([
     !user.previewing && user.notifyMessages ? apiFetch("/api/messages/inbox/") : null,
     !user.previewing &&
     (user.permissions.includes("manage_system_requests") ||
       user.permissions.includes("request_system_changes"))
       ? apiFetch("/api/system-requests/")
+      : null,
+    !user.previewing && user.permissions.includes("approve_licenses")
+      ? apiFetch("/api/admin/license-applications/?status=pending")
       : null,
   ]);
 
@@ -92,6 +95,13 @@ export default async function AdminLayout({
     ? systemRequests.filter((r) => r.status === "pending").length
     : systemRequests.filter((r) => r.status === "payment_pending").length;
 
+  // Already filtered server-side (?status=pending), so the array length
+  // alone is the count — new authorized-purchaser/mill-owner self-
+  // registrations waiting for an officer/admin to review.
+  const pendingLicenseCount: number = licenseApplicationsRes?.ok
+    ? (await licenseApplicationsRes.json()).length
+    : 0;
+
   return (
     <AdminShell
       userName={user.fullName ?? user.email}
@@ -105,6 +115,7 @@ export default async function AdminLayout({
       impersonating={user.impersonating}
       unreadMessageCount={unreadMessageCount}
       pendingRequestCount={pendingRequestCount}
+      pendingLicenseCount={pendingLicenseCount}
     >
       {children}
     </AdminShell>

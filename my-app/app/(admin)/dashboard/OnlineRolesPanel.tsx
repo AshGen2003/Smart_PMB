@@ -20,30 +20,19 @@ type OnlineRolesData = {
   roles: { name: string; slug: string; count: number }[];
 };
 
-// Same fixed palette used for the "Role Distribution" pie/tables elsewhere
-// on this dashboard, so a role's color means the same thing everywhere.
-const ROLE_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-  "var(--chart-neutral)",
-];
-
 const POLL_INTERVAL_MS = 10_000;
 
 /** Renders the live online-user-by-role card, polling for fresh counts every POLL_INTERVAL_MS. */
 export default function OnlineRolesPanel({
-  roleOrder,
+  roleColors,
 }: {
-  // The same role list (in the same order) that the "Users by Role"
-  // bar chart/table use to assign colors, so a role's color here matches
-  // its color everywhere else on the dashboard — the online endpoint's own
-  // response is sorted by online-count instead, which would otherwise give
-  // the same role a different color depending on how many of its users
-  // happen to be online right now.
-  roleOrder: { name: string; slug: string }[];
+  // The same slug -> color map (see lib/roleColors.ts) the "Users by Role"
+  // bar chart/table use, so a role's color here matches its color
+  // everywhere else on the dashboard — the online endpoint's own response
+  // is sorted by online-count instead, which would otherwise give the same
+  // role a different color depending on how many of its users happen to be
+  // online right now.
+  roleColors: Record<string, string>;
 }) {
   const [data, setData] = useState<OnlineRolesData | null>(null);
   // Separate from the poll interval below so a manual click can show its
@@ -51,10 +40,7 @@ export default function OnlineRolesPanel({
   const [refreshing, setRefreshing] = useState(false);
   const cancelledRef = useRef(false);
 
-  const colorForSlug = (slug: string) => {
-    const index = roleOrder.findIndex((r) => r.slug === slug);
-    return ROLE_COLORS[(index < 0 ? 0 : index) % ROLE_COLORS.length];
-  };
+  const colorForSlug = (slug: string) => roleColors[slug] ?? "var(--chart-neutral)";
 
   // Shared by the automatic interval below and the manual refresh button,
   // so a click doesn't just wait for the next tick.

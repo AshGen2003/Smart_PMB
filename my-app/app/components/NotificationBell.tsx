@@ -83,6 +83,7 @@ export default function NotificationBell({
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = messages?.filter((m) => !m.is_read).length ?? 0;
@@ -136,9 +137,16 @@ export default function NotificationBell({
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target)) return;
+      // The recipient StyledSelect's option list is portaled to
+      // document.body (see StyledSelect.tsx), so it's never a DOM
+      // descendant of wrapRef even while "logically" part of this
+      // dropdown — without this check, clicking a recipient registers as
+      // an outside click and closes the whole panel before the click's
+      // own selection can run, silently discarding it.
+      if (target instanceof Element && target.closest("[data-styled-select-panel]")) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -150,6 +158,21 @@ export default function NotificationBell({
       // Best-effort — a failed mark-read just gets retried next time the
       // user clicks it; not worth surfacing an error for.
     });
+  }
+
+  async function markAllRead() {
+    setMarkingAllRead(true);
+    // Optimistic — the next poll (or a failed call below) reconciles it
+    // either way, same tolerance as the single markRead() above.
+    setMessages((prev) => prev?.map((m) => ({ ...m, is_read: true })) ?? prev);
+    try {
+      await fetch("/api/messages/mark-all-read", { method: "POST" });
+    } catch {
+      // Best-effort, same as markRead() — the next poll will show any
+      // messages that didn't actually get marked read server-side.
+    } finally {
+      setMarkingAllRead(false);
+    }
   }
 
   async function handleSend() {
@@ -209,13 +232,25 @@ export default function NotificationBell({
           <div className={styles.panelHeader}>
             {t.notificationBell.messagesHeader}
             {!previewing && (
-              <Link
-                href={messagesHref}
-                className={styles.viewAllLink}
-                onClick={() => setOpen(false)}
-              >
-                {t.notificationBell.viewAll}
-              </Link>
+              <div className={styles.headerActions}>
+                {notifyMessages && messages !== null && (
+                  <button
+                    type="button"
+                    className={styles.markAllReadLink}
+                    onClick={markAllRead}
+                    disabled={markingAllRead || unreadCount === 0}
+                  >
+                    {markingAllRead ? t.notificationBell.markingAllRead : t.notificationBell.markAllRead}
+                  </button>
+                )}
+                <Link
+                  href={messagesHref}
+                  className={styles.viewAllLink}
+                  onClick={() => setOpen(false)}
+                >
+                  {t.notificationBell.viewAll}
+                </Link>
+              </div>
             )}
           </div>
 

@@ -19,6 +19,7 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from accounts.models import Message
@@ -567,3 +568,36 @@ class StripeWebhookView(APIView):
                 )
 
         return HttpResponse(status=200)
+
+
+class RunCapacityForecastsView(APIView):
+    """
+    POST /api/internal/run-capacity-forecasts/ — runs the
+    check_capacity_forecasts management command (predictive warehouse-
+    capacity SystemAlerts; see farmers/forecasting.py) on demand, meant to
+    be called once a day by .github/workflows/capacity-forecast-schedule.yml
+    since this codebase has no in-process task scheduler.
+
+    Same "unauthenticated caller, secret-verified" shape as
+    StripeWebhookView above — this is hit by a GitHub Actions cron job, not
+    the frontend, so it carries no JWT. Deliberately runs exactly one
+    hardcoded command rather than accepting a command name, so a leaked
+    INTERNAL_TASK_SECRET can only ever trigger this one harmless job.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "internal_task"
+
+    def post(self, request):
+        if not settings.INTERNAL_TASK_SECRET:
+            return HttpResponse(status=500)
+
+        provided = request.META.get("HTTP_X_INTERNAL_TASK_SECRET", "")
+        if not secrets.compare_digest(provided, settings.INTERNAL_TASK_SECRET):
+            return HttpResponse(status=403)
+
+        buffer = io.StringIO()
+        call_command("check_capacity_forecasts", stdout=buffer)
+        return Response({"output": buffer.getvalue()})

@@ -8,8 +8,12 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { AlertTriangle, Minus, Pencil, Plus } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, Minus, Pencil, Plus } from "lucide-react";
 import StockAdjustModal, { type PaddyTypeOption } from "./StockAdjustModal";
+import TransferRequestModal, {
+  type TransferWarehouseOption,
+  type TransferInventoryLine,
+} from "./TransferRequestModal";
 import WarehouseInfoModal from "./WarehouseInfoModal";
 import styles from "./WarehouseManagerDashboard.module.css";
 
@@ -37,7 +41,12 @@ export type InventoryLine = {
 
 export type TransactionLogEntry = {
   id: number;
-  transaction_type: "harvest_collection" | "rice_request_fulfillment" | "manual_adjustment";
+  transaction_type:
+    | "harvest_collection"
+    | "rice_request_fulfillment"
+    | "manual_adjustment"
+    | "transfer_out"
+    | "transfer_in";
   quantity_change: string;
   created_at: string;
 };
@@ -46,6 +55,25 @@ const TRANSACTION_LABEL: Record<TransactionLogEntry["transaction_type"], string>
   harvest_collection: "Harvest collected",
   rice_request_fulfillment: "Rice request fulfilled",
   manual_adjustment: "Manual adjustment",
+  transfer_out: "Transferred out",
+  transfer_in: "Transferred in",
+};
+
+export type TransferRequestRow = {
+  id: number;
+  from_warehouse_name: string | null;
+  paddy_type_name: string | null;
+  grade: string | null;
+  quantity_kg: string;
+  status: "pending" | "approved" | "rejected";
+  review_notes: string;
+  requested_date: string;
+};
+
+const TRANSFER_STATUS_LABEL: Record<TransferRequestRow["status"], string> = {
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
 };
 
 export type AlertRow = {
@@ -63,15 +91,22 @@ export default function WarehouseManagerDashboardView({
   transactions,
   alerts,
   paddyTypes,
+  transferWarehouses,
+  transferInventory,
+  transferRequests,
 }: {
   warehouse: WarehouseDetail;
   inventory: InventoryLine[];
   transactions: TransactionLogEntry[];
   alerts: AlertRow[];
   paddyTypes: PaddyTypeOption[];
+  transferWarehouses: TransferWarehouseOption[];
+  transferInventory: TransferInventoryLine[];
+  transferRequests: TransferRequestRow[];
 }) {
   const [adjustDirection, setAdjustDirection] = useState<"add" | "remove" | null>(null);
   const [editingInfo, setEditingInfo] = useState(false);
+  const [requestingTransfer, setRequestingTransfer] = useState(false);
   const maxQty = Math.max(...inventory.map((i) => Number(i.quantity)), 1);
 
   return (
@@ -130,6 +165,9 @@ export default function WarehouseManagerDashboardView({
             </button>
             <button type="button" className={styles.smallBtn} onClick={() => setAdjustDirection("remove")}>
               <Minus size={14} /> Remove stock
+            </button>
+            <button type="button" className={styles.smallBtn} onClick={() => setRequestingTransfer(true)}>
+              <ArrowRightLeft size={14} /> Request transfer
             </button>
           </div>
         </div>
@@ -192,11 +230,41 @@ export default function WarehouseManagerDashboardView({
         )}
       </div>
 
+      {transferRequests.length > 0 && (
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>Transfer requests</h2>
+          <div className={styles.list}>
+            {transferRequests.map((t) => (
+              <div key={t.id} className={styles.listRow}>
+                <span className={styles.listMain}>
+                  {Number(t.quantity_kg).toLocaleString()} kg {t.paddy_type_name ?? "—"}
+                  {t.grade && ` · Grade ${t.grade}`} from {t.from_warehouse_name ?? "—"}
+                  <span className={styles.listMeta}>
+                    {" · "}
+                    {format(new Date(t.requested_date), "MMM d, yyyy")}
+                  </span>
+                </span>
+                <span className={styles.listValue}>{TRANSFER_STATUS_LABEL[t.status]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {adjustDirection && (
         <StockAdjustModal
           direction={adjustDirection}
           paddyTypes={paddyTypes}
           onClose={() => setAdjustDirection(null)}
+        />
+      )}
+
+      {requestingTransfer && (
+        <TransferRequestModal
+          warehouses={transferWarehouses}
+          inventory={transferInventory}
+          paddyTypes={paddyTypes}
+          onClose={() => setRequestingTransfer(false)}
         />
       )}
 

@@ -277,6 +277,43 @@ class PasswordResetOTP(models.Model):
         return f"OTP for {self.user.email} via {self.channel} ({'consumed' if self.consumed_at else 'active'})"
 
 
+class ImpersonationOTP(models.Model):
+    """
+    A one-time code an admin must obtain from the target account holder
+    before AdminUserViewSet.impersonate will actually mint a session for
+    them. The code is emailed to the account holder (see
+    send_impersonation_otp_email) and has to be relayed back to the admin
+    out of band — turning impersonation from something done *to* an
+    account into something the account holder actively consents to in the
+    moment. Same hashed-code/attempt-capping shape as PasswordResetOTP.
+
+    `requested_by` scopes a code to the admin who requested it, so a code
+    the account holder shares with one admin can't be reused by a
+    different admin who happens to also have impersonate_users.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="impersonation_otps"
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
+    )
+    code_hash = models.CharField(max_length=128)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    # Wrong-code guesses against *this* row — capped in AdminUserViewSet.impersonate
+    # so a 6-digit code (1 in a million) can't just be brute-forced.
+    attempts = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        status = "consumed" if self.consumed_at else "active"
+        return f"Impersonation OTP for {self.user.email} requested by {self.requested_by.email} ({status})"
+
+
 class Message(models.Model):
     """
     A message between two users, surfaced via the notification bell in the

@@ -245,16 +245,19 @@ class TransactionLog(models.Model):
     An audit trail entry for one stock movement at a warehouse — additive
     telemetry alongside (not a replacement for) `Warehouse.current_stock`
     and `Inventory`, which are the actual source of truth those movements
-    update. Exactly one of `harvest`/`rice_request` is set, identifying
-    which event caused the movement; see _log_transaction() in views.py,
-    called from OfficerHarvestViewSet.mark_collected (farmers) and
-    OfficerRiceRequestViewSet.fulfill (purchases).
+    update. Exactly one of `harvest`/`rice_request`/`transfer_request` is
+    set, identifying which event caused the movement; see _log_transaction()
+    in views.py, called from OfficerHarvestViewSet.mark_collected (farmers),
+    OfficerRiceRequestViewSet.fulfill (purchases), and
+    WarehouseTransferRequestViewSet.approve (farmers).
     """
 
     class TransactionType(models.TextChoices):
         HARVEST_COLLECTION = "harvest_collection", "Harvest Collection"
         RICE_REQUEST_FULFILLMENT = "rice_request_fulfillment", "Rice Request Fulfillment"
         MANUAL_ADJUSTMENT = "manual_adjustment", "Manual Adjustment"
+        TRANSFER_OUT = "transfer_out", "Transfer Out"
+        TRANSFER_IN = "transfer_in", "Transfer In"
 
     warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name="transaction_logs")
     transaction_type = models.CharField(max_length=30, choices=TransactionType.choices)
@@ -267,11 +270,62 @@ class TransactionLog(models.Model):
     rice_request = models.ForeignKey(
         "purchases.RiceRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="transaction_logs"
     )
+    transfer_request = models.ForeignKey(
+        "WarehouseTransferRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="transaction_logs"
+    )
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class WarehouseTransferRequest(models.Model):
+    """
+    A warehouse manager's request to move stock of a specific paddy type/
+    grade from another warehouse into their own. Initiated by the manager
+    of `to_warehouse` (never on behalf of another warehouse — see
+    WarehouseManagerTransferRequestViewSet.perform_create in views.py,
+    which forces `to_warehouse` to the requesting manager's own warehouse),
+    approved/rejected by a PMB officer with "manage_warehouses". Approval
+    moves the stock atomically and is a one-step action — unlike
+    purchases.RiceRequest, both warehouses are already fixed at request
+    time, so there's no separate "fulfill" step.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    from_warehouse = models.ForeignKey(
+        Warehouse, on_delete=models.PROTECT, related_name="outgoing_transfer_requests"
+    )
+    to_warehouse = models.ForeignKey(
+        Warehouse, on_delete=models.PROTECT, related_name="incoming_transfer_requests"
+    )
+    paddy_type = models.ForeignKey(
+        PaddyType, on_delete=models.PROTECT, related_name="warehouse_transfer_requests"
+    )
+    grade = models.CharField(max_length=1, choices=Harvest.Grade.choices, null=True, blank=True)
+    quantity_kg = models.DecimalField(max_digits=12, decimal_places=2)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    review_notes = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    requested_date = models.DateTimeField(auto_now_add=True)
+    resolved_date = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-requested_date"]
+
+    def __str__(self):
+        return f"{self.quantity_kg}kg {self.paddy_type} from {self.from_warehouse} to {self.to_warehouse} ({self.status})"
 
 
 class Inventory(models.Model):

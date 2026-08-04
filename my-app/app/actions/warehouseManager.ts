@@ -45,6 +45,39 @@ export async function adjustMyWarehouseStock(
 }
 
 /**
+ * Requests a transfer of stock (one paddy type + optional grade) from
+ * another warehouse into the logged-in manager's own warehouse. The
+ * source is client-chosen (`from_warehouse`); the destination is always
+ * this manager's own warehouse, forced server-side (see farmers/views.py's
+ * WarehouseManagerTransferRequestViewSet.perform_create) — never sent from
+ * here. An officer with "manage_warehouses" reviews it from the
+ * Warehouse Transfers admin page.
+ */
+export async function requestWarehouseTransfer(
+  _prevState: WarehouseManagerFormState,
+  formData: FormData
+): Promise<WarehouseManagerFormState> {
+  const res = await apiFetch("/api/warehouse-manager/transfer-requests/", {
+    method: "POST",
+    body: JSON.stringify({
+      from_warehouse: Number(formData.get("from_warehouse")),
+      paddy_type: Number(formData.get("paddy_type")),
+      grade: String(formData.get("grade") ?? "") || null,
+      quantity_kg: String(formData.get("quantity_kg") ?? ""),
+      notes: String(formData.get("notes") ?? "").trim(),
+    }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/warehouse-manager");
+  return {};
+}
+
+/**
  * Updates the logged-in manager's own warehouse's operational info — only
  * contact_number and status (see farmers/serializers.py's
  * WarehouseManagerSelfUpdateSerializer; anything else in the payload is

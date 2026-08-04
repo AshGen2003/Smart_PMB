@@ -7,7 +7,7 @@ from django.db.models import Count, DecimalField, ExpressionWrapper, F, Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
-from .forecasting import forecast_next_month_price
+from .forecasting import forecast_next_harvest_yield, forecast_next_month_price
 from .models import Harvest, PaddyType, Payment, Warehouse
 from .serializers import WarehouseSerializer
 
@@ -97,6 +97,13 @@ def build_officer_report_data():
         if (forecast := forecast_next_month_price(pt)) is not None
     ]
 
+    # Same "advisory only, dropped rather than shown blank" reasoning as
+    # price_forecast above — see forecasting.py's docstring.
+    yield_forecast = [
+        forecast for pt in PaddyType.objects.filter(is_active=True)
+        if (forecast := forecast_next_harvest_yield(pt)) is not None
+    ]
+
     return {
         "generated_at": timezone.now(),
         "stock_report": stock_report,
@@ -107,4 +114,5 @@ def build_officer_report_data():
             "monthly_purchases": monthly_purchases,
         },
         "price_forecast": price_forecast,
+        "yield_forecast": yield_forecast,
     }

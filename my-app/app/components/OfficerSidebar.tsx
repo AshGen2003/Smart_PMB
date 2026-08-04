@@ -71,11 +71,20 @@ const NAV_ITEMS = [
   { label: "Settings", href: "/officer/settings", icon: Settings, permission: "view_settings" },
 ] as const;
 
-/** Same presence-only red-dot convention as Sidebar.tsx's dotHrefs — Messages (unread) and My Requests (payment-pending). */
-function dotHrefs(unreadMessageCount: number, pendingRequestCount: number): Set<string> {
+/**
+ * Same presence-only red-dot convention as Sidebar.tsx's dotHrefs —
+ * Messages (unread), My Requests (payment-pending), and Licenses (pending
+ * purchaser/mill-owner self-registrations awaiting review).
+ */
+function dotHrefs(
+  unreadMessageCount: number,
+  pendingRequestCount: number,
+  pendingLicenseCount: number
+): Set<string> {
   const hrefs = new Set<string>();
   if (unreadMessageCount > 0) hrefs.add("/officer/messages");
   if (pendingRequestCount > 0) hrefs.add("/officer/system-requests/mine");
+  if (pendingLicenseCount > 0) hrefs.add("/officer/licenses");
   return hrefs;
 }
 
@@ -84,10 +93,12 @@ export default function OfficerSidebar({
   permissions,
   unreadMessageCount = 0,
   pendingRequestCount = 0,
+  pendingLicenseCount = 0,
 }: {
   permissions: string[];
   unreadMessageCount?: number;
   pendingRequestCount?: number;
+  pendingLicenseCount?: number;
 }) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
@@ -98,7 +109,7 @@ export default function OfficerSidebar({
     return true;
   });
 
-  const dots = dotHrefs(unreadMessageCount, pendingRequestCount);
+  const dots = dotHrefs(unreadMessageCount, pendingRequestCount, pendingLicenseCount);
 
   return (
     <aside className={clsx(styles.sidebar, !isSidebarOpen && styles.sidebarCollapsed)}>

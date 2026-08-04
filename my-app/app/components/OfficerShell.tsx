@@ -34,6 +34,7 @@ interface OfficerShellProps {
   maintenanceMode?: boolean;
   unreadMessageCount?: number;
   pendingRequestCount?: number;
+  pendingLicenseCount?: number;
   previewing?: { slug: string; name: string };
   impersonating?: { email: string };
 }
@@ -46,6 +47,7 @@ function LayoutWrapper({
   maintenanceMode,
   unreadMessageCount,
   pendingRequestCount,
+  pendingLicenseCount,
   previewing,
   impersonating,
 }: OfficerShellProps) {
@@ -65,6 +67,7 @@ function LayoutWrapper({
           permissions={permissions}
           unreadMessageCount={unreadMessageCount}
           pendingRequestCount={pendingRequestCount}
+          pendingLicenseCount={pendingLicenseCount}
         />
       </div>
       <div className={styles.mainWrapper}>
@@ -97,6 +100,7 @@ export default function OfficerShell({
   maintenanceMode,
   unreadMessageCount,
   pendingRequestCount,
+  pendingLicenseCount,
   previewing,
   impersonating,
 }: OfficerShellProps) {
@@ -109,6 +113,7 @@ export default function OfficerShell({
         maintenanceMode={maintenanceMode}
         unreadMessageCount={unreadMessageCount}
         pendingRequestCount={pendingRequestCount}
+        pendingLicenseCount={pendingLicenseCount}
         previewing={previewing}
         impersonating={impersonating}
       >

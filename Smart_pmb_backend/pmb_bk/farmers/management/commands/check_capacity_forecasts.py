@@ -1,8 +1,11 @@
 # Runs farmers/forecasting.py's forecast_warehouse_capacity_risk for every
 # warehouse, raising a predictive SystemAlert for any projected to fill up
-# soon. This codebase has no task-queue/scheduler, so this is meant to be
-# hooked into an external scheduler (cron, Windows Task Scheduler) rather
-# than run automatically — see .env.example for a suggested cadence.
+# soon. This codebase has no in-process task queue/scheduler, so in
+# production this is invoked once a day by
+# .github/workflows/capacity-forecast-schedule.yml, which calls
+# sysops.views.RunCapacityForecastsView (POST /api/internal/run-capacity-forecasts/)
+# rather than reaching into the server directly. You can still run it by
+# hand locally: `python manage.py check_capacity_forecasts`.
 from django.core.management.base import BaseCommand
 
 from farmers.forecasting import forecast_warehouse_capacity_risk

@@ -1,17 +1,20 @@
-# Lightweight, stdlib-only price/capacity forecasting — officer-facing
+# Lightweight, stdlib-only price/capacity/yield forecasting — officer-facing
 # advisories only. Nothing here ever writes to PaddyType.guaranteed_price;
 # an officer always has to act on a suggestion manually via /pricing.
 import statistics
 from datetime import timedelta
 
+from django.db.models import Sum
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from sysops.models import SystemAlert
 
-from .models import PaddyType, TransactionLog
+from .models import Harvest, PaddyType, TransactionLog
 
 MIN_PRICE_POINTS = 3
 MIN_CAPACITY_POINTS = 2
+MIN_YIELD_POINTS = 3
 CAPACITY_WARNING_DAYS = 14
 
 
@@ -36,6 +39,40 @@ def forecast_next_month_price(paddy_type: PaddyType):
         "current_price": float(paddy_type.guaranteed_price),
         "suggested_price": max(suggested_price, 0.0),
         "based_on_points": len(records),
+    }
+
+
+def forecast_next_harvest_yield(paddy_type: PaddyType):
+    """
+    Fits a simple linear trend over this paddy type's monthly approved-
+    harvest volume (VERIFIED/COLLECTED Harvests, grouped by month) and
+    projects one month forward. Returns None if there isn't enough history
+    yet (fewer than MIN_YIELD_POINTS months) to make the trend meaningful —
+    same "advisory only" reasoning as forecast_next_month_price.
+    """
+    monthly = list(
+        Harvest.objects.filter(
+            paddy_type=paddy_type,
+            status__in=[Harvest.Status.VERIFIED, Harvest.Status.COLLECTED],
+        )
+        .annotate(month=TruncMonth("harvest_date"))
+        .values("month")
+        .annotate(total_kg=Sum("quantity_kg"))
+        .order_by("month")
+    )
+    if len(monthly) < MIN_YIELD_POINTS:
+        return None
+
+    xs = [float(i) for i in range(len(monthly))]
+    ys = [float(row["total_kg"] or 0) for row in monthly]
+    slope, intercept = statistics.linear_regression(xs, ys)
+    suggested_yield_kg = round(slope * len(monthly) + intercept, 2)
+
+    return {
+        "paddy_type": paddy_type.type_name,
+        "last_month_kg": ys[-1],
+        "suggested_next_month_kg": max(suggested_yield_kg, 0.0),
+        "based_on_points": len(monthly),
     }
 
 
