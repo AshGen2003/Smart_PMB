@@ -11,12 +11,17 @@ import { format } from "date-fns";
 import clsx from "clsx";
 import {
   AlertTriangle,
+  Bug,
   Check,
   Database,
+  Download,
   History,
   Loader2,
   ScrollText,
+  Search,
   Settings2,
+  User,
+  X,
 } from "lucide-react";
 import {
   acknowledgeAlert,
@@ -40,6 +45,21 @@ export type AuthLogRow = {
   email: string;
   ip_address: string;
   action: "login_success" | "login_failed" | "account_locked" | "logout";
+  created_at: string;
+};
+
+// General-purpose activity/error monitoring row: one unhandled exception
+// from anywhere in the API, captured automatically (see
+// sysops/exception_handler.py) rather than a hand-picked business action
+// like AuditLog.
+export type ErrorLogRow = {
+  id: number;
+  actor: string;
+  method: string;
+  path: string;
+  exception_type: string;
+  message: string;
+  status_code: number | null;
   created_at: string;
 };
 
@@ -70,6 +90,9 @@ export type SystemConfigData = {
   login_lockout_threshold: number;
   login_lockout_minutes: number;
   maintenance_mode: boolean;
+  payments_enabled: boolean;
+  sms_enabled: boolean;
+  signups_enabled: boolean;
 };
 
 const AUTH_ACTION_LABEL: Record<AuthLogRow["action"], string> = {
@@ -95,6 +118,7 @@ const TABS = [
   { key: "alerts", label: "Alerts", icon: AlertTriangle },
   { key: "audit", label: "Audit Log", icon: ScrollText },
   { key: "auth", label: "Login Activity", icon: History },
+  { key: "errors", label: "Errors", icon: Bug },
   { key: "backups", label: "Backups", icon: Database },
   { key: "settings", label: "Settings", icon: Settings2 },
 ] as const;
@@ -105,6 +129,7 @@ type TabKey = (typeof TABS)[number]["key"];
 export default function MaintenanceManager({
   auditLogs,
   authLogs,
+  errorLogs,
   alerts,
   backups,
   config,
@@ -112,6 +137,7 @@ export default function MaintenanceManager({
 }: {
   auditLogs: AuditLogRow[];
   authLogs: AuthLogRow[];
+  errorLogs: ErrorLogRow[];
   alerts: AlertRow[];
   backups: BackupRow[];
   config: SystemConfigData;
@@ -121,11 +147,134 @@ export default function MaintenanceManager({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Actor string (email, or "System") whose full activity trail is shown
+  // in the drill-down modal below — filtered client-side from the same
+  // (already fully loaded, capped-at-200) auditLogs list this tab already
+  // renders, so opening it needs no extra request.
+  const [userTrailActor, setUserTrailActor] = useState<string | null>(null);
+
+  const userTrailEntries = useMemo(
+    () => (userTrailActor ? auditLogs.filter((l) => l.actor === userTrailActor) : []),
+    [auditLogs, userTrailActor]
+  );
+
+  // The Audit Log tab shows one row per actor rather than one row per
+  // entry — a heavy actor (e.g. an admin doing far more than anyone else)
+  // would otherwise flood the table with hundreds of near-identical rows.
+  // Each group summarizes its actor's activity and links into the same
+  // per-actor drill-down modal userTrailEntries/userTrailActor already
+  // power. auditLogs arrives most-recent-first (backend ordering), so the
+  // first entry seen for an actor is also their most recent.
+  const auditGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      { actor: string; count: number; lastAction: string; lastModule: string; lastAt: string }
+    >();
+    for (const log of auditLogs) {
+      const existing = groups.get(log.actor);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        groups.set(log.actor, {
+          actor: log.actor,
+          count: 1,
+          lastAction: log.action,
+          lastModule: log.module,
+          lastAt: log.created_at,
+        });
+      }
+    }
+    return Array.from(groups.values()).sort((a, b) => b.count - a.count);
+  }, [auditLogs]);
+
+  // Email whose full login-activity trail is shown in a drill-down modal —
+  // same pattern as userTrailActor/userTrailEntries above, filtered
+  // client-side from the same already-loaded authLogs list.
+  const [authTrailEmail, setAuthTrailEmail] = useState<string | null>(null);
+
+  const authTrailEntries = useMemo(
+    () => (authTrailEmail ? authLogs.filter((l) => l.email === authTrailEmail) : []),
+    [authLogs, authTrailEmail]
+  );
+
+  // Same reasoning as auditGroups: an account that logs in/out constantly
+  // (or an admin being repeatedly targeted by failed-login attempts) would
+  // otherwise flood the table with one row per event. Grouped by email,
+  // one row per account, with a failedCount surfaced separately since a
+  // spike in failed logins for one account is the thing actually worth an
+  // admin's attention. authLogs arrives most-recent-first, so the first
+  // entry seen per email is also their most recent.
+  const authGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      { email: string; count: number; failedCount: number; lastAction: AuthLogRow["action"]; lastAt: string }
+    >();
+    for (const log of authLogs) {
+      const key = log.email || "—";
+      const existing = groups.get(key);
+      const isFailed = log.action === "login_failed" || log.action === "account_locked";
+      if (existing) {
+        existing.count += 1;
+        if (isFailed) existing.failedCount += 1;
+      } else {
+        groups.set(key, {
+          email: key,
+          count: 1,
+          failedCount: isFailed ? 1 : 0,
+          lastAction: log.action,
+          lastAt: log.created_at,
+        });
+      }
+    }
+    return Array.from(groups.values()).sort((a, b) => b.count - a.count);
+  }, [authLogs]);
 
   const openAlertCount = useMemo(
     () => alerts.filter((a) => a.status === "open").length,
     [alerts]
   );
+
+  // One search box, reused across the audit/auth/errors tabs (each has its
+  // own matching fields below) — cleared automatically on tab switch so a
+  // query typed on one tab doesn't silently filter another.
+  const [search, setSearch] = useState("");
+
+  const filteredAuditGroups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return auditGroups;
+    return auditGroups.filter(
+      (g) =>
+        g.actor.toLowerCase().includes(q) ||
+        g.lastAction.toLowerCase().includes(q) ||
+        g.lastModule.toLowerCase().includes(q)
+    );
+  }, [auditGroups, search]);
+
+  const filteredAuthGroups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return authGroups;
+    return authGroups.filter(
+      (g) => g.email.toLowerCase().includes(q) || g.lastAction.toLowerCase().includes(q)
+    );
+  }, [authGroups, search]);
+
+  const filteredErrorLogs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return errorLogs;
+    return errorLogs.filter(
+      (e) =>
+        e.actor.toLowerCase().includes(q) ||
+        (e.method || "").toLowerCase().includes(q) ||
+        (e.path || "").toLowerCase().includes(q) ||
+        (e.exception_type || "").toLowerCase().includes(q) ||
+        (e.message || "").toLowerCase().includes(q)
+    );
+  }, [errorLogs, search]);
+
+  function switchTab(key: TabKey) {
+    setTab(key);
+    setSearch("");
+  }
 
   // Shared wrapper for alert/backup/settings Server Actions: clears
   // previous banners, runs the action in a transition, and shows either
@@ -159,7 +308,7 @@ export default function MaintenanceManager({
               key={t.key}
               type="button"
               className={clsx(styles.tab, tab === t.key && styles.tabActive)}
-              onClick={() => setTab(t.key)}
+              onClick={() => switchTab(t.key)}
             >
               <Icon size={15} />
               {t.label}
@@ -170,6 +319,25 @@ export default function MaintenanceManager({
           );
         })}
       </div>
+
+      {(tab === "audit" || tab === "auth" || tab === "errors") && (
+        <div className={styles.searchWrap}>
+          <Search size={16} className={styles.searchIcon} />
+          <input
+            type="text"
+            className={styles.searchInput}
+            placeholder={
+              tab === "audit"
+                ? "Search by actor, action, or module…"
+                : tab === "auth"
+                ? "Search by email or action…"
+                : "Search by actor, path, or exception…"
+            }
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
 
       {error && <div className={styles.banner}>{error}</div>}
       {success && <div className={styles.successBanner}>{success}</div>}
@@ -262,26 +430,41 @@ export default function MaintenanceManager({
 
       {tab === "audit" && (
         <div className={styles.container}>
-          {auditLogs.length > 0 ? (
+          {filteredAuditGroups.length > 0 ? (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
                     <th>Actor</th>
-                    <th>Action</th>
-                    <th>Module</th>
-                    <th>Details</th>
-                    <th>When</th>
+                    <th>Activities</th>
+                    <th>Last action</th>
+                    <th>Last module</th>
+                    <th>Last activity</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {auditLogs.map((log) => (
-                    <tr key={log.id}>
-                      <td>{log.actor}</td>
-                      <td>{log.action.replaceAll("_", " ")}</td>
-                      <td>{log.module}</td>
-                      <td style={{ whiteSpace: "normal" }}>{log.details || "—"}</td>
-                      <td>{fmt(log.created_at)}</td>
+                  {filteredAuditGroups.map((group) => (
+                    <tr key={group.actor}>
+                      <td>
+                        {group.actor && group.actor !== "System" ? (
+                          <button
+                            type="button"
+                            className={styles.actorLink}
+                            onClick={() => setUserTrailActor(group.actor)}
+                            title={`View ${group.actor}'s activity`}
+                          >
+                            {group.actor}
+                          </button>
+                        ) : (
+                          group.actor
+                        )}
+                      </td>
+                      <td>
+                        <span className={clsx(styles.badge, styles["badge-neutral"])}>{group.count}</span>
+                      </td>
+                      <td>{group.lastAction.replaceAll("_", " ")}</td>
+                      <td>{group.lastModule}</td>
+                      <td>{fmt(group.lastAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -290,7 +473,7 @@ export default function MaintenanceManager({
           ) : (
             <div className={styles.emptyState}>
               <ScrollText size={28} />
-              <p>No audit activity yet.</p>
+              <p>{search ? "No actors match your search." : "No audit activity yet."}</p>
             </div>
           )}
         </div>
@@ -298,37 +481,62 @@ export default function MaintenanceManager({
 
       {tab === "auth" && (
         <div className={styles.container}>
-          {authLogs.length > 0 ? (
+          {filteredAuthGroups.length > 0 ? (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
                     <th>Email</th>
-                    <th>Action</th>
-                    <th>IP Address</th>
-                    <th>When</th>
+                    <th>Activity</th>
+                    <th>Failed logins</th>
+                    <th>Last action</th>
+                    <th>Last activity</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {authLogs.map((log) => (
-                    <tr key={log.id}>
-                      <td>{log.email || "—"}</td>
+                  {filteredAuthGroups.map((group) => (
+                    <tr key={group.email}>
+                      <td>
+                        {group.email && group.email !== "—" ? (
+                          <button
+                            type="button"
+                            className={styles.actorLink}
+                            onClick={() => setAuthTrailEmail(group.email)}
+                            title={`View ${group.email}'s login activity`}
+                          >
+                            {group.email}
+                          </button>
+                        ) : (
+                          group.email
+                        )}
+                      </td>
+                      <td>
+                        <span className={clsx(styles.badge, styles["badge-neutral"])}>{group.count}</span>
+                      </td>
+                      <td>
+                        {group.failedCount > 0 ? (
+                          <span className={clsx(styles.badge, styles["badge-critical"])}>
+                            {group.failedCount}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td>
                         <span
                           className={clsx(
                             styles.badge,
-                            log.action === "login_success"
+                            group.lastAction === "login_success"
                               ? styles["badge-success"]
-                              : log.action === "logout"
+                              : group.lastAction === "logout"
                               ? styles["badge-neutral"]
                               : styles["badge-critical"]
                           )}
                         >
-                          {AUTH_ACTION_LABEL[log.action]}
+                          {AUTH_ACTION_LABEL[group.lastAction]}
                         </span>
                       </td>
-                      <td>{log.ip_address || "—"}</td>
-                      <td>{fmt(log.created_at)}</td>
+                      <td>{fmt(group.lastAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -337,7 +545,60 @@ export default function MaintenanceManager({
           ) : (
             <div className={styles.emptyState}>
               <History size={28} />
-              <p>No login activity recorded yet.</p>
+              <p>{search ? "No accounts match your search." : "No login activity recorded yet."}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "errors" && (
+        <div className={styles.container}>
+          {filteredErrorLogs.length > 0 ? (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Actor</th>
+                    <th>Method</th>
+                    <th>Path</th>
+                    <th>Exception</th>
+                    <th>Message</th>
+                    <th>Status</th>
+                    <th>When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredErrorLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td>{log.actor}</td>
+                      <td>{log.method || "—"}</td>
+                      <td>{log.path || "—"}</td>
+                      <td>{log.exception_type || "—"}</td>
+                      <td style={{ whiteSpace: "normal" }}>{log.message || "—"}</td>
+                      <td>
+                        {log.status_code ? (
+                          <span
+                            className={clsx(
+                              styles.badge,
+                              log.status_code >= 500 ? styles["badge-critical"] : styles["badge-warning"]
+                            )}
+                          >
+                            {log.status_code}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td>{fmt(log.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className={styles.emptyState}>
+              <Bug size={28} />
+              <p>{search ? "No errors match your search." : "No errors recorded yet."}</p>
             </div>
           )}
         </div>
@@ -368,6 +629,7 @@ export default function MaintenanceManager({
                     <th>Status</th>
                     <th>Performed by</th>
                     <th>When</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -389,6 +651,18 @@ export default function MaintenanceManager({
                       </td>
                       <td>{b.performed_by_email ?? "—"}</td>
                       <td>{fmt(b.created_at)}</td>
+                      <td>
+                        {b.status === "completed" && (
+                          <a
+                            href={`/api/backups/${b.id}/download`}
+                            className={styles.iconBtn}
+                            title="Download"
+                            aria-label="Download backup"
+                          >
+                            <Download size={14} />
+                          </a>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -413,6 +687,121 @@ export default function MaintenanceManager({
               runAction(() => updateSystemConfig(updates), "Settings saved.")
             }
           />
+        </div>
+      )}
+
+      {userTrailActor && (
+        <div className={styles.overlay} onClick={() => setUserTrailActor(null)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div className={styles.modalHeaderTitle}>
+                <User size={20} />
+                Activity — {userTrailActor}
+              </div>
+              <button
+                type="button"
+                className={styles.modalCloseBtn}
+                onClick={() => setUserTrailActor(null)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              {userTrailEntries.length > 0 ? (
+                <div className={styles.tableWrap}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Action</th>
+                        <th>Module</th>
+                        <th>Details</th>
+                        <th>When</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {userTrailEntries.map((log) => (
+                        <tr key={log.id}>
+                          <td>{log.action.replaceAll("_", " ")}</td>
+                          <td>{log.module}</td>
+                          <td style={{ whiteSpace: "normal" }}>{log.details || "—"}</td>
+                          <td>{fmt(log.created_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className={styles.emptyState}>
+                  <ScrollText size={28} />
+                  <p>No activity found for this user in the current log window.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {authTrailEmail && (
+        <div className={styles.overlay} onClick={() => setAuthTrailEmail(null)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div className={styles.modalHeaderTitle}>
+                <History size={20} />
+                Login activity — {authTrailEmail}
+              </div>
+              <button
+                type="button"
+                className={styles.modalCloseBtn}
+                onClick={() => setAuthTrailEmail(null)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              {authTrailEntries.length > 0 ? (
+                <div className={styles.tableWrap}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Action</th>
+                        <th>IP Address</th>
+                        <th>When</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {authTrailEntries.map((log) => (
+                        <tr key={log.id}>
+                          <td>
+                            <span
+                              className={clsx(
+                                styles.badge,
+                                log.action === "login_success"
+                                  ? styles["badge-success"]
+                                  : log.action === "logout"
+                                  ? styles["badge-neutral"]
+                                  : styles["badge-critical"]
+                              )}
+                            >
+                              {AUTH_ACTION_LABEL[log.action]}
+                            </span>
+                          </td>
+                          <td>{log.ip_address || "—"}</td>
+                          <td>{fmt(log.created_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className={styles.emptyState}>
+                  <History size={28} />
+                  <p>No login activity found for this account in the current log window.</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -443,6 +832,9 @@ function SettingsForm({
   );
   const [lockoutMinutes, setLockoutMinutes] = useState(String(config.login_lockout_minutes));
   const [maintenanceMode, setMaintenanceMode] = useState(config.maintenance_mode);
+  const [paymentsEnabled, setPaymentsEnabled] = useState(config.payments_enabled);
+  const [smsEnabled, setSmsEnabled] = useState(config.sms_enabled);
+  const [signupsEnabled, setSignupsEnabled] = useState(config.signups_enabled);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -451,6 +843,9 @@ function SettingsForm({
       login_lockout_threshold: lockoutThreshold,
       login_lockout_minutes: lockoutMinutes,
       maintenance_mode: String(maintenanceMode),
+      payments_enabled: String(paymentsEnabled),
+      sms_enabled: String(smsEnabled),
+      signups_enabled: String(signupsEnabled),
     });
   }
 
@@ -513,7 +908,43 @@ function SettingsForm({
           disabled={!canManage}
           onChange={(e) => setMaintenanceMode(e.target.checked)}
         />
-        Maintenance mode banner (shows a heads-up banner to admin-portal users)
+        Maintenance mode (locks everyone except admins out of the app)
+      </label>
+
+      <label className={styles.toggleRow} htmlFor="paymentsEnabled">
+        <input
+          id="paymentsEnabled"
+          type="checkbox"
+          className={styles.checkbox}
+          checked={paymentsEnabled}
+          disabled={!canManage}
+          onChange={(e) => setPaymentsEnabled(e.target.checked)}
+        />
+        Payments enabled (turn off to pause new Stripe checkout sessions)
+      </label>
+
+      <label className={styles.toggleRow} htmlFor="smsEnabled">
+        <input
+          id="smsEnabled"
+          type="checkbox"
+          className={styles.checkbox}
+          checked={smsEnabled}
+          disabled={!canManage}
+          onChange={(e) => setSmsEnabled(e.target.checked)}
+        />
+        SMS enabled (turn off to pause all outbound SMS, including OTPs)
+      </label>
+
+      <label className={styles.toggleRow} htmlFor="signupsEnabled">
+        <input
+          id="signupsEnabled"
+          type="checkbox"
+          className={styles.checkbox}
+          checked={signupsEnabled}
+          disabled={!canManage}
+          onChange={(e) => setSignupsEnabled(e.target.checked)}
+        />
+        New signups enabled (turn off to pause farmer/purchaser/mill self-registration)
       </label>
 
       {canManage && (

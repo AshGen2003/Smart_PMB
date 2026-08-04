@@ -7,7 +7,8 @@ from django.db.models import Count, DecimalField, ExpressionWrapper, F, Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
-from .models import Harvest, Payment, Warehouse
+from .forecasting import forecast_next_month_price
+from .models import Harvest, PaddyType, Payment, Warehouse
 from .serializers import WarehouseSerializer
 
 
@@ -88,6 +89,14 @@ def build_officer_report_data():
         .order_by("month")
     ]
 
+    # Advisory only — see forecasting.py's docstring. None entries (not
+    # enough PriceRecord history yet) are dropped rather than shown as a
+    # confusing zero/blank forecast.
+    price_forecast = [
+        forecast for pt in PaddyType.objects.filter(is_active=True)
+        if (forecast := forecast_next_month_price(pt)) is not None
+    ]
+
     return {
         "generated_at": timezone.now(),
         "stock_report": stock_report,
@@ -97,4 +106,5 @@ def build_officer_report_data():
             "payment_status_breakdown": payment_status_breakdown,
             "monthly_purchases": monthly_purchases,
         },
+        "price_forecast": price_forecast,
     }

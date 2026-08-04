@@ -5,7 +5,7 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { apiFetch } from "@/app/lib/api";
 import { firstErrorMessage } from "@/app/lib/errors";
 
@@ -26,6 +26,7 @@ function payloadFromFormData(formData: FormData) {
     established_date: String(formData.get("established_date") ?? "") || null,
     location: String(formData.get("location") ?? "").trim(),
     district: formData.get("district") ? Number(formData.get("district")) : null,
+    managed_by: String(formData.get("managed_by") ?? "") || null,
   };
 }
 
@@ -52,6 +53,7 @@ export async function createWarehouse(
   }
 
   revalidatePath("/warehouses");
+  updateTag("warehouses");
   return {};
 }
 
@@ -81,6 +83,7 @@ export async function updateWarehouse(
   }
 
   revalidatePath("/warehouses");
+  updateTag("warehouses");
   return {};
 }
 
@@ -99,5 +102,76 @@ export async function deleteWarehouse(warehouseId: number): Promise<{ error?: st
   }
 
   revalidatePath("/warehouses");
+  updateTag("warehouses");
+  return {};
+}
+
+/**
+ * Manually adds or removes stock for one paddy type (+ optional grade) at
+ * a warehouse, via WarehouseViewSet.adjust_stock. `direction` ("add" or
+ * "remove") is expected as a hidden field in `formData` (see
+ * WarehouseStockAdjustModal.tsx), since the same action backs both buttons.
+ */
+export async function adjustWarehouseStock(
+  warehouseId: number,
+  _prevState: WarehouseFormState,
+  formData: FormData
+): Promise<WarehouseFormState> {
+  const res = await apiFetch(`/api/admin/warehouses/${warehouseId}/adjust-stock/`, {
+    method: "POST",
+    body: JSON.stringify({
+      paddy_type: Number(formData.get("paddy_type")),
+      grade: String(formData.get("grade") ?? "") || null,
+      quantity: String(formData.get("quantity") ?? ""),
+      direction: String(formData.get("direction") ?? ""),
+      notes: String(formData.get("notes") ?? "").trim(),
+    }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  // Inventory/transaction-log are fetched with plain apiFetch (no-store,
+  // see lib/api.ts), not apiFetchCached — only the warehouse list itself
+  // needs a tag invalidated; revalidatePath re-renders the page with fresh
+  // reads of everything else.
+  revalidatePath("/warehouses");
+  updateTag("warehouses");
+  return {};
+}
+
+/**
+ * Assigns this warehouse's manager via WarehouseViewSet.appoint_manager —
+ * either an existing warehouse_manager account (`user_id` present in
+ * `formData`) or a brand new one (`full_name`/`email` present instead).
+ * Requires the "appoint_warehouse_managers" permission on the backend.
+ */
+export async function appointWarehouseManager(
+  warehouseId: number,
+  _prevState: WarehouseFormState,
+  formData: FormData
+): Promise<WarehouseFormState> {
+  const userId = String(formData.get("user_id") ?? "").trim();
+  const res = await apiFetch(`/api/admin/warehouses/${warehouseId}/appoint-manager/`, {
+    method: "POST",
+    body: JSON.stringify(
+      userId
+        ? { user_id: userId }
+        : {
+            email: String(formData.get("email") ?? "").trim(),
+            full_name: String(formData.get("full_name") ?? "").trim(),
+          }
+    ),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/warehouses");
+  updateTag("warehouses");
   return {};
 }

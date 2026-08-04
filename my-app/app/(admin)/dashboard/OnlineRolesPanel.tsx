@@ -10,7 +10,9 @@
  */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { Skeleton, SkeletonRows } from "@/app/components/Skeleton";
 import styles from "./Dashboard.module.css";
 
 type OnlineRolesData = {
@@ -44,33 +46,45 @@ export default function OnlineRolesPanel({
   roleOrder: { name: string; slug: string }[];
 }) {
   const [data, setData] = useState<OnlineRolesData | null>(null);
+  // Separate from the poll interval below so a manual click can show its
+  // own brief spin without waiting on/disturbing the automatic cadence.
+  const [refreshing, setRefreshing] = useState(false);
+  const cancelledRef = useRef(false);
 
   const colorForSlug = (slug: string) => {
     const index = roleOrder.findIndex((r) => r.slug === slug);
     return ROLE_COLORS[(index < 0 ? 0 : index) % ROLE_COLORS.length];
   };
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function poll() {
-      try {
-        const res = await fetch("/api/admin/online-roles", { cache: "no-store" });
-        if (!res.ok || cancelled) return;
-        const json: OnlineRolesData = await res.json();
-        if (!cancelled) setData(json);
-      } catch {
-        // Transient network hiccups just skip a tick — the next poll retries.
-      }
+  // Shared by the automatic interval below and the manual refresh button,
+  // so a click doesn't just wait for the next tick.
+  const poll = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/online-roles", { cache: "no-store" });
+      if (!res.ok || cancelledRef.current) return;
+      const json: OnlineRolesData = await res.json();
+      if (!cancelledRef.current) setData(json);
+    } catch {
+      // Transient network hiccups just skip a tick — the next poll retries.
     }
+  }, []);
 
+  useEffect(() => {
+    cancelledRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount, same as the interval ticks it kicks off right after
     poll();
     const id = setInterval(poll, POLL_INTERVAL_MS);
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
       clearInterval(id);
     };
-  }, []);
+  }, [poll]);
+
+  async function handleManualRefresh() {
+    setRefreshing(true);
+    await poll();
+    setRefreshing(false);
+  }
 
   return (
     <div className={styles.chartCard}>
@@ -79,15 +93,36 @@ export default function OnlineRolesPanel({
           <span className={styles.liveDot} />
           Online Now
         </span>
+        <button
+          type="button"
+          className={styles.refreshBtn}
+          onClick={handleManualRefresh}
+          disabled={refreshing}
+          aria-label="Refresh"
+          title="Refresh"
+        >
+          <RefreshCw size={14} className={refreshing ? styles.refreshSpin : undefined} />
+        </button>
       </h3>
 
-      <div className={styles.onlineTotal}>{data ? data.online_total : "—"}</div>
-      <span className={styles.onlineTotalLabel}>
-        {data?.online_total === 1 ? "user active" : "users active"} in the last few minutes
-      </span>
+      {data ? (
+        <>
+          <div className={styles.onlineTotal}>{data.online_total}</div>
+          <span className={styles.onlineTotalLabel}>
+            {data.online_total === 1 ? "user active" : "users active"} in the last few minutes
+          </span>
+        </>
+      ) : (
+        <>
+          <Skeleton height={32} width={60} />
+          <Skeleton height={12} width={160} className={styles.onlineTotalLabel} />
+        </>
+      )}
 
       <div className={styles.onlineRoleList}>
-        {data && data.roles.length > 0 ? (
+        {data === null ? (
+          <SkeletonRows count={3} />
+        ) : data.roles.length > 0 ? (
           data.roles.map((r) => (
             <div key={r.slug} className={styles.onlineRoleRow}>
               <span

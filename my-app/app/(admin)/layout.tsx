@@ -16,10 +16,10 @@ import { apiFetch } from "@/app/lib/api";
 import AdminShell from "@/app/components/AdminShell";
 
 /**
- * Verifies the visitor is logged in and not a farmer/mill owner/driver,
- * then wraps the page content in the AdminShell (sidebar + header).
- * Farmers, mill owners, and drivers are redirected to their own portals
- * since this layout is only for admin/officer roles.
+ * Verifies the visitor is logged in and not a farmer/driver/PMB officer/
+ * etc, then wraps the page content in the AdminShell (sidebar + header).
+ * Those roles are redirected to their own portal since this layout is
+ * only for admin (and, via Portal Preview, any role being previewed).
  */
 export default async function AdminLayout({
   children,
@@ -30,18 +30,13 @@ export default async function AdminLayout({
   // redirects to /login if there is no valid session.
   const user = await requireUser();
 
-  // Farmers/mill owners/drivers/warehouse managers/transport operators
-  // have their own portal/shell (see app/farmer/layout.tsx,
-  // app/mill-owner/layout.tsx, app/driver/layout.tsx,
-  // app/warehouse-manager/layout.tsx, app/transport-operator/layout.tsx)
-  // — bounce them out of the admin area if they land here directly
-  // (including via Portal Preview, since `user.role` reflects the
-  // previewed role while previewing).
+  // Farmers/drivers/partners have their own portal/shell (see
+  // app/farmer/layout.tsx, app/driver/layout.tsx, app/partner/layout.tsx) —
+  // bounce them out of the admin area if they land here directly (including
+  // via Portal Preview, since `user.role` reflects the previewed role while
+  // previewing).
   if (user.role === "farmer") {
     redirect("/farmer");
-  }
-  if (user.role === "mill_owner") {
-    redirect("/mill-owner");
   }
   if (user.role === "driver") {
     redirect("/driver");
@@ -49,29 +44,67 @@ export default async function AdminLayout({
   if (user.role === "warehouse_manager") {
     redirect("/warehouse-manager");
   }
-  if (user.role === "transport_operator") {
-    redirect("/transport-operator");
+  if (user.role === "pmb_officer") {
+    redirect("/officer");
+  }
+  if (user.role === "authorized_purchaser" || user.role === "mill_owner") {
+    redirect("/partner");
   }
 
-  // Fetch the current user's profile (for the avatar image) and the global
-  // system config (idle-logout timeout, maintenance mode banner) in
-  // parallel since neither depends on the other.
-  const [meRes, configRes] = await Promise.all([
-    apiFetch("/api/auth/me/"),
-    apiFetch("/api/admin/system-config/"),
-  ]);
-  const me = meRes.ok ? await meRes.json() : null;
+  // An admin-set (or admin-reset) temporary password must be changed before
+  // this account reaches any real page — see accounts/views.py's
+  // AdminUserWriteSerializer and the /change-password page.
+  if (user.mustChangePassword) {
+    redirect("/change-password");
+  }
+
+  // Global system config (idle-logout timeout, maintenance mode banner) —
+  // profile picture/notification prefs come from `user` itself now
+  // (requireUser() already fetched them along with role/permissions, see
+  // lib/dal.ts), rather than this layout re-fetching /api/auth/me/ again.
+  const configRes = await apiFetch("/api/admin/system-config/");
   const config = configRes.ok ? await configRes.json() : null;
+
+  // Red-dot counts for the Sidebar's Messages/System Requests nav items —
+  // fetched here (once per navigation) rather than polled client-side, to
+  // avoid duplicating NotificationBell.tsx's own inbox polling. Preview
+  // never fetches real data (see previewSampleData.ts's docstring), and
+  // messages respects the same notifyMessages mute the bell already does.
+  const [inboxRes, systemRequestsRes] = await Promise.all([
+    !user.previewing && user.notifyMessages ? apiFetch("/api/messages/inbox/") : null,
+    !user.previewing &&
+    (user.permissions.includes("manage_system_requests") ||
+      user.permissions.includes("request_system_changes"))
+      ? apiFetch("/api/system-requests/")
+      : null,
+  ]);
+
+  const inbox: { is_read: boolean }[] = inboxRes?.ok ? await inboxRes.json() : [];
+  const unreadMessageCount = inbox.filter((m) => !m.is_read).length;
+
+  const systemRequests: { status: string }[] = systemRequestsRes?.ok
+    ? await systemRequestsRes.json()
+    : [];
+  // Admins see the count of new requests waiting for a decision; officers
+  // see the count of accepted requests still awaiting their payment —
+  // each audience's own "needs your attention" state.
+  const pendingRequestCount = user.permissions.includes("manage_system_requests")
+    ? systemRequests.filter((r) => r.status === "pending").length
+    : systemRequests.filter((r) => r.status === "payment_pending").length;
 
   return (
     <AdminShell
       userName={user.fullName ?? user.email}
       roleLabel={user.roleName}
       permissions={user.permissions}
-      profilePictureUrl={me?.profile_picture ?? null}
+      profilePictureUrl={user.profilePictureUrl}
+      notifyMessages={user.notifyMessages}
       idleMinutes={config?.idle_logout_minutes}
       maintenanceMode={config?.maintenance_mode ?? false}
       previewing={user.previewing}
+      impersonating={user.impersonating}
+      unreadMessageCount={unreadMessageCount}
+      pendingRequestCount={pendingRequestCount}
     >
       {children}
     </AdminShell>

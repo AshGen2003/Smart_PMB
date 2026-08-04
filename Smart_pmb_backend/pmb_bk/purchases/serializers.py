@@ -3,7 +3,17 @@
 # ids" pattern used in mills/serializers.py and farmers/serializers.py.
 from rest_framework import serializers
 
-from .models import PurchaserStock, RiceRequest
+from .models import AuthorizedPurchaser, PurchaserStock, RiceRequest
+
+
+class AuthorizedPurchaserSerializer(serializers.ModelSerializer):
+    """Read representation of an AuthorizedPurchaser profile, with the district name resolved for display."""
+
+    district_name = serializers.CharField(source="district.name", default=None)
+
+    class Meta:
+        model = AuthorizedPurchaser
+        fields = ["id", "organization", "reg_number", "district", "district_name", "phone", "authorized_date"]
 
 
 class RiceRequestSerializer(serializers.ModelSerializer):

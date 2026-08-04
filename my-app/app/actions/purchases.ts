@@ -37,7 +37,8 @@ export async function submitRiceRequest(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/dashboard");
+  revalidatePath("/partner/rice-requests");
+  revalidatePath("/partner");
   return {};
 }
 
@@ -52,13 +53,14 @@ export async function withdrawRiceRequest(requestId: number): Promise<{ error?: 
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/dashboard");
+  revalidatePath("/partner/rice-requests");
+  revalidatePath("/partner");
   return {};
 }
 
 async function riceRequestAction(
   requestId: number,
-  action: "approve" | "reject" | "fulfill",
+  action: "approve" | "reject" | "fulfill" | "verify_transaction",
   body?: object
 ) {
   const res = await apiFetch(`/api/admin/rice-requests/${requestId}/${action}/`, {
@@ -88,4 +90,13 @@ export async function rejectRiceRequest(requestId: number, reviewNotes: string):
 /** Fulfills an approved rice request by releasing its quantity from the given warehouse. */
 export async function fulfillRiceRequest(requestId: number, warehouseId: number): Promise<{ error?: string }> {
   return riceRequestAction(requestId, "fulfill", { warehouse: warehouseId });
+}
+
+/**
+ * Records an after-the-fact accountability sign-off on a fulfilled rice
+ * request — an additional check, not a new gate (see
+ * farmers.models.TransactionVerification's docstring on the backend).
+ */
+export async function verifyRiceRequestTransaction(requestId: number): Promise<{ error?: string }> {
+  return riceRequestAction(requestId, "verify_transaction", { status: "verified" });
 }

@@ -389,6 +389,121 @@
   margin-top: 1.5rem;
 }
 
+.heroStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 10px;
+  background: var(--gradient-brand);
+  margin-bottom: 1rem;
+}
+
+.heroStat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.heroStatLabel {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.heroStatValue {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.heroActions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.stockBars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.stockBarRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.stockBarLabelRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.85rem;
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.detailSectionTitle {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 1.25rem 0 0.5rem;
+}
+
+.detailSectionTitle:first-child {
+  margin-top: 0;
+}
+
+.detailList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.detailListRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.detailListMain {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.detailListMeta {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.detailListValue {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.detailListValuePositive {
+  color: var(--success);
+}
+
+.detailListValueNegative {
+  color: var(--danger);
+}
+
+.detailEmpty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 0.5rem 0;
+}
+
 .secondaryBtn {
   padding: 0.6rem 1.1rem;
   border: 1px solid var(--card-border);

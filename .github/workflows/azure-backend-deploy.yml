@@ -1,0 +1,60 @@
+name: Deploy backend to Azure App Service
+
+# Only runs when backend files actually change, and only on the main branch —
+# frontend-only commits (deployed separately via Vercel) don't trigger this.
+on:
+  push:
+    branches: [Ashin]
+    paths:
+      - "Smart_pmb_backend/**"
+      - ".github/workflows/azure-backend-deploy.yml"
+  workflow_dispatch: {}
+
+env:
+  # Fill in with the real App Service name once it exists in the Azure Portal.
+  AZURE_WEBAPP_NAME: smart-pmb-backend
+  WORKING_DIRECTORY: Smart_pmb_backend/pmb_bk
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Django system check
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        # Real DB/secret values live in Azure App Service's Application
+        # Settings, not in CI — dummy values here are only so `manage.py
+        # check` can import settings.py without erroring on missing config.
+        env:
+          DJANGO_SECRET_KEY: ci-check-only-not-a-real-secret
+          DJANGO_DEBUG: "False"
+          DB_HOST: localhost
+          DB_USER: ci
+          DB_PASSWORD: ci
+          JWT_SIGNING_KEY: ci-check-only-not-a-real-secret
+        run: python manage.py check --deploy
+
+      - name: Zip app for deployment
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: zip -r ../../release.zip . -x "*.git*"
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: release.zip

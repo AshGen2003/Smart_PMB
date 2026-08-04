@@ -30,8 +30,8 @@ export async function applyForLicense(): Promise<{ error?: string }> {
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/mill-owner/licenses");
-  revalidatePath("/mill-owner");
+  revalidatePath("/partner/licenses");
+  revalidatePath("/partner");
   return {};
 }
 
@@ -46,8 +46,8 @@ export async function withdrawLicense(licenseId: number): Promise<{ error?: stri
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/mill-owner/licenses");
-  revalidatePath("/mill-owner");
+  revalidatePath("/partner/licenses");
+  revalidatePath("/partner");
   return {};
 }
 
@@ -56,7 +56,7 @@ export async function withdrawLicense(licenseId: number): Promise<{ error?: stri
  *
  * @param _prevState Previous form state (unused; useActionState contract).
  * @param formData Must contain `paddy_processed_kg` and `rice_output_kg`;
- *   `notes` is optional.
+ *   `notes`/`paddy_type` are optional.
  */
 export async function submitMillingReport(
   _prevState: MillFormState,
@@ -68,6 +68,7 @@ export async function submitMillingReport(
       paddy_processed_kg: String(formData.get("paddy_processed_kg") ?? ""),
       rice_output_kg: String(formData.get("rice_output_kg") ?? ""),
       notes: String(formData.get("notes") ?? "").trim(),
+      paddy_type: formData.get("paddy_type") ? Number(formData.get("paddy_type")) : null,
     }),
   });
 
@@ -76,8 +77,8 @@ export async function submitMillingReport(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/mill-owner/milling-reports");
-  revalidatePath("/mill-owner");
+  revalidatePath("/partner/milling-reports");
+  revalidatePath("/partner");
   return {};
 }
 
@@ -108,6 +109,7 @@ export async function updateMillProfile(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/mill-owner/profile");
+  revalidatePath("/partner/profile");
+  revalidatePath("/partner/settings");
   return {};
 }

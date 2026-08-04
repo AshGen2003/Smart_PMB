@@ -13,6 +13,10 @@ export type HarvestFormState = {
   error?: string;
 };
 
+export type BankDetailsFormState = {
+  error?: string;
+};
+
 /**
  * Marks a single notification as read for the current farmer.
  *
@@ -80,5 +84,33 @@ export async function withdrawHarvest(harvestId: number): Promise<{ error?: stri
   }
 
   revalidatePath("/farmer/harvests");
+  return {};
+}
+
+/**
+ * Updates the logged-in farmer's own payout bank details.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData May contain `bank_account`/`bank_name`.
+ */
+export async function updateBankDetails(
+  _prevState: BankDetailsFormState,
+  formData: FormData
+): Promise<BankDetailsFormState> {
+  const res = await apiFetch("/api/farmer/bank-details/", {
+    method: "PATCH",
+    body: JSON.stringify({
+      bank_account: String(formData.get("bank_account") ?? "").trim(),
+      bank_name: String(formData.get("bank_name") ?? "").trim(),
+    }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/farmer/settings");
+  revalidatePath("/farmer/profile");
   return {};
 }

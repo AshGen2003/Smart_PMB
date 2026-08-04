@@ -82,16 +82,23 @@ export async function login(
   // Bust the root layout's cached render so the header/nav (which shows
   // login state) reflects the newly authenticated user on next navigation.
   revalidatePath("/", "layout");
-  // Farmers, mill owners, drivers, warehouse managers, and transport
-  // operators land on their own portals; every other role (admin, PMB
-  // officers, authorized purchasers, etc.) lands on the shared admin
-  // dashboard.
-  if (payload?.role === "farmer") redirect("/farmer");
-  if (payload?.role === "mill_owner") redirect("/mill-owner");
-  if (payload?.role === "driver") redirect("/driver");
-  if (payload?.role === "warehouse_manager") redirect("/warehouse-manager");
-  if (payload?.role === "transport_operator") redirect("/transport-operator");
-  redirect("/dashboard");
+  // Farmers, drivers, warehouse managers, PMB officers, and partners
+  // (authorized purchasers/mill owners) land on their own portal; every
+  // other role (admin, etc.) lands on the shared admin dashboard. Mirrors
+  // homeFor() in lib/dal.ts.
+  const home =
+    payload?.role === "farmer"
+      ? "/farmer"
+      : payload?.role === "driver"
+      ? "/driver"
+      : payload?.role === "warehouse_manager"
+      ? "/warehouse-manager"
+      : payload?.role === "pmb_officer"
+      ? "/officer"
+      : payload?.role === "authorized_purchaser" || payload?.role === "mill_owner"
+      ? "/partner"
+      : "/dashboard";
+  redirect(home);
 }
 
 // SignupState mirrors FormState — kept as a separate type since farmer
@@ -163,25 +170,27 @@ export async function signupFarmer(
 }
 
 /**
- * Registers a new mill owner account via Django's public registration
- * endpoint. Mirrors signupFarmer above (same validation shape, same
- * "confirm your email before logging in" flow), just with mill-specific
- * fields instead of farmer ones.
+ * Registers a new authorized-purchaser or mill-owner licensing application
+ * via Django's public registration endpoint. Like signupFarmer, this
+ * doesn't log the user in — the account needs both email confirmation AND
+ * an officer/admin's approval of the application before it reaches real
+ * access (see the partner/ route group's layout), so this just redirects
+ * to the login page with the same "check your email" success flag.
  *
  * @param _prevState Previous form state (unused; useActionState contract).
- * @param formData Submitted registration fields (email, password,
- *   confirmPassword, millName, ownerName, nic, businessRegNo,
- *   contactNumber, districtId, capacityMtPerDay).
+ * @param formData Submitted fields (email, password, confirmPassword,
+ *   fullName, licenseType, businessName, businessRegistrationNo,
+ *   contactNumber).
  * @returns `{ error }` on validation/registration failure. On success,
- *   redirects to `/login?registered=1`.
+ *   redirects to `/login?registered=1` instead of returning.
  */
-export async function signupMillOwner(
+export async function signupPartner(
   _prevState: SignupState,
   formData: FormData
 ): Promise<SignupState> {
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
-  const districtId = Number(formData.get("districtId"));
+  const licenseType = String(formData.get("licenseType") ?? "");
 
   if (password !== confirmPassword) {
     return { error: "Passwords do not match." };
@@ -189,8 +198,14 @@ export async function signupMillOwner(
   if (password.length < 8) {
     return { error: "Password must be at least 8 characters." };
   }
-  if (!districtId) {
-    return { error: "Please select your district." };
+  if (licenseType !== "authorized_purchaser" && licenseType !== "mill_owner") {
+    return { error: "Choose whether you're applying as an authorized purchaser or mill owner." };
+  }
+  if (licenseType === "mill_owner" && !String(formData.get("nic") ?? "").trim()) {
+    return { error: "NIC is required for a mill owner application." };
+  }
+  if (licenseType === "mill_owner" && !formData.get("districtId")) {
+    return { error: "Please select your mill's district." };
   }
 
   const capacityRaw = formData.get("capacityMtPerDay");
@@ -198,16 +213,20 @@ export async function signupMillOwner(
   const payload = {
     email: String(formData.get("email") ?? "").trim(),
     password,
-    mill_name: String(formData.get("millName") ?? "").trim(),
-    owner_name: String(formData.get("ownerName") ?? "").trim(),
+    full_name: String(formData.get("fullName") ?? "").trim(),
+    license_type: licenseType,
+    business_name: String(formData.get("businessName") ?? "").trim(),
+    business_registration_no: String(formData.get("businessRegistrationNo") ?? "").trim(),
+    contact_number: String(formData.get("contactNumber") ?? "").trim(),
+    // Mill-owner-only fields — see accounts/serializers.py's
+    // RegisterLicenseApplicantSerializer, which creates the Mill profile
+    // alongside the account when license_type is "mill_owner".
     nic: String(formData.get("nic") ?? "").trim(),
-    business_reg_no: String(formData.get("businessRegNo") ?? "").trim(),
-    contact_number: String(formData.get("contactNumber") ?? "").trim(),
-    district_id: districtId,
-    capacity_mt_per_day: capacityRaw ? Number(capacityRaw) : null,
+    district_id: formData.get("districtId") ? Number(formData.get("districtId")) : undefined,
+    capacity_mt_per_day: capacityRaw ? Number(capacityRaw) : undefined,
   };
 
-  const res = await fetch(`${API_URL}/api/auth/register/mill-owner/`, {
+  const res = await fetch(`${API_URL}/api/auth/register/license/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -223,42 +242,30 @@ export async function signupMillOwner(
 }
 
 /**
- * Registers a new transport operator account via Django's public
- * registration endpoint. Simpler than signupFarmer/signupMillOwner — a
- * transport operator has no domain profile model of their own (no
- * district needed either), just credentials and a name.
+ * Requests a self-service password-reset one-time code for the given
+ * address, sent via the chosen channel (email or SMS to whatever phone
+ * number is on file). Always shows the same generic success message
+ * regardless of whether the address is registered or has a phone on file
+ * for the "sms" channel — same anti-enumeration reasoning as the Django
+ * endpoint this calls (see accounts/views.py's ForgotPasswordView).
  *
  * @param _prevState Previous form state (unused; useActionState contract).
- * @param formData Submitted registration fields (email, password,
- *   confirmPassword, fullName, contactNumber).
- * @returns `{ error }` on validation/registration failure. On success,
- *   redirects to `/login?registered=1`.
+ * @param formData Must contain `email` and `channel` ("email" | "sms").
+ * @returns `{ error }` only if the request itself fails (e.g. network);
+ *   otherwise always `{}` — the caller advances to the code-entry step on
+ *   any non-error result, same pattern as everywhere else in this file.
  */
-export async function signupTransportOperator(
-  _prevState: SignupState,
+export async function requestPasswordReset(
+  _prevState: FormState,
   formData: FormData
-): Promise<SignupState> {
-  const password = String(formData.get("password") ?? "");
-  const confirmPassword = String(formData.get("confirmPassword") ?? "");
-
-  if (password !== confirmPassword) {
-    return { error: "Passwords do not match." };
-  }
-  if (password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
-  }
-
-  const payload = {
-    email: String(formData.get("email") ?? "").trim(),
-    password,
-    full_name: String(formData.get("fullName") ?? "").trim(),
-    contact_number: String(formData.get("contactNumber") ?? "").trim(),
-  };
-
-  const res = await fetch(`${API_URL}/api/auth/register/transport-operator/`, {
+): Promise<FormState> {
+  const res = await fetch(`${API_URL}/api/auth/forgot-password/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      email: String(formData.get("email") ?? "").trim(),
+      channel: String(formData.get("channel") ?? "email"),
+    }),
     cache: "no-store",
   });
 
@@ -267,46 +274,41 @@ export async function signupTransportOperator(
     return { error: firstErrorMessage(data) };
   }
 
-  redirect("/login?registered=1");
+  return {};
 }
 
 /**
- * Registers a new warehouse manager account via Django's public
- * registration endpoint. Simpler than signupFarmer/signupMillOwner — no
- * warehouse is assigned at signup (an officer links an existing warehouse
- * to the account afterwards), so this only needs credentials and a name.
+ * Verifies the one-time code (from requestPasswordReset above) and sets a
+ * new password.
  *
  * @param _prevState Previous form state (unused; useActionState contract).
- * @param formData Submitted registration fields (email, password,
- *   confirmPassword, fullName, contactNumber).
- * @returns `{ error }` on validation/registration failure. On success,
- *   redirects to `/login?registered=1`.
+ * @param formData Must contain `email`, `code`, `newPassword`, `confirmPassword`.
+ * @returns `{ error }` on failure. On success, redirects to
+ *   `/login?reset=1`.
  */
-export async function signupWarehouseManager(
-  _prevState: SignupState,
+export async function verifyResetOtp(
+  _prevState: FormState,
   formData: FormData
-): Promise<SignupState> {
-  const password = String(formData.get("password") ?? "");
+): Promise<FormState> {
+  const email = String(formData.get("email") ?? "").trim();
+  const code = String(formData.get("code") ?? "").trim();
+  const newPassword = String(formData.get("newPassword") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
-  if (password !== confirmPassword) {
+  if (!code) {
+    return { error: "Enter the code sent to you." };
+  }
+  if (newPassword !== confirmPassword) {
     return { error: "Passwords do not match." };
   }
-  if (password.length < 8) {
+  if (newPassword.length < 8) {
     return { error: "Password must be at least 8 characters." };
   }
 
-  const payload = {
-    email: String(formData.get("email") ?? "").trim(),
-    password,
-    full_name: String(formData.get("fullName") ?? "").trim(),
-    contact_number: String(formData.get("contactNumber") ?? "").trim(),
-  };
-
-  const res = await fetch(`${API_URL}/api/auth/register/warehouse-manager/`, {
+  const res = await fetch(`${API_URL}/api/auth/reset-password/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ email, code, new_password: newPassword }),
     cache: "no-store",
   });
 
@@ -315,56 +317,7 @@ export async function signupWarehouseManager(
     return { error: firstErrorMessage(data) };
   }
 
-  redirect("/login?registered=1");
-}
-
-/**
- * Registers a new authorized purchaser account via Django's public
- * registration endpoint. Same minimal shape as
- * signupTransportOperator/signupWarehouseManager — no domain profile, no
- * district. The account lands on the shared admin dashboard once an admin
- * grants it the "record_purchases" permission via the Roles screen.
- *
- * @param _prevState Previous form state (unused; useActionState contract).
- * @param formData Submitted registration fields (email, password,
- *   confirmPassword, fullName, contactNumber).
- * @returns `{ error }` on validation/registration failure. On success,
- *   redirects to `/login?registered=1`.
- */
-export async function signupAuthorizedPurchaser(
-  _prevState: SignupState,
-  formData: FormData
-): Promise<SignupState> {
-  const password = String(formData.get("password") ?? "");
-  const confirmPassword = String(formData.get("confirmPassword") ?? "");
-
-  if (password !== confirmPassword) {
-    return { error: "Passwords do not match." };
-  }
-  if (password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
-  }
-
-  const payload = {
-    email: String(formData.get("email") ?? "").trim(),
-    password,
-    full_name: String(formData.get("fullName") ?? "").trim(),
-    contact_number: String(formData.get("contactNumber") ?? "").trim(),
-  };
-
-  const res = await fetch(`${API_URL}/api/auth/register/authorized-purchaser/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
-  }
-
-  redirect("/login?registered=1");
+  redirect("/login?reset=1");
 }
 
 /**

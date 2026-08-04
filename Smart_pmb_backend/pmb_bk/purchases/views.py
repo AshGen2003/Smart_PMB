@@ -11,12 +11,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import HasAnyPermission, HasPermission
-from farmers.models import Warehouse
+from farmers.models import TransactionLog, Warehouse
+from farmers.serializers import TransactionVerificationSerializer, TransactionVerificationWriteSerializer
+from farmers.views import _log_transaction
 from sysops.utils import log_audit
 
-from .models import PurchaserStock, RiceRequest
+from .models import AuthorizedPurchaser, PurchaserStock, RiceRequest
 from .permissions import IsAuthorizedPurchaser
 from .serializers import (
+    AuthorizedPurchaserSerializer,
     OfficerRiceRequestSerializer,
     PurchaserStockSerializer,
     RiceRequestSerializer,
@@ -25,7 +28,7 @@ from .serializers import (
 
 
 class PurchaserDashboardView(APIView):
-    """Aggregates a logged-in Authorized Purchaser's own stock-on-hand and recent rice requests."""
+    """Aggregates a logged-in Authorized Purchaser's own profile, stock-on-hand, and recent rice requests."""
 
     permission_classes = [IsAuthorizedPurchaser]
 
@@ -38,9 +41,11 @@ class PurchaserDashboardView(APIView):
         recent_requests = RiceRequest.objects.filter(purchaser=request.user).select_related(
             "paddy_type"
         )[:6]
+        profile = AuthorizedPurchaser.objects.select_related("district").filter(user=request.user).first()
 
         return Response(
             {
+                "authorized_purchaser": AuthorizedPurchaserSerializer(profile).data if profile else None,
                 "kpis": {
                     "total_stock_kg": total_stock_kg,
                     "stock_types_count": stock.count(),
@@ -164,6 +169,14 @@ class OfficerRiceRequestViewSet(viewsets.ReadOnlyModelViewSet):
             PurchaserStock.objects.filter(pk=stock.pk).update(
                 quantity_kg=F("quantity_kg") + rice_request.quantity_kg
             )
+            _log_transaction(
+                warehouse,
+                TransactionLog.TransactionType.RICE_REQUEST_FULFILLMENT,
+                -rice_request.quantity_kg,
+                paddy_type=rice_request.paddy_type,
+                rice_request=rice_request,
+                updated_by=request.user,
+            )
 
             rice_request.status = RiceRequest.Status.FULFILLED
             rice_request.fulfilled_from_warehouse = warehouse
@@ -172,3 +185,22 @@ class OfficerRiceRequestViewSet(viewsets.ReadOnlyModelViewSet):
 
         log_audit(request.user, "fulfill_rice_request", "purchases", f"RiceRequest #{rice_request.id}")
         return Response(OfficerRiceRequestSerializer(rice_request).data)
+
+    @action(detail=True, methods=["post"])
+    def verify_transaction(self, request, pk=None):
+        """
+        Records an after-the-fact accountability sign-off on a fulfilled
+        rice request — an additional check, not a new gate (see
+        farmers.models.TransactionVerification's docstring). Mirrors
+        OfficerHarvestViewSet.verify_transaction in farmers/views.py.
+        """
+        rice_request = self.get_object()
+        if rice_request.status != RiceRequest.Status.FULFILLED:
+            return Response(
+                {"detail": "Only fulfilled requests can be verified."}, status=400
+            )
+        serializer = TransactionVerificationWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        verification = serializer.save(rice_request=rice_request, verified_by=request.user)
+        log_audit(request.user, "verify_transaction", "purchases", f"RiceRequest #{rice_request.id}")
+        return Response(TransactionVerificationSerializer(verification).data, status=201)

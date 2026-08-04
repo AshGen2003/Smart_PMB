@@ -267,6 +267,42 @@
   }
 }
 
+.refreshBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.refreshBtn:hover:not(:disabled) {
+  background-color: var(--sidebar-hover);
+  color: var(--foreground);
+}
+
+.refreshBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.refreshSpin {
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .liveDot {
     animation: none;

@@ -8,6 +8,7 @@
 import React, { useActionState, useEffect, useRef } from "react";
 import { Loader2, ShieldCheck, X } from "lucide-react";
 import { createRole, updateRole, type RoleFormState } from "@/app/actions/roles";
+import { DASHBOARD_WIDGET_OPTIONS } from "@/app/lib/dashboardWidgets";
 import styles from "./Roles.module.css";
 
 /** A single permission the role checklist can toggle on/off. */
@@ -23,6 +24,7 @@ export type EditableRole = {
   name: string;
   description: string;
   permissions: string[];
+  dashboard_widgets: string[];
 };
 
 const initialState: RoleFormState = {};
@@ -120,6 +122,24 @@ export default function RoleFormModal({
                     className={styles.checkbox}
                   />
                   {p.label}
+                </label>
+              ))}
+            </div>
+
+            <p className={styles.permissionsLabel}>
+              Officer Dashboard Widgets <span className={styles.optional}>(shown on /dashboard for this role)</span>
+            </p>
+            <div className={styles.checkList}>
+              {DASHBOARD_WIDGET_OPTIONS.map((w) => (
+                <label key={w.key} className={styles.checkRow}>
+                  <input
+                    type="checkbox"
+                    name="dashboard_widgets"
+                    value={w.key}
+                    defaultChecked={role ? role.dashboard_widgets.includes(w.key) : true}
+                    className={styles.checkbox}
+                  />
+                  {w.label}
                 </label>
               ))}
             </div>

@@ -10,8 +10,13 @@
 import React, { useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
 import { format } from "date-fns";
-import { Check, ClipboardList, Package, X } from "lucide-react";
-import { approveRiceRequest, fulfillRiceRequest, rejectRiceRequest } from "@/app/actions/purchases";
+import { Check, ClipboardList, Package, ShieldCheck, X } from "lucide-react";
+import {
+  approveRiceRequest,
+  fulfillRiceRequest,
+  rejectRiceRequest,
+  verifyRiceRequestTransaction,
+} from "@/app/actions/purchases";
 import styles from "./PurchaseRequests.module.css";
 
 export type RiceRequestRow = {
@@ -186,6 +191,20 @@ export default function PurchaseRequestsManager({
                               onClick={() => setFulfillTarget(r)}
                             >
                               <Package size={15} />
+                            </button>
+                          </div>
+                        )}
+                        {r.status === "fulfilled" && (
+                          <div className={styles.rowActions}>
+                            <button
+                              type="button"
+                              className={styles.iconBtn}
+                              aria-label="Verify transaction"
+                              title="Record an accountability sign-off on this transaction"
+                              disabled={isPending}
+                              onClick={() => runAction(() => verifyRiceRequestTransaction(r.id))}
+                            >
+                              <ShieldCheck size={15} />
                             </button>
                           </div>
                         )}

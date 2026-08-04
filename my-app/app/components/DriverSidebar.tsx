@@ -1,7 +1,13 @@
 /**
- * Collapsible left navigation for the driver portal. Unlike the admin
- * Sidebar, this has a fixed nav list (no permission-based filtering) since
- * every driver sees the same links.
+ * Collapsible left navigation for the driver portal. Filtered by
+ * `permissions` the same way the admin Sidebar is — every item (and the
+ * bottom-pinned Profile link) has a view_* permission gating it; Dashboard/
+ * Messages/Settings/Profile are granted to every role by default (see
+ * accounts/migrations/0015), while Vehicle Details/Vehicle Log are
+ * driver-specific and only granted to "driver" by default (see
+ * accounts/migrations/0017) — all toggleable per role from /roles or the
+ * Preview Portal's quick-toggle checklist. Log out lives in the shared
+ * Header (top-right) instead of here — see Header.tsx.
  */
 "use client";
 
@@ -16,26 +22,27 @@ import {
   LayoutDashboard,
   MessageSquare,
   Settings,
-  LogOut,
   ChevronLeft,
   ChevronRight,
   Truck,
   Info,
+  User,
 } from "lucide-react";
-import { logout } from "@/app/actions/auth";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", href: "/driver", icon: LayoutDashboard },
-  { label: "Vehicle Details", href: "/driver/vehicle-details", icon: Info },
-  { label: "Vehicle Log", href: "/driver/vehicle", icon: Truck },
-  { label: "Messages", href: "/driver/messages", icon: MessageSquare },
-  { label: "Settings", href: "/driver/settings", icon: Settings },
+  { label: "Dashboard", href: "/driver", icon: LayoutDashboard, permission: "view_dashboard" },
+  { label: "Vehicle Details", href: "/driver/vehicle-details", icon: Info, permission: "view_vehicle_details" },
+  { label: "Vehicle Log", href: "/driver/vehicle", icon: Truck, permission: "view_vehicle_log" },
+  { label: "Messages", href: "/driver/messages", icon: MessageSquare, permission: "view_messages" },
+  { label: "Settings", href: "/driver/settings", icon: Settings, permission: "view_settings" },
 ];
 
-/** Renders the logo, collapse toggle, nav links (highlighting the active route), and a logout form. */
-export default function DriverSidebar() {
+/** Renders the logo, collapse toggle, and the nav links this driver's permissions allow, highlighting the active route. */
+export default function DriverSidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
+
+  const items = NAV_ITEMS.filter((item) => permissions.includes(item.permission));
 
   return (
     <aside
@@ -61,7 +68,7 @@ export default function DriverSidebar() {
       </button>
 
       <nav className={styles.nav}>
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           return (
@@ -75,29 +82,31 @@ export default function DriverSidebar() {
               )}
               onClick={closeMobileSidebar}
             >
-              <Icon className={styles.navIcon} size={20} />
+              <span className={styles.navIconWrap}>
+                <Icon className={styles.navIcon} size={20} />
+              </span>
               <span className={styles.navLabel}>{item.label}</span>
             </Link>
           );
         })}
 
-        {/* logout is a Server Action: it clears the auth cookies server-side and redirects to /login. */}
-        <form
-          action={logout}
-          className={clsx(styles.navSpacer, !isSidebarOpen && styles.navItemCollapsed)}
-        >
-          <button
-            type="submit"
+        {permissions.includes("view_profile") && (
+          <Link
+            href="/driver/profile"
             className={clsx(
               styles.navItem,
-              styles.navButton,
-              !isSidebarOpen && styles.navItemCollapsed
+              styles.navSpacer,
+              !isSidebarOpen && styles.navItemCollapsed,
+              pathname === "/driver/profile" && styles.navItemActive
             )}
+            onClick={closeMobileSidebar}
           >
-            <LogOut className={styles.navIcon} size={20} />
-            <span className={styles.navLabel}>Log out</span>
-          </button>
-        </form>
+            <span className={styles.navIconWrap}>
+              <User className={styles.navIcon} size={20} />
+            </span>
+            <span className={styles.navLabel}>Profile</span>
+          </Link>
+        )}
       </nav>
     </aside>
   );

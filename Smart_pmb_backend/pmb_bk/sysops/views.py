@@ -1,33 +1,53 @@
 # API views for system administration: browsing audit/auth logs, managing
 # system alerts, triggering/listing database backups, reading and editing
-# runtime SystemConfig settings, and generating the admin report (JSON and
-# PDF forms).
+# runtime SystemConfig settings, generating the admin report (JSON and PDF
+# forms), and the system-change-request/Stripe-payment/token workflow.
 import io
+import secrets
 from datetime import datetime
 from pathlib import Path
 
+import stripe
 from django.conf import settings
 from django.core.management import call_command
-from django.http import FileResponse
+from django.shortcuts import get_object_or_404
+from django.http import FileResponse, HttpResponse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.models import Message
 from accounts.permissions import HasPermission
 
-from .models import AuditLog, AuthLog, BackupRecord, SystemAlert
+from .models import (
+    AuditLog,
+    AuthLog,
+    BackupRecord,
+    ErrorLog,
+    SystemAlert,
+    SystemChangeRequest,
+    SystemChangeRequestProgressUpdate,
+)
 from .pdf import build_admin_report_pdf
 from .reports import build_admin_report_data
 from .serializers import (
     AuditLogSerializer,
     AuthLogSerializer,
     BackupRecordSerializer,
+    ErrorLogSerializer,
     SystemAlertSerializer,
+    SystemChangeRequestAcceptSerializer,
+    SystemChangeRequestCreateSerializer,
+    SystemChangeRequestProgressCreateSerializer,
+    SystemChangeRequestRejectSerializer,
+    SystemChangeRequestSerializer,
 )
-from .utils import CONFIG_DEFS, get_all_configs, log_audit, set_config_value
+from .utils import CONFIG_DEFS, get_all_configs, get_config_value, log_audit, set_config_value
 
 LOG_LIMIT = 200  # cap on how many log/backup rows the admin UI list views return
 
@@ -46,6 +66,19 @@ class AuthLogViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     permission_classes = [HasPermission("view_audit_logs")]
     serializer_class = AuthLogSerializer
     queryset = AuthLog.objects.select_related("user")[:LOG_LIMIT]
+
+
+class ErrorLogViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """
+    Read-only, most-recent-first list of ErrorLog entries — unhandled
+    exceptions raised anywhere across the API, captured automatically by
+    sysops/exception_handler.py rather than hand-picked per view. Requires
+    "view_audit_logs", same as the other log listings.
+    """
+
+    permission_classes = [HasPermission("view_audit_logs")]
+    serializer_class = ErrorLogSerializer
+    queryset = ErrorLog.objects.select_related("user")[:LOG_LIMIT]
 
 
 class SystemAlertViewSet(
@@ -148,6 +181,27 @@ class BackupRecordViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             ),
         )
 
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        """
+        Streams a completed backup's dump file back to the caller as an
+        attachment. Looks up the record directly (not via self.get_object(),
+        which would filter the class-level `queryset` — that's sliced to
+        `[:LOG_LIMIT]` for the list action, and Django can't `.get()` off an
+        already-sliced queryset) rather than through the sliced list queryset.
+        """
+        record = get_object_or_404(BackupRecord, pk=pk)
+        if record.status != BackupRecord.Status.COMPLETED or not record.file_path:
+            return Response({"detail": "This backup has no file to download."}, status=404)
+
+        file_path = Path(settings.MEDIA_ROOT) / record.file_path
+        if not file_path.exists():
+            return Response({"detail": "Backup file is missing on disk."}, status=404)
+
+        return FileResponse(
+            open(file_path, "rb"), as_attachment=True, filename=file_path.name
+        )
+
 
 class SystemConfigView(APIView):
     """Read (any logged-in user) and edit (requires "manage_system") the runtime SystemConfig key/value settings."""
@@ -200,3 +254,316 @@ class AdminReportPdfView(APIView):
             filename="pmb-admin-report.pdf",
             content_type="application/pdf",
         )
+
+
+def _notify_admins_new_request(change_request):
+    """
+    Notifies the admin team a new system-change request needs review —
+    same Message-based, shows-up-in-the-notification-bell pattern as
+    farmers.views._notify_driver_assigned uses for a newly assigned
+    delivery task.
+    """
+    Message.objects.create(
+        sender=change_request.requested_by,
+        target_role=Message.TargetRole.ADMIN,
+        body=(
+            f'New system change request: "{change_request.title}" from '
+            f"{change_request.requested_by.full_name or change_request.requested_by.email}."
+        ),
+    )
+
+
+def _notify_requester(change_request, sender, body):
+    """
+    Notifies the officer who submitted a request about a status/progress
+    change on it — the request-side counterpart to
+    _notify_admins_new_request above, same Message-based pattern as
+    farmers.views._notify_driver_assigned.
+    """
+    Message.objects.create(sender=sender, recipient=change_request.requested_by, body=body)
+
+
+class SystemChangeRequestViewSet(viewsets.ModelViewSet):
+    """
+    PMB officer submission plus admin review/payment/progress-tracking for
+    system-change requests — see SystemChangeRequest's docstring in
+    models.py for the full pending -> payment_pending -> token_issued ->
+    in_progress -> completed (or rejected) lifecycle. One viewset serves
+    both audiences via queryset scoping (get_queryset below): an officer
+    only ever sees their own requests; an admin holding
+    "manage_system_requests" sees every request — the "waiting list". No
+    update — a request is only ever advanced through the accept/reject/
+    progress actions below, never edited freehand. Delete is allowed, but
+    only while fee_amount is still unset (i.e. status is PENDING or
+    REJECTED — accept() is the only path that ever sets a fee, and it's
+    only callable from PENDING) — mirrors purchases.views.RiceRequestViewSet
+    .destroy's "only pending requests can be withdrawn" rule, extended
+    slightly to also let officers clear out a rejected request, while
+    still guaranteeing anything with a real Stripe payment/token behind it
+    (and so listed in the Payments & Tokens tab) can never be deleted.
+    """
+
+    queryset = SystemChangeRequest.objects.select_related(
+        "requested_by", "reviewed_by"
+    ).prefetch_related("progress_updates__updated_by")
+    serializer_class = SystemChangeRequestSerializer
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [HasPermission("request_system_changes")()]
+        if self.action in ("list", "retrieve", "checkout_url", "destroy"):
+            # Queryset scoping in get_queryset does the real access control
+            # here — any authenticated user may call these, but an
+            # officer-scoped queryset means they only ever reach their own
+            # requests (get_object() 404s otherwise), same as an admin
+            # reaching every request. destroy() itself additionally checks
+            # fee_amount below before allowing the delete through.
+            return [IsAuthenticated()]
+        return [HasPermission("manage_system_requests")()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if HasPermission("manage_system_requests").has_permission(self.request, self):
+            return qs
+        return qs.filter(requested_by=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        change_request = self.get_object()
+        if change_request.fee_amount is not None:
+            return Response(
+                {"detail": "Requests with a payment on record can't be deleted."}, status=400
+            )
+        title = change_request.title
+        response = super().destroy(request, *args, **kwargs)
+        log_audit(request.user, "delete_system_change_request", "sysops", title)
+        return response
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return SystemChangeRequestCreateSerializer
+        return SystemChangeRequestSerializer
+
+    def perform_create(self, serializer):
+        change_request = serializer.save(requested_by=self.request.user)
+        log_audit(self.request.user, "request_system_change", "sysops", change_request.title)
+        _notify_admins_new_request(change_request)
+
+    @action(detail=True, methods=["post"])
+    def accept(self, request, pk=None):
+        """
+        Admin accepts a pending request by setting its fee — creates a
+        real Stripe (test-mode) Checkout Session for that amount and moves
+        the request to PAYMENT_PENDING. The token itself is only issued
+        once Stripe confirms payment via the webhook (StripeWebhookView
+        below), never here — this action just hands the officer something
+        to pay.
+        """
+        change_request = self.get_object()
+        if change_request.status != SystemChangeRequest.Status.PENDING:
+            return Response({"detail": "Only pending requests can be accepted."}, status=400)
+
+        payload = SystemChangeRequestAcceptSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        fee_amount = payload.validated_data["fee_amount"]
+
+        if not get_config_value("payments_enabled"):
+            return Response({"detail": "Payments are temporarily disabled."}, status=503)
+
+        if not settings.STRIPE_SECRET_KEY:
+            return Response(
+                {"detail": "Stripe is not configured (STRIPE_SECRET_KEY is unset)."}, status=500
+            )
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            payment_method_types=["card"],
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": change_request.currency,
+                        "product_data": {"name": f"System change request: {change_request.title}"},
+                        # Stripe wants the amount in the currency's smallest
+                        # unit (cents) — LKR is a standard 2-decimal
+                        # currency for Stripe, so *100 is correct here.
+                        "unit_amount": int(fee_amount * 100),
+                    },
+                    "quantity": 1,
+                }
+            ],
+            # Points at the dedicated PMB Officer portal, not the shared
+            # admin-shell path (/system-requests/mine) — that one is only
+            # ever reached via Portal Preview now that real pmb_officer
+            # sessions are redirected to /officer (see (admin)/layout.tsx),
+            # and Preview never does a real payment anyway.
+            success_url=f"{settings.FRONTEND_URL}/officer/system-requests/mine?payment=success",
+            cancel_url=f"{settings.FRONTEND_URL}/officer/system-requests/mine?payment=cancelled",
+            metadata={"system_change_request_id": str(change_request.id)},
+        )
+
+        change_request.fee_amount = fee_amount
+        change_request.reviewed_by = request.user
+        change_request.status = SystemChangeRequest.Status.PAYMENT_PENDING
+        change_request.stripe_checkout_session_id = session.id
+        change_request.save(
+            update_fields=["fee_amount", "reviewed_by", "status", "stripe_checkout_session_id"]
+        )
+
+        log_audit(request.user, "accept_system_change_request", "sysops", change_request.title)
+        _notify_requester(
+            change_request,
+            request.user,
+            f'Your request "{change_request.title}" was accepted — a payment of '
+            f"{change_request.currency.upper()} {fee_amount} is required before a token is issued. "
+            "Pay from My Requests.",
+        )
+        return Response(SystemChangeRequestSerializer(change_request).data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        """Admin rejects a pending request outright — no payment is ever involved."""
+        change_request = self.get_object()
+        if change_request.status != SystemChangeRequest.Status.PENDING:
+            return Response({"detail": "Only pending requests can be rejected."}, status=400)
+
+        payload = SystemChangeRequestRejectSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        change_request.status = SystemChangeRequest.Status.REJECTED
+        change_request.reviewed_by = request.user
+        change_request.rejection_reason = payload.validated_data.get("reason", "")
+        change_request.save(update_fields=["status", "reviewed_by", "rejection_reason"])
+
+        log_audit(request.user, "reject_system_change_request", "sysops", change_request.title)
+        _notify_requester(
+            change_request,
+            request.user,
+            f'Your request "{change_request.title}" was rejected'
+            + (f": {change_request.rejection_reason}" if change_request.rejection_reason else "."),
+        )
+        return Response(SystemChangeRequestSerializer(change_request).data)
+
+    @action(detail=True, methods=["get"], url_path="checkout-url")
+    def checkout_url(self, request, pk=None):
+        """
+        Returns a fresh checkout URL for this request's already-created
+        Stripe Checkout Session — lets the requesting officer's page
+        render a working "Pay Now" link without this app needing to
+        persist Stripe's session URL itself (a Checkout Session retains a
+        retrievable `.url` for as long as it's still open, ~24h).
+        """
+        change_request = self.get_object()
+        if change_request.status != SystemChangeRequest.Status.PAYMENT_PENDING:
+            return Response({"detail": "This request has no pending payment."}, status=400)
+        if not change_request.stripe_checkout_session_id:
+            return Response({"detail": "No checkout session exists for this request."}, status=400)
+
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        session = stripe.checkout.Session.retrieve(change_request.stripe_checkout_session_id)
+        return Response({"url": session.url})
+
+    @action(detail=True, methods=["post"], url_path="progress")
+    def post_progress(self, request, pk=None):
+        """
+        Admin posts one progress-timeline entry against a token-issued
+        request — see SystemChangeRequestProgressUpdate's docstring.
+        Posting the final "deployed" stage also completes the request.
+        """
+        change_request = self.get_object()
+        if change_request.status not in (
+            SystemChangeRequest.Status.TOKEN_ISSUED,
+            SystemChangeRequest.Status.IN_PROGRESS,
+        ):
+            return Response(
+                {"detail": "Progress can only be posted once a token has been issued."}, status=400
+            )
+
+        payload = SystemChangeRequestProgressCreateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        stage = payload.validated_data["stage"]
+
+        SystemChangeRequestProgressUpdate.objects.create(
+            request=change_request,
+            stage=stage,
+            note=payload.validated_data.get("note", ""),
+            updated_by=request.user,
+        )
+
+        change_request.status = (
+            SystemChangeRequest.Status.COMPLETED
+            if stage == SystemChangeRequestProgressUpdate.Stage.DEPLOYED
+            else SystemChangeRequest.Status.IN_PROGRESS
+        )
+        change_request.save(update_fields=["status"])
+
+        log_audit(
+            request.user, "post_system_change_progress", "sysops", f"{change_request.title}: {stage}"
+        )
+        change_request.refresh_from_db()
+        stage_label = SystemChangeRequestProgressUpdate.Stage(stage).label
+        note = payload.validated_data.get("note", "")
+        _notify_requester(
+            change_request,
+            request.user,
+            f'Your request "{change_request.title}" progress: {stage_label}.' + (f" {note}" if note else ""),
+        )
+        return Response(SystemChangeRequestSerializer(change_request).data)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class StripeWebhookView(APIView):
+    """
+    POST /api/stripe/webhook/ — called directly by Stripe's servers, never
+    by the frontend, so it carries no JWT and must skip this project's
+    normal auth entirely; the request's authenticity is verified instead
+    via Stripe's own signature header (stripe.Webhook.construct_event).
+    Idempotent: a request that's already TOKEN_ISSUED (or later) is left
+    untouched, since Stripe redelivers a webhook that doesn't return a 2xx
+    promptly, and a checkout.session.completed event could in theory be
+    redelivered after this view already handled it once.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if not settings.STRIPE_WEBHOOK_SECRET:
+            return HttpResponse(status=500)
+
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        sig_header = request.META.get("HTTP_STRIPE_SIGNATURE", "")
+        try:
+            event = stripe.Webhook.construct_event(
+                request.body, sig_header, settings.STRIPE_WEBHOOK_SECRET
+            )
+        except (ValueError, stripe.error.SignatureVerificationError):
+            return HttpResponse(status=400)
+
+        if event["type"] == "checkout.session.completed":
+            session = event["data"]["object"]
+            change_request = SystemChangeRequest.objects.filter(
+                stripe_checkout_session_id=session.get("id")
+            ).first()
+            if change_request and change_request.status == SystemChangeRequest.Status.PAYMENT_PENDING:
+                change_request.status = SystemChangeRequest.Status.TOKEN_ISSUED
+                change_request.token = secrets.token_urlsafe(24)
+                change_request.token_issued_at = timezone.now()
+                change_request.stripe_payment_intent_id = session.get("payment_intent") or ""
+                change_request.save(
+                    update_fields=[
+                        "status", "token", "token_issued_at", "stripe_payment_intent_id",
+                    ]
+                )
+                log_audit(
+                    change_request.requested_by, "system_change_request_paid", "sysops",
+                    change_request.title,
+                )
+                _notify_requester(
+                    change_request,
+                    change_request.reviewed_by or change_request.requested_by,
+                    f'Payment received for "{change_request.title}" — your token has been issued. '
+                    "Check My Requests for details.",
+                )
+
+        return HttpResponse(status=200)

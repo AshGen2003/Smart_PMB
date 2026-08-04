@@ -10,7 +10,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowRight, FileDown } from "lucide-react";
 import styles from "./Reports.module.css";
 
@@ -22,6 +22,12 @@ const TOOLTIP_STYLE = {
   },
   labelStyle: { color: "var(--foreground)" },
   itemStyle: { color: "var(--foreground)" },
+};
+
+const LEGEND_STYLE = {
+  wrapperStyle: { fontSize: 12, color: "var(--text-muted)" },
+  iconType: "circle" as const,
+  iconSize: 8,
 };
 
 /** Shape of the payload returned by `GET /api/admin/reports/admin-summary/`. */
@@ -123,6 +129,7 @@ export default function AdminReportPanel({ data }: { data: AdminReportData }) {
                   />
                   <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip {...TOOLTIP_STYLE} />
+                  <Legend {...LEGEND_STYLE} />
                   <Bar dataKey="user_count" name="Users" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="permission_count" name="Permissions" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -178,6 +185,7 @@ export default function AdminReportPanel({ data }: { data: AdminReportData }) {
                 <XAxis dataKey="date" stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip {...TOOLTIP_STYLE} />
+                <Legend {...LEGEND_STYLE} />
                 <Line type="monotone" dataKey="success" name="Successful logins" stroke="var(--chart-1)" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="failed" name="Failed logins" stroke="var(--chart-4)" strokeWidth={2} dot={false} />
               </LineChart>

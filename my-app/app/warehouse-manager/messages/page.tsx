@@ -1,16 +1,18 @@
 /**
  * `/warehouse-manager/messages` — the warehouse-manager-portal counterpart
- * to `/messages`: the full paginated message history. Not restricted like
- * farmer/driver/mill-owner — a warehouse manager is staff and can message
- * a specific user, same as PMB Officer.
+ * to `(admin)/messages`, `farmer/messages`, and `driver/messages`: the full
+ * paginated history of requests a warehouse manager has sent to the
+ * admin/officer team and the replies they've received.
  */
-import { requireUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import MessagesHistoryView, { type MessageRow } from "@/app/components/MessagesHistoryView";
 
 export default async function WarehouseManagerMessagesPage() {
-  const user = await requireUser();
+  const user = await requirePermission("view_messages");
 
+  // Portal Preview never fetches real data — see NotificationBell.tsx for
+  // the same guard on the bell dropdown.
   if (user.previewing) {
     return (
       <div style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
@@ -26,7 +28,7 @@ export default async function WarehouseManagerMessagesPage() {
 
   return (
     <MessagesHistoryView
-      isFarmer={false}
+      isFarmer
       initialMessages={data.results}
       initialHasMore={data.next !== null}
     />

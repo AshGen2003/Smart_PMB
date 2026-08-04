@@ -7,6 +7,29 @@ from django.conf import settings
 from django.db import models
 
 
+class AuthorizedPurchaser(models.Model):
+    """
+    A registered authorized purchaser's profile: the purchasing-domain data
+    linked one-to-one to a User account with role "authorized_purchaser",
+    created together by RegisterLicenseApplicantSerializer in
+    accounts/serializers.py (mirrors mills.Mill for the mill-owner actor).
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="authorized_purchaser_profile"
+    )
+    organization = models.CharField(max_length=150)
+    reg_number = models.CharField(max_length=50, blank=True)
+    district = models.ForeignKey(
+        "farmers.District", on_delete=models.SET_NULL, null=True, blank=True, related_name="authorized_purchasers"
+    )
+    phone = models.CharField(max_length=20, blank=True)
+    authorized_date = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return self.organization
+
+
 class RiceRequest(models.Model):
     """
     An Authorized Purchaser's request for a quantity of a given paddy/rice

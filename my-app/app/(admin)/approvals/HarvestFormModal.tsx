@@ -9,6 +9,7 @@
 import React, { useEffect, useRef, useActionState } from "react";
 import { ClipboardList, Loader2, X } from "lucide-react";
 import { createHarvest, updateHarvest, type HarvestFormState } from "@/app/actions/approvals";
+import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./Approvals.module.css";
 
 export type FarmerOption = { id: number; name: string; registration_no: string };
@@ -89,54 +90,36 @@ export default function HarvestFormModal({
           <form action={formAction}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="farmer">Farmer</label>
-              <select
+              <StyledSelect
                 id="farmer"
                 name="farmer"
                 required
-                defaultValue={harvest?.farmer ?? ""}
-                className={styles.input}
-              >
-                <option value="" disabled>Select farmer</option>
-                {farmers.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name} ({f.registration_no})
-                  </option>
-                ))}
-              </select>
+                defaultValue={harvest?.farmer != null ? String(harvest.farmer) : undefined}
+                placeholder="Select farmer"
+                options={farmers.map((f) => ({ value: String(f.id), label: `${f.name} (${f.registration_no})` }))}
+              />
             </div>
 
             <div className={styles.fieldRow}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="paddy_type">Paddy type</label>
-                <select
+                <StyledSelect
                   id="paddy_type"
                   name="paddy_type"
-                  defaultValue={harvest?.paddy_type ?? ""}
-                  className={styles.input}
-                >
-                  <option value="">Select paddy type</option>
-                  {paddyTypes.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.type_name}
-                    </option>
-                  ))}
-                </select>
+                  defaultValue={harvest?.paddy_type != null ? String(harvest.paddy_type) : ""}
+                  placeholder="Select paddy type"
+                  options={paddyTypes.map((p) => ({ value: String(p.id), label: p.type_name }))}
+                />
               </div>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="warehouse">Warehouse</label>
-                <select
+                <StyledSelect
                   id="warehouse"
                   name="warehouse"
-                  defaultValue={harvest?.warehouse ?? ""}
-                  className={styles.input}
-                >
-                  <option value="">Select warehouse</option>
-                  {warehouses.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
+                  defaultValue={harvest?.warehouse != null ? String(harvest.warehouse) : ""}
+                  placeholder="Select warehouse"
+                  options={warehouses.map((w) => ({ value: String(w.id), label: w.name }))}
+                />
               </div>
             </div>
 
@@ -168,17 +151,17 @@ export default function HarvestFormModal({
             <div className={styles.fieldRow}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="grade">Grade</label>
-                <select
+                <StyledSelect
                   id="grade"
                   name="grade"
                   defaultValue={harvest?.grade ?? ""}
-                  className={styles.input}
-                >
-                  <option value="">Not assessed</option>
-                  <option value="A">Grade A</option>
-                  <option value="B">Grade B</option>
-                  <option value="C">Grade C</option>
-                </select>
+                  options={[
+                    { value: "", label: "Not assessed" },
+                    { value: "A", label: "Grade A" },
+                    { value: "B", label: "Grade B" },
+                    { value: "C", label: "Grade C" },
+                  ]}
+                />
               </div>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="moisture_level">Moisture (%)</label>

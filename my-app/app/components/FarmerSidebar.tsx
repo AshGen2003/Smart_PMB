@@ -1,7 +1,10 @@
 /**
- * Collapsible left navigation for the farmer portal. Unlike the admin
- * Sidebar, this has a fixed nav list (no permission-based filtering) since
- * every farmer sees the same two links.
+ * Collapsible left navigation for the farmer portal. Filtered by
+ * `permissions` the same way the admin Sidebar is — every item (and the
+ * bottom-pinned Profile link) has a view_* permission gating it, granted to
+ * every role by default (see accounts/migrations/0015), toggleable per
+ * role from /roles or the Preview Portal's quick-toggle checklist. Log out
+ * lives in the shared Header (top-right) instead of here — see Header.tsx.
  */
 "use client";
 
@@ -10,6 +13,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useLayout } from "./LayoutProvider";
+import { useLanguage } from "./LanguageProvider";
 import styles from "./Sidebar.module.css";
 import clsx from "clsx";
 import {
@@ -17,23 +21,25 @@ import {
   Sprout,
   MessageSquare,
   Settings,
-  LogOut,
   ChevronLeft,
   ChevronRight,
+  User,
 } from "lucide-react";
-import { logout } from "@/app/actions/auth";
 
-const NAV_ITEMS = [
-  { label: "Dashboard", href: "/farmer", icon: LayoutDashboard },
-  { label: "Harvests", href: "/farmer/harvests", icon: Sprout },
-  { label: "Messages", href: "/farmer/messages", icon: MessageSquare },
-  { label: "Settings", href: "/farmer/settings", icon: Settings },
-];
-
-/** Renders the logo, collapse toggle, nav links (highlighting the active route), and a logout form. */
-export default function FarmerSidebar() {
+/** Renders the logo, collapse toggle, and the nav links this farmer's permissions allow, highlighting the active route. */
+export default function FarmerSidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
+  const { t } = useLanguage();
+
+  const NAV_ITEMS = [
+    { label: t.farmerSidebar.dashboard, href: "/farmer", icon: LayoutDashboard, permission: "view_dashboard" },
+    { label: t.farmerSidebar.harvests, href: "/farmer/harvests", icon: Sprout, permission: "view_dashboard" },
+    { label: t.farmerSidebar.messages, href: "/farmer/messages", icon: MessageSquare, permission: "view_messages" },
+    { label: t.farmerSidebar.settings, href: "/farmer/settings", icon: Settings, permission: "view_settings" },
+  ];
+
+  const items = NAV_ITEMS.filter((item) => permissions.includes(item.permission));
 
   return (
     <aside
@@ -59,7 +65,7 @@ export default function FarmerSidebar() {
       </button>
 
       <nav className={styles.nav}>
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           return (
@@ -73,29 +79,31 @@ export default function FarmerSidebar() {
               )}
               onClick={closeMobileSidebar}
             >
-              <Icon className={styles.navIcon} size={20} />
+              <span className={styles.navIconWrap}>
+                <Icon className={styles.navIcon} size={20} />
+              </span>
               <span className={styles.navLabel}>{item.label}</span>
             </Link>
           );
         })}
 
-        {/* logout is a Server Action: it clears the auth cookies server-side and redirects to /login. */}
-        <form
-          action={logout}
-          className={clsx(styles.navSpacer, !isSidebarOpen && styles.navItemCollapsed)}
-        >
-          <button
-            type="submit"
+        {permissions.includes("view_profile") && (
+          <Link
+            href="/farmer/profile"
             className={clsx(
               styles.navItem,
-              styles.navButton,
-              !isSidebarOpen && styles.navItemCollapsed
+              styles.navSpacer,
+              !isSidebarOpen && styles.navItemCollapsed,
+              pathname === "/farmer/profile" && styles.navItemActive
             )}
+            onClick={closeMobileSidebar}
           >
-            <LogOut className={styles.navIcon} size={20} />
-            <span className={styles.navLabel}>Log out</span>
-          </button>
-        </form>
+            <span className={styles.navIconWrap}>
+              <User className={styles.navIcon} size={20} />
+            </span>
+            <span className={styles.navLabel}>{t.farmerSidebar.profile}</span>
+          </Link>
+        )}
       </nav>
     </aside>
   );

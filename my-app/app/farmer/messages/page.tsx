@@ -3,13 +3,13 @@
  * the full paginated history of requests a farmer has sent to the admin
  * team and the replies they've received.
  */
-import { requireUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import MessagesHistoryView, { type MessageRow } from "@/app/components/MessagesHistoryView";
 
 /** Server Component: gates access and fetches the first page of message history for a fast initial paint. */
 export default async function FarmerMessagesPage() {
-  const user = await requireUser();
+  const user = await requirePermission("view_messages");
 
   // Portal Preview never fetches real data — see NotificationBell.tsx for
   // the same guard on the bell dropdown.

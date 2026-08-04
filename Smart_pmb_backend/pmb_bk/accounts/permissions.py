@@ -6,8 +6,16 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
 def _has_codename(user, codename):
-    """True if the user's assigned Role grants the given permission codename."""
-    return user.role.permissions.filter(codename=codename).exists()
+    """
+    True if the user's assigned Role grants the given permission codename.
+    Checked against `role.permissions.all()` (in-memory, from the
+    prefetch_related done in accounts/authentication.py) rather than a
+    fresh `.filter(...).exists()` query — a `.filter()` on a prefetched
+    related manager always re-hits the DB, so with the DB hosted remotely,
+    this avoided a separate network round trip per codename checked (views
+    using HasAnyPermission check more than one).
+    """
+    return any(p.codename == codename for p in user.role.permissions.all())
 
 
 class HasPermission(BasePermission):
@@ -56,6 +64,14 @@ class RoleAccessPermission(BasePermission):
     manage_roles — a manage_users-only role still needs to read the role
     catalogue to populate the user-edit form's role picker. Write access
     (create/update/destroy) requires manage_roles specifically.
+
+    "admin"-role accounts always pass, regardless of their actual
+    permission set — a lockout safety net. Without this, a regular admin
+    account could strip manage_roles from the "admin" Role itself (e.g. by
+    editing it on /roles) and lock every admin out of the one screen that
+    could undo it. Scoped to this permission class only: every other
+    HasPermission/HasAnyPermission check in the app still respects
+    whatever's actually configured on the admin role.
     """
 
     def has_permission(self, request, view):
@@ -63,6 +79,8 @@ class RoleAccessPermission(BasePermission):
         if not (user and user.is_authenticated):
             return False
         if user.is_superuser:
+            return True
+        if user.role_id and user.role.slug == "admin":
             return True
         if request.method in SAFE_METHODS:
             return _has_codename(user, "manage_users") or _has_codename(

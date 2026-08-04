@@ -2,16 +2,19 @@
  * `/warehouse-manager/settings` — self-service settings page for the
  * logged-in warehouse manager: account details and appearance (theme).
  */
-import { requireUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import {
   AccountSettingsForm,
   AppearanceSettings,
+  LanguageSettings,
+  NotificationSettings,
+  HelpCenterSettings,
+  SupportSettings,
 } from "@/app/components/SettingsSections";
 import styles from "../WarehouseManagerDashboard.module.css";
 
-/** Server Component: loads the current user and renders the shared settings sections. */
 export default async function WarehouseManagerSettingsPage() {
-  const user = await requireUser();
+  const user = await requirePermission("view_settings");
 
   return (
     <div className={styles.dashboard}>
@@ -24,6 +27,14 @@ export default async function WarehouseManagerSettingsPage() {
 
       <AccountSettingsForm fullName={user.fullName ?? ""} email={user.email} />
       <AppearanceSettings />
+      <LanguageSettings />
+      <NotificationSettings
+        notifyMessages={user.notifyMessages}
+        notifyHarvestUpdates={user.notifyHarvestUpdates}
+        notifyViaSms={user.notifyViaSms}
+      />
+      <HelpCenterSettings role="warehouse_manager" />
+      <SupportSettings messagesHref="/warehouse-manager/messages" />
     </div>
   );
 }

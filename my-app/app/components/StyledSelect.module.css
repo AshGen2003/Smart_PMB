@@ -1,0 +1,160 @@
+.wrap {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+/* Opt-out for toolbar filters / inline table selects that should size to
+   their content instead of stretching to fill their flex/grid container
+   (matches what the native <select> they replaced did by default). */
+.wrapFitContent {
+  width: auto;
+}
+
+.wrapFitContent .trigger {
+  width: auto;
+}
+
+.trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  color: var(--foreground);
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: var(--primary);
+  background-color: var(--sidebar-hover);
+}
+
+.triggerOpen,
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.triggerCompact {
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  gap: 0.3rem;
+}
+
+.triggerLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.triggerPlaceholder {
+  color: var(--text-muted);
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* Portaled to document.body, so this is positioned via inline style
+   (top/bottom/left/width computed from the trigger's bounding rect) —
+   only visual styling lives here. */
+.panel {
+  z-index: 500;
+  margin: 0;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  padding: 0.35rem;
+  list-style: none;
+  max-height: 280px;
+  overflow-y: auto;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  box-shadow: var(--shadow-md);
+  animation: panelIn 0.12s ease;
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.groupLabel {
+  padding: 0.45rem 0.65rem 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.optionLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionHighlighted {
+  background-color: var(--sidebar-hover);
+}
+
+.optionSelected {
+  background-color: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary-text);
+  font-weight: 600;
+}
+
+.optionSelected.optionHighlighted {
+  background-color: color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.optionCheck {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.optionDisabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}

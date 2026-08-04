@@ -1,7 +1,9 @@
 /**
- * Server Actions backing the officer-side mill license review queue:
- * approving or rejecting a pending application. Mirrors the shared
- * implementation pattern in app/actions/approvals.ts (harvestAction).
+ * Server Actions for the officer/admin licensing-application review queue
+ * (see (admin)/licenses/). Approving/rejecting an authorized-purchaser or
+ * mill-owner application is what flips their account from the pending
+ * holding screen (partner/ route group) to real access — see
+ * accounts/views.py's LicenseApplicationViewSet.
  */
 "use server";
 
@@ -9,10 +11,10 @@ import { revalidatePath } from "next/cache";
 import { apiFetch } from "@/app/lib/api";
 import { firstErrorMessage } from "@/app/lib/errors";
 
-async function licenseAction(licenseId: number, action: "approve" | "reject", body?: object) {
-  const res = await apiFetch(`/api/admin/mill-licenses/${licenseId}/${action}/`, {
+/** Approves a pending licensing application, granting the applicant real access. */
+export async function approveLicense(applicationId: number): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/admin/license-applications/${applicationId}/approve/`, {
     method: "POST",
-    ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
   if (!res.ok) {
@@ -24,12 +26,26 @@ async function licenseAction(licenseId: number, action: "approve" | "reject", bo
   return {};
 }
 
-/** Approves a pending mill license application. */
-export async function approveLicense(licenseId: number): Promise<{ error?: string }> {
-  return licenseAction(licenseId, "approve");
-}
+/**
+ * Rejects a pending licensing application. `reason` is shown to the
+ * applicant on their holding screen and in their decision email, so it
+ * should explain what to fix or why — an empty reason is allowed but not
+ * very useful to them.
+ */
+export async function rejectLicense(
+  applicationId: number,
+  reason: string
+): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/admin/license-applications/${applicationId}/reject/`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 
-/** Rejects a pending mill license application, with an optional review note. */
-export async function rejectLicense(licenseId: number, reviewNotes: string): Promise<{ error?: string }> {
-  return licenseAction(licenseId, "reject", { review_notes: reviewNotes });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/licenses");
+  return {};
 }

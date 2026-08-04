@@ -8,6 +8,7 @@ from . import views
 urlpatterns = [
     path("districts/", views.DistrictListView.as_view()),  # public dropdown data for registration
     path("farmer/dashboard/", views.FarmerDashboardView.as_view()),
+    path("farmer/bank-details/", views.FarmerBankDetailsView.as_view()),
     path("notifications/<int:pk>/read/", views.NotificationMarkReadView.as_view()),
     path("officer/dashboard/", views.OfficerDashboardView.as_view()),
     path("officer/reports/", views.OfficerReportsView.as_view()),
@@ -18,4 +19,10 @@ urlpatterns = [
     path("driver/deliveries/<int:pk>/respond/", views.DeliveryRespondView.as_view()),
     path("driver/deliveries/<int:pk>/status/", views.DriverDeliveryStatusView.as_view()),
     path("driver/deliveries/<int:pk>/location/", views.DeliveryLocationPingView.as_view()),
+    path("warehouse-manager/dashboard/", views.WarehouseManagerDashboardView.as_view()),
+    path("warehouse-manager/adjust-stock/", views.WarehouseManagerAdjustStockView.as_view()),
+    path("warehouse-manager/transactions/", views.WarehouseManagerTransactionsView.as_view()),
+    path("public/trace/<str:lot_code>/", views.PublicHarvestTraceView.as_view()),
+    path("public/trace/<str:lot_code>/qr.png", views.PublicHarvestTraceQrView.as_view()),
+    path("public/transparency/", views.PublicTransparencyStatsView.as_view()),
 ]

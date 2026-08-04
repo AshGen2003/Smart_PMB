@@ -1,17 +1,13 @@
 /**
- * Shared layout for the warehouse-manager-facing portal (dashboard,
- * warehouses, intake, alerts, messages, profile, settings). Mirrors
- * app/mill-owner/layout.tsx.
+ * Shared layout for the warehouse-manager portal (dashboard, messages,
+ * settings, profile). Every page under `app/warehouse-manager/` is
+ * rendered as `children` inside this layout, wrapped in
+ * WarehouseManagerShell — mirrors driver/layout.tsx.
  */
+import { redirect } from "next/navigation";
 import { requireRole } from "@/app/lib/dal";
-import { apiFetch } from "@/app/lib/api";
 import WarehouseManagerShell from "@/app/components/WarehouseManagerShell";
 
-/**
- * Verifies the visitor is logged in with the "warehouse_manager" role
- * (redirects otherwise), fetches their profile for the avatar, and renders
- * the WarehouseManagerShell around the page content.
- */
 export default async function WarehouseManagerLayout({
   children,
 }: {
@@ -19,14 +15,18 @@ export default async function WarehouseManagerLayout({
 }) {
   const user = await requireRole("warehouse_manager");
 
-  const meRes = await apiFetch("/api/auth/me/");
-  const me = meRes.ok ? await meRes.json() : null;
+  // An admin/officer-set (or reset) temporary password must be changed
+  // before this account reaches any real page.
+  if (user.mustChangePassword) {
+    redirect("/change-password");
+  }
 
   return (
     <WarehouseManagerShell
-      userName={user.fullName ?? user.email}
-      profilePictureUrl={me?.profile_picture ?? null}
+      permissions={user.permissions}
+      notifyMessages={user.notifyMessages}
       previewing={user.previewing}
+      impersonating={user.impersonating}
     >
       {children}
     </WarehouseManagerShell>

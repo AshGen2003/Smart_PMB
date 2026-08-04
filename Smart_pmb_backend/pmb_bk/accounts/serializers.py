@@ -2,6 +2,8 @@
 # logic), farmer self-registration, self-service profile editing, and the
 # admin-facing user/role/permission management endpoints.
 import random
+import secrets
+import string
 from datetime import timedelta
 
 from django.db import transaction
@@ -12,9 +14,11 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from farmers.models import District, Farmer
 from mills.models import Mill
-from sysops.utils import get_config_value, log_auth
+from purchases.models import AuthorizedPurchaser
+from sysops.utils import get_config_value, log_auth, raise_repeated_login_failure_alert
 
-from .models import Message, Permission, Role, User
+from .constants import OFFICER_DASHBOARD_WIDGETS
+from .models import LicenseApplication, Message, Permission, PmbOfficer, Role, User
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -84,6 +88,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 if locked_now:
                     user.locked_until = timezone.now() + timedelta(minutes=lockout_minutes)
                     user.failed_login_attempts = 0
+                else:
+                    # Only an early-warning heads-up for streaks still short
+                    # of the actual lockout threshold — once locked_now is
+                    # True the counter is reset above, so this deliberately
+                    # doesn't fire again on the same request.
+                    raise_repeated_login_failure_alert(user)
                 user.save(update_fields=["failed_login_attempts", "locked_until"])
                 if request:
                     log_auth(
@@ -176,17 +186,45 @@ class RegisterFarmerSerializer(serializers.Serializer):
         return {"user": user, "farmer": farmer}
 
 
-class RegisterMillOwnerSerializer(serializers.Serializer):
-    """Validates and creates a new mill owner's User account plus matching Mill profile in one transaction."""
+def notify_officers(sender, body):
+    """
+    Sends an in-app request (notification bell) to both the admin and
+    pmb_officer teams — reused for both self-registered licensing
+    applications and admin-created purchaser/mill-owner accounts, so
+    neither team ever finds out about a new account only by happening to
+    check /licenses or /residents. Both are notified since both hold
+    approve_licenses, but pmb_officer additionally lacks view_audit_logs
+    (so a SystemAlert-based notice would have missed them entirely).
+    """
+    for target_role in (Message.TargetRole.ADMIN, Message.TargetRole.PMB_OFFICER):
+        Message.objects.create(sender=sender, target_role=target_role, body=body)
+
+
+class RegisterLicenseApplicantSerializer(serializers.Serializer):
+    """
+    Validates and creates a new authorized-purchaser/mill-owner User account
+    plus a pending LicenseApplication, in one transaction. Unlike a farmer,
+    this account can log in right away but only reaches real access once an
+    officer/admin approves the application (see LicenseApplicationViewSet)
+    — confirming email is a separate, independent gate on top of that, same
+    as farmer self-registration.
+    """
 
     email = serializers.EmailField()
     password = serializers.CharField(min_length=8, write_only=True)
-    mill_name = serializers.CharField(max_length=150)
-    owner_name = serializers.CharField(max_length=100)
-    nic = serializers.CharField(max_length=20)
-    business_reg_no = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    full_name = serializers.CharField(max_length=150)
+    license_type = serializers.ChoiceField(choices=LicenseApplication.LicenseType.choices)
+    business_name = serializers.CharField(max_length=150)
+    business_registration_no = serializers.CharField(max_length=50)
     contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
-    district_id = serializers.IntegerField()
+    # Mill-only fields below — required when license_type == "mill_owner" so
+    # a real Mill profile (see mills/models.py) can be created alongside the
+    # account, ready to use the moment the LicenseApplication is approved.
+    # Left blank/omitted for authorized_purchaser applicants, who have no
+    # equivalent profile model (purchases/models.py's RiceRequest/
+    # PurchaserStock reference the User directly).
+    nic = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    district_id = serializers.IntegerField(required=False, allow_null=True)
     capacity_mt_per_day = serializers.DecimalField(
         max_digits=10, decimal_places=2, required=False, allow_null=True
     )
@@ -196,139 +234,100 @@ class RegisterMillOwnerSerializer(serializers.Serializer):
             raise serializers.ValidationError("An account with this email already exists.")
         return value
 
-    def validate_nic(self, value):
-        if Mill.objects.filter(nic=value).exists():
-            raise serializers.ValidationError("An account with this NIC already exists.")
-        return value
-
-    def validate_district_id(self, value):
-        if not District.objects.filter(pk=value).exists():
-            raise serializers.ValidationError("Select a valid district.")
-        return value
+    def validate(self, attrs):
+        if attrs["license_type"] == LicenseApplication.LicenseType.MILL_OWNER:
+            if not attrs.get("nic"):
+                raise serializers.ValidationError({"nic": "NIC is required for a mill owner application."})
+            if Mill.objects.filter(nic=attrs["nic"]).exists():
+                raise serializers.ValidationError({"nic": "An account with this NIC already exists."})
+            district_id = attrs.get("district_id")
+            if not district_id or not District.objects.filter(pk=district_id).exists():
+                raise serializers.ValidationError({"district_id": "Select a valid district."})
+        elif attrs.get("district_id") and not District.objects.filter(pk=attrs["district_id"]).exists():
+            # Authorized purchasers may optionally pick a district (unlike
+            # mill owners, it's not required — a purchaser's operating area
+            # is less tied to a single physical location), but if one was
+            # sent it must be real.
+            raise serializers.ValidationError({"district_id": "Select a valid district."})
+        return attrs
 
     def create(self, validated_data):
-        district = District.objects.select_related("province").get(
-            pk=validated_data["district_id"]
-        )
-        # Human-friendly registration number, e.g. "MIL-2026-483920", same
-        # scheme as a farmer's registration_no (see RegisterFarmerSerializer).
-        registration_no = f"MIL-{timezone.now().year}-{random.randint(100000, 999999)}"
-
         with transaction.atomic():
             user = User.objects.create_user(
                 email=validated_data["email"],
                 password=validated_data["password"],
-                full_name=validated_data["owner_name"],
-                role=Role.objects.get(slug="mill_owner"),
+                full_name=validated_data["full_name"],
+                role=Role.objects.get(slug=validated_data["license_type"]),
                 email_confirmed=False,
             )
-            mill = Mill.objects.create(
+            application = LicenseApplication.objects.create(
                 user=user,
-                registration_no=registration_no,
-                mill_name=validated_data["mill_name"],
-                owner_name=validated_data["owner_name"],
-                nic=validated_data["nic"],
-                business_reg_no=validated_data.get("business_reg_no", ""),
-                district=district,
-                province=district.province,
-                capacity_mt_per_day=validated_data.get("capacity_mt_per_day"),
+                license_type=validated_data["license_type"],
+                business_name=validated_data["business_name"],
+                business_registration_no=validated_data["business_registration_no"],
                 contact_number=validated_data.get("contact_number", ""),
             )
 
-        return {"user": user, "mill": mill}
+            if validated_data["license_type"] == LicenseApplication.LicenseType.MILL_OWNER:
+                district = District.objects.select_related("province").get(
+                    pk=validated_data["district_id"]
+                )
+                Mill.objects.create(
+                    user=user,
+                    registration_no=f"MIL-{timezone.now().year}-{random.randint(100000, 999999)}",
+                    mill_name=validated_data["business_name"],
+                    owner_name=validated_data["full_name"],
+                    nic=validated_data["nic"],
+                    business_reg_no=validated_data["business_registration_no"],
+                    district=district,
+                    province=district.province,
+                    capacity_mt_per_day=validated_data.get("capacity_mt_per_day"),
+                    contact_number=validated_data.get("contact_number", ""),
+                )
+            elif validated_data["license_type"] == LicenseApplication.LicenseType.AUTHORIZED_PURCHASER:
+                district_id = validated_data.get("district_id")
+                AuthorizedPurchaser.objects.create(
+                    user=user,
+                    organization=validated_data["business_name"],
+                    reg_number=validated_data["business_registration_no"],
+                    district_id=district_id,
+                    phone=validated_data.get("contact_number", ""),
+                )
+
+            notify_officers(
+                user,
+                f"New licensing application from {application.business_name} "
+                f"({application.get_license_type_display()}) — awaiting review.",
+            )
+
+        return {"user": user, "application": application}
 
 
-class RegisterTransportOperatorSerializer(serializers.Serializer):
-    """
-    Validates and creates a new transport operator's User account. Unlike
-    Farmer/Mill Owner, a transport operator has no domain profile model of
-    their own — they operate on the shared fleet (Vehicle/Route/Delivery/
-    etc.) rather than owning a farm/mill, so this only ever creates a User.
-    """
+class LicenseApplicationSerializer(serializers.ModelSerializer):
+    """Read-only representation of a licensing application for the officer/admin approval queue."""
 
-    email = serializers.EmailField()
-    password = serializers.CharField(min_length=8, write_only=True)
-    full_name = serializers.CharField(max_length=150)
-    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    applicant_name = serializers.CharField(source="user.full_name", read_only=True)
+    applicant_email = serializers.CharField(source="user.email", read_only=True)
+    license_type_display = serializers.CharField(source="get_license_type_display", read_only=True)
+    reviewed_by_name = serializers.SerializerMethodField()
 
-    def validate_email(self, value):
-        if User.objects.filter(email__iexact=value).exists():
-            raise serializers.ValidationError("An account with this email already exists.")
-        return value
+    class Meta:
+        model = LicenseApplication
+        fields = [
+            "id", "applicant_name", "applicant_email", "license_type",
+            "license_type_display", "business_name", "business_registration_no",
+            "contact_number", "status", "submitted_at", "reviewed_by_name",
+            "reviewed_at", "rejection_reason",
+        ]
 
-    def create(self, validated_data):
-        user = User.objects.create_user(
-            email=validated_data["email"],
-            password=validated_data["password"],
-            full_name=validated_data["full_name"],
-            phone_number=validated_data.get("contact_number", ""),
-            role=Role.objects.get(slug="transport_operator"),
-            email_confirmed=False,
-        )
-        return {"user": user}
+    def get_reviewed_by_name(self, obj):
+        return obj.reviewed_by.full_name if obj.reviewed_by else None
 
 
-class RegisterWarehouseManagerSerializer(serializers.Serializer):
-    """
-    Validates and creates a new warehouse manager's User account. No
-    warehouse is assigned at signup time — an existing Warehouse belongs to
-    the board, not to the manager, so a PMB officer assigns one to the new
-    account afterwards from the warehouse admin screen (see
-    WarehouseWriteSerializer's `manager` field).
-    """
+class LicenseDecisionSerializer(serializers.Serializer):
+    """Validates the optional rejection reason submitted with LicenseApplicationViewSet's reject action."""
 
-    email = serializers.EmailField()
-    password = serializers.CharField(min_length=8, write_only=True)
-    full_name = serializers.CharField(max_length=150)
-    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
-
-    def validate_email(self, value):
-        if User.objects.filter(email__iexact=value).exists():
-            raise serializers.ValidationError("An account with this email already exists.")
-        return value
-
-    def create(self, validated_data):
-        user = User.objects.create_user(
-            email=validated_data["email"],
-            password=validated_data["password"],
-            full_name=validated_data["full_name"],
-            phone_number=validated_data.get("contact_number", ""),
-            role=Role.objects.get(slug="warehouse_manager"),
-            email_confirmed=False,
-        )
-        return {"user": user}
-
-
-class RegisterAuthorizedPurchaserSerializer(serializers.Serializer):
-    """
-    Validates and creates a new authorized purchaser's User account. Same
-    shape as RegisterTransportOperatorSerializer/RegisterWarehouseManagerSerializer
-    — no domain profile model, just credentials. Lands on the shared admin
-    dashboard's PurchaserDashboardPanel once an admin grants the role
-    "record_purchases" (not seeded automatically — same as every
-    non-migration-seeded role, see accounts/migrations/0003_role_permission.py).
-    """
-
-    email = serializers.EmailField()
-    password = serializers.CharField(min_length=8, write_only=True)
-    full_name = serializers.CharField(max_length=150)
-    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
-
-    def validate_email(self, value):
-        if User.objects.filter(email__iexact=value).exists():
-            raise serializers.ValidationError("An account with this email already exists.")
-        return value
-
-    def create(self, validated_data):
-        user = User.objects.create_user(
-            email=validated_data["email"],
-            password=validated_data["password"],
-            full_name=validated_data["full_name"],
-            phone_number=validated_data.get("contact_number", ""),
-            role=Role.objects.get(slug="authorized_purchaser"),
-            email_confirmed=False,
-        )
-        return {"user": user}
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=1000)
 
 
 class SelfProfileSerializer(serializers.Serializer):
@@ -344,6 +343,11 @@ class SelfProfileSerializer(serializers.Serializer):
     new_password = serializers.CharField(
         required=False, allow_blank=True, min_length=8, write_only=True
     )
+    notify_in_app_messages = serializers.BooleanField(required=False)
+    # Farmer-only preference; silently ignored (see save()) for any user
+    # without a farmer_profile, so it's safe to accept from every caller.
+    notify_harvest_updates = serializers.BooleanField(required=False)
+    notify_via_sms = serializers.BooleanField(required=False)
 
     def validate(self, attrs):
         # Changing the password requires re-confirming the current one,
@@ -366,6 +370,9 @@ class SelfProfileSerializer(serializers.Serializer):
         phone_number = self.validated_data.get("phone_number")
         profile_picture = self.validated_data.get("profile_picture")
         new_password = self.validated_data.get("new_password")
+        notify_in_app_messages = self.validated_data.get("notify_in_app_messages")
+        notify_harvest_updates = self.validated_data.get("notify_harvest_updates")
+        notify_via_sms = self.validated_data.get("notify_via_sms")
 
         if full_name is not None:
             user.full_name = full_name.strip()
@@ -377,8 +384,25 @@ class SelfProfileSerializer(serializers.Serializer):
             user.profile_picture = profile_picture
         if new_password:
             user.set_password(new_password)
+            # Setting their own password is exactly what must_change_password
+            # exists to force — clear it once they've done so.
+            user.must_change_password = False
+        if notify_in_app_messages is not None:
+            user.notify_in_app_messages = notify_in_app_messages
 
         user.save()
+
+        if hasattr(user, "farmer_profile"):
+            farmer_update_fields = []
+            if notify_harvest_updates is not None:
+                user.farmer_profile.notify_harvest_updates = notify_harvest_updates
+                farmer_update_fields.append("notify_harvest_updates")
+            if notify_via_sms is not None:
+                user.farmer_profile.notify_via_sms = notify_via_sms
+                farmer_update_fields.append("notify_via_sms")
+            if farmer_update_fields:
+                user.farmer_profile.save(update_fields=farmer_update_fields)
+
         return user
 
 
@@ -388,6 +412,32 @@ class RoleMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
         fields = ["id", "name", "slug"]
+
+
+def get_effective_phone_number(user):
+    """
+    A user's contact number, wherever it actually lives: captured on their
+    role-specific profile at registration/creation (farmer, mill owner,
+    authorized purchaser, PMB officer), falling back to User.phone_number
+    for accounts with no such profile or who've only ever set it via
+    self-service Settings. Returns None if nothing is on file anywhere —
+    used both by AdminUserSerializer.get_phone_number below and by the
+    forgot-password OTP flow's SMS channel (see views.py's
+    ForgotPasswordView).
+    """
+    farmer = getattr(user, "farmer_profile", None)
+    if farmer and farmer.contact_number:
+        return farmer.contact_number
+    mill = getattr(user, "mill_profile", None)
+    if mill and mill.contact_number:
+        return mill.contact_number
+    purchaser = getattr(user, "authorized_purchaser_profile", None)
+    if purchaser and purchaser.phone:
+        return purchaser.phone
+    officer = getattr(user, "pmb_officer_profile", None)
+    if officer and officer.contact_number:
+        return officer.contact_number
+    return user.phone_number or None
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
@@ -405,77 +455,123 @@ class AdminUserSerializer(serializers.ModelSerializer):
     nic = serializers.SerializerMethodField()
     phone_number = serializers.SerializerMethodField()
     is_locked = serializers.SerializerMethodField()
+    employee_no = serializers.SerializerMethodField()
+    designation = serializers.SerializerMethodField()
+    district = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "id", "email", "full_name", "nic", "phone_number", "role",
             "is_active", "email_confirmed", "date_joined", "last_login",
-            "last_activity", "is_locked",
+            "last_activity", "is_locked", "employee_no", "designation", "district",
         ]
         read_only_fields = ["id", "date_joined", "last_login", "last_activity"]
 
     def get_nic(self, obj):
-        # Farmers' authoritative NIC is captured on the Farmer profile at
-        # registration (User.nic is left blank there); staff/officer
-        # accounts have no farmer_profile at all and only ever get a NIC
-        # via their own Settings page, which writes straight to User.nic.
-        # Prefer the farmer profile's value when there is one, otherwise
-        # fall back to the User's own field.
+        # Farmers'/officers' authoritative NIC is captured on their own
+        # profile at creation (User.nic is left blank there); accounts with
+        # neither profile only ever get a NIC via their own Settings page,
+        # which writes straight to User.nic. Prefer the profile's value
+        # when there is one, otherwise fall back to the User's own field.
         farmer = getattr(obj, "farmer_profile", None)
         if farmer and farmer.nic:
             return farmer.nic
+        officer = getattr(obj, "pmb_officer_profile", None)
+        if officer and officer.nic:
+            return officer.nic
         return obj.nic or None
 
     def get_phone_number(self, obj):
-        # Same split as nic: a farmer's initial contact number is set on
-        # the Farmer profile at registration, while User.phone_number is
-        # only ever populated via self-service Settings.
-        farmer = getattr(obj, "farmer_profile", None)
-        if farmer and farmer.contact_number:
-            return farmer.contact_number
-        return obj.phone_number or None
+        return get_effective_phone_number(obj)
 
     def get_is_locked(self, obj):
         return bool(obj.locked_until and obj.locked_until > timezone.now())
 
+    def get_employee_no(self, obj):
+        officer = getattr(obj, "pmb_officer_profile", None)
+        return officer.employee_no if officer else None
+
+    def get_designation(self, obj):
+        officer = getattr(obj, "pmb_officer_profile", None)
+        return officer.designation if officer else None
+
+    def get_district(self, obj):
+        officer = getattr(obj, "pmb_officer_profile", None)
+        return officer.district_id if officer and officer.district_id else None
+
+
+def generate_temp_password() -> str:
+    """A random 12-character password (letters, digits, and a few punctuation marks) for admin-created/-reset accounts — always treated as temporary (see must_change_password)."""
+    alphabet = string.ascii_letters + string.digits + "!@#$%"
+    return "".join(secrets.choice(alphabet) for _ in range(12))
+
 
 class AdminUserWriteSerializer(serializers.ModelSerializer):
-    """Handles admin-driven create/update of a User account, including an optional password reset."""
+    """
+    Handles admin-driven create/update of a User account. `password` is
+    always optional now — leaving it blank on create auto-generates one
+    server-side rather than forcing the admin to invent it, and either way
+    (typed or generated) it's emailed to the user as a temporary password
+    they must change on first login (see AdminUserViewSet.perform_create/
+    perform_update and must_change_password).
+    """
 
     password = serializers.CharField(
         write_only=True, required=False, allow_blank=True, min_length=8
     )
+    # Officer-only fields below — meaningful only when the assigned role is
+    # "pmb_officer" (see create()/update()); ignored for every other role.
+    # employee_no isn't here since it's server-generated, same as a
+    # Farmer's/Mill's registration_no, never admin-typed.
+    designation = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    district = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:
         model = User
         fields = [
             "id", "email", "full_name", "nic", "phone_number", "role",
-            "is_active", "email_confirmed", "password",
+            "is_active", "email_confirmed", "password", "designation", "district",
         ]
         read_only_fields = ["id"]
 
-    def validate(self, attrs):
-        # Password is mandatory when creating a new user, but optional on
-        # update (omitting it just leaves the existing password in place).
-        if self.instance is None and not attrs.get("password"):
-            raise serializers.ValidationError(
-                {"password": "Password is required for new users."}
-            )
-        return attrs
-
     def create(self, validated_data):
-        password = validated_data.pop("password")
+        password = validated_data.pop("password", "") or generate_temp_password()
+        designation = validated_data.pop("designation", "")
+        district_id = validated_data.pop("district", None)
         user = User(**validated_data)
         user.set_password(password)  # hash before saving
+        user.must_change_password = True
         user.save()
+        # Not persisted — stashed only so the view can email it once, right
+        # after this call returns; never touches the database in plaintext.
+        user._plain_password = password
+
+        if user.role.slug == "pmb_officer":
+            PmbOfficer.objects.create(
+                user=user,
+                employee_no=f"EMP-{timezone.now().year}-{random.randint(100000, 999999)}",
+                nic=validated_data.get("nic", ""),
+                designation=designation,
+                district_id=district_id,
+                contact_number=validated_data.get("phone_number", ""),
+            )
+
         return user
 
     def update(self, instance, validated_data):
-        password = validated_data.pop("password", None)
-        # nic/phone_number are read back from the Farmer profile when one
-        # exists (see AdminUserSerializer.get_nic/get_phone_number) — write
-        # through to it here too, or an admin editing a farmer's NIC/phone
+        # Editing a user can no longer set their password directly — even
+        # if a stale client sends one, it's silently ignored. Resetting a
+        # password is only ever a dedicated action now (always a fresh
+        # system-generated temp password, emailed to the user — see
+        # AdminUserViewSet.reset_password in views.py), never an
+        # admin-chosen one typed into this form.
+        validated_data.pop("password", None)
+        designation = validated_data.pop("designation", None)
+        district_id = validated_data.pop("district", None)
+        # nic/phone_number are read back from the Farmer/PmbOfficer profile
+        # when one exists (see AdminUserSerializer.get_nic/get_phone_number)
+        # — write through to it here too, or an admin editing those fields
         # from this form would silently appear to do nothing on the list.
         farmer = getattr(instance, "farmer_profile", None)
         if farmer:
@@ -485,10 +581,30 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
                 farmer.contact_number = validated_data["phone_number"]
             farmer.save(update_fields=["nic", "contact_number"])
 
+        # "role" is in validated_data whenever it's part of this PATCH —
+        # get_or_create here so an account whose role is only just now being
+        # changed to pmb_officer gets a profile too, not just one that
+        # already had the role from creation.
+        new_role = validated_data.get("role", instance.role)
+        if new_role.slug == "pmb_officer":
+            officer, _ = PmbOfficer.objects.get_or_create(
+                user=instance,
+                defaults={
+                    "employee_no": f"EMP-{timezone.now().year}-{random.randint(100000, 999999)}",
+                },
+            )
+            if "nic" in validated_data:
+                officer.nic = validated_data["nic"] or officer.nic
+            if "phone_number" in validated_data:
+                officer.contact_number = validated_data["phone_number"]
+            if designation is not None:
+                officer.designation = designation
+            if district_id is not None:
+                officer.district_id = district_id
+            officer.save(update_fields=["nic", "contact_number", "designation", "district"])
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        if password:
-            instance.set_password(password)
         instance.save()
         return instance
 
@@ -517,6 +633,7 @@ class RoleSerializer(serializers.ModelSerializer):
             "is_system",
             "permissions",
             "user_count",
+            "dashboard_widgets",
         ]
 
     def get_permissions(self, obj):
@@ -532,10 +649,13 @@ class RoleWriteSerializer(serializers.ModelSerializer):
     permissions = serializers.ListField(
         child=serializers.CharField(), required=False, write_only=True
     )
+    dashboard_widgets = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
 
     class Meta:
         model = Role
-        fields = ["id", "name", "description", "permissions"]
+        fields = ["id", "name", "description", "permissions", "dashboard_widgets"]
         read_only_fields = ["id"]
 
     def validate_name(self, value):
@@ -560,10 +680,25 @@ class RoleWriteSerializer(serializers.ModelSerializer):
             )
         return permissions
 
+    def validate_dashboard_widgets(self, keys):
+        # Same "reject unknown values" defensiveness as validate_permissions
+        # above — keeps the stored list limited to widget keys
+        # OfficerDashboardPanel.tsx actually knows how to render.
+        unknown = set(keys) - set(OFFICER_DASHBOARD_WIDGETS)
+        if unknown:
+            raise serializers.ValidationError(
+                f"Unknown dashboard widget(s): {', '.join(sorted(unknown))}"
+            )
+        return keys
+
     def create(self, validated_data):
         permissions = validated_data.pop("permissions", [])
         role = Role.objects.create(**validated_data)
-        role.permissions.set(permissions)
+        # through_defaults attributes each grant to the admin making it —
+        # RolePermission.granted_by/granted_date (see accounts/models.py).
+        role.permissions.set(
+            permissions, through_defaults={"granted_by": self.context["request"].user}
+        )
         return role
 
     def update(self, instance, validated_data):
@@ -574,7 +709,9 @@ class RoleWriteSerializer(serializers.ModelSerializer):
         # None means "permissions weren't part of this update" (leave
         # unchanged); an empty list explicitly clears all permissions.
         if permissions is not None:
-            instance.permissions.set(permissions)
+            instance.permissions.set(
+                permissions, through_defaults={"granted_by": self.context["request"].user}
+            )
         return instance
 
 
@@ -584,6 +721,7 @@ class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source="sender.full_name", read_only=True)
     sender_role = serializers.CharField(source="sender.role.name", read_only=True)
     recipient_name = serializers.SerializerMethodField()
+    target_role_label = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
@@ -594,6 +732,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "sender_role",
             "recipient",
             "recipient_name",
+            "target_role",
+            "target_role_label",
             "body",
             "created_at",
             "is_read",
@@ -601,6 +741,9 @@ class MessageSerializer(serializers.ModelSerializer):
 
     def get_recipient_name(self, obj):
         return obj.recipient.full_name if obj.recipient else None
+
+    def get_target_role_label(self, obj):
+        return obj.get_target_role_display() if obj.target_role else None
 
 
 class MessageCreateSerializer(serializers.ModelSerializer):
@@ -611,17 +754,27 @@ class MessageCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Message
-        fields = ["recipient", "body"]
+        fields = ["recipient", "target_role", "body"]
 
     def validate(self, attrs):
         request = self.context["request"]
-        if attrs.get("recipient") is not None and request.user.role.slug in ("farmer", "driver"):
-            # Farmers and drivers can only send a request to the admin/
-            # officer team (recipient=None) — not message a specific user
-            # directly like staff can.
+        is_restricted = request.user.role.slug in ("farmer", "driver", "warehouse_manager")
+
+        if attrs.get("recipient") is not None:
+            if is_restricted:
+                # Farmers, drivers, and warehouse managers can only send a
+                # request to a role (recipient=None + target_role) — not
+                # message a specific user directly like staff can.
+                raise serializers.ValidationError(
+                    "You can only send a request to Admin or PMB Officer, not message a specific user."
+                )
+            # A direct staff-to-user message isn't addressed to a role.
+            attrs["target_role"] = None
+        elif not attrs.get("target_role"):
             raise serializers.ValidationError(
-                "You can only send a request to the admin team, not message a specific user."
+                {"target_role": "Choose who this request should go to."}
             )
+
         return attrs
 
     def validate_body(self, value):

@@ -4,8 +4,10 @@
  * Transportation page; that side is now read-only (see farmers/views.py's
  * FuelRecordViewSet docstring) and creation lives here instead, since the
  * driver is the one who actually buys the fuel / gets the vehicle serviced.
+ * Requires `view_vehicle_log` — granted to "driver" by default (see
+ * accounts/migrations/0017), toggleable from /roles or the Preview Portal.
  */
-import { getCurrentUser } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import { PREVIEW_TRANSPORTATION } from "@/app/lib/previewSampleData";
 import VehicleLogManager, {
@@ -15,9 +17,9 @@ import VehicleLogManager, {
 } from "./VehicleLogManager";
 
 export default async function DriverVehiclePage() {
-  const user = await getCurrentUser();
+  const user = await requirePermission("view_vehicle_log");
 
-  if (user?.previewing) {
+  if (user.previewing) {
     return (
       <VehicleLogManager
         vehicles={PREVIEW_TRANSPORTATION.vehicles.map((v) => ({ id: v.id, registration_no: v.registration_no }))}

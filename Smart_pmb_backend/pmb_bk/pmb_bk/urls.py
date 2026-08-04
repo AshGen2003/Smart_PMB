@@ -23,6 +23,7 @@ from rest_framework.routers import DefaultRouter
 from accounts.views import (
     AdminOverviewView,
     AdminUserViewSet,
+    LicenseApplicationViewSet,
     MessageCreateView,
     MessageHistoryView,
     MessageInboxView,
@@ -39,20 +40,24 @@ from farmers.views import (
     DriverOptionsView,
     FarmerHarvestViewSet,
     FuelRecordViewSet,
+    InventoryViewSet,
     MaintenanceRecordViewSet,
     OfficerHarvestViewSet,
     PaddyTypeViewSet,
     RouteViewSet,
+    TransactionLogViewSet,
     TransportationDashboardView,
     VehicleViewSet,
-    WarehouseAlertsView,
-    WarehouseIntakeView,
-    WarehouseManagerDashboardView,
-    WarehouseManagerFarmerOptionsView,
-    WarehouseManagerWarehouseViewSet,
+    WarehouseManagerOptionsView,
     WarehouseViewSet,
 )
-from mills.views import LicenseViewSet, MillingReportViewSet, OfficerLicenseViewSet
+from mills.views import (
+    LicenseViewSet,
+    MillingReportViewSet,
+    MillOptionsView,
+    OfficerInspectionViewSet,
+    OfficerLicenseViewSet,
+)
 from purchases.views import OfficerRiceRequestViewSet, RiceRequestViewSet
 from sysops.views import (
     AdminReportPdfView,
@@ -60,7 +65,10 @@ from sysops.views import (
     AuditLogViewSet,
     AuthLogViewSet,
     BackupRecordViewSet,
+    ErrorLogViewSet,
+    StripeWebhookView,
     SystemAlertViewSet,
+    SystemChangeRequestViewSet,
     SystemConfigView,
 )
 
@@ -70,19 +78,24 @@ from sysops.views import (
 router = DefaultRouter()
 router.register('admin/users', AdminUserViewSet, basename='admin-users')
 router.register('admin/roles', RoleViewSet, basename='admin-roles')
+router.register('admin/license-applications', LicenseApplicationViewSet, basename='admin-license-applications')
 router.register('admin/warehouses', WarehouseViewSet, basename='admin-warehouses')
+router.register('admin/inventory', InventoryViewSet, basename='admin-inventory')
+router.register('admin/transaction-log', TransactionLogViewSet, basename='admin-transaction-log')
 router.register('admin/paddy-types', PaddyTypeViewSet, basename='admin-paddy-types')
 router.register('admin/harvests', OfficerHarvestViewSet, basename='admin-harvests')
 router.register('farmer/harvests', FarmerHarvestViewSet, basename='farmer-harvests')
-router.register('admin/audit-logs', AuditLogViewSet, basename='admin-audit-logs')
-router.register('admin/auth-logs', AuthLogViewSet, basename='admin-auth-logs')
-router.register('admin/alerts', SystemAlertViewSet, basename='admin-alerts')
-router.register('admin/backups', BackupRecordViewSet, basename='admin-backups')
 router.register('mill-owner/licenses', LicenseViewSet, basename='mill-owner-licenses')
 router.register('mill-owner/milling-reports', MillingReportViewSet, basename='mill-owner-milling-reports')
 router.register('admin/mill-licenses', OfficerLicenseViewSet, basename='admin-mill-licenses')
+router.register('admin/mill-inspections', OfficerInspectionViewSet, basename='admin-mill-inspections')
 router.register('purchaser/requests', RiceRequestViewSet, basename='purchaser-requests')
 router.register('admin/rice-requests', OfficerRiceRequestViewSet, basename='admin-rice-requests')
+router.register('admin/audit-logs', AuditLogViewSet, basename='admin-audit-logs')
+router.register('admin/auth-logs', AuthLogViewSet, basename='admin-auth-logs')
+router.register('admin/error-logs', ErrorLogViewSet, basename='admin-error-logs')
+router.register('admin/alerts', SystemAlertViewSet, basename='admin-alerts')
+router.register('admin/backups', BackupRecordViewSet, basename='admin-backups')
 router.register('admin/vehicles', VehicleViewSet, basename='admin-vehicles')
 router.register('admin/routes', RouteViewSet, basename='admin-routes')
 router.register('admin/deliveries', DeliveryViewSet, basename='admin-deliveries')
@@ -90,7 +103,7 @@ router.register('admin/fuel-records', FuelRecordViewSet, basename='admin-fuel-re
 router.register('admin/maintenance-records', MaintenanceRecordViewSet, basename='admin-maintenance-records')
 router.register('driver/fuel-records', DriverFuelRecordViewSet, basename='driver-fuel-records')
 router.register('driver/maintenance-records', DriverMaintenanceRecordViewSet, basename='driver-maintenance-records')
-router.register('warehouse-manager/warehouses', WarehouseManagerWarehouseViewSet, basename='warehouse-manager-warehouses')
+router.register('system-requests', SystemChangeRequestViewSet, basename='system-requests')
 
 urlpatterns = [
     path('admin/', admin.site.urls),  # Django's built-in admin site
@@ -106,10 +119,9 @@ urlpatterns = [
     path('api/admin/reports/admin-summary/pdf/', AdminReportPdfView.as_view()),
     path('api/admin/transportation/dashboard/', TransportationDashboardView.as_view()),
     path('api/admin/drivers/', DriverOptionsView.as_view()),
-    path('api/warehouse-manager/dashboard/', WarehouseManagerDashboardView.as_view()),
-    path('api/warehouse-manager/intake/', WarehouseIntakeView.as_view()),
-    path('api/warehouse-manager/alerts/', WarehouseAlertsView.as_view()),
-    path('api/warehouse-manager/farmers/', WarehouseManagerFarmerOptionsView.as_view()),
+    path('api/admin/warehouse-managers/', WarehouseManagerOptionsView.as_view()),
+    path('api/admin/mills/', MillOptionsView.as_view()),
+    path('api/stripe/webhook/', StripeWebhookView.as_view()),
     path('api/messages/', MessageCreateView.as_view()),
     path('api/messages/inbox/', MessageInboxView.as_view()),
     path('api/messages/history/', MessageHistoryView.as_view()),

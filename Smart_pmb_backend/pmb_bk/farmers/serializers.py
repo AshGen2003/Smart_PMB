@@ -1,6 +1,8 @@
 # Serializers for the farmers app. Most model pairs here follow the same
 # "read serializer nests human-readable names, write serializer accepts
 # plain foreign-key ids" pattern used throughout the admin/officer APIs.
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from .models import (
@@ -10,10 +12,14 @@ from .models import (
     Farmer,
     FuelRecord,
     Harvest,
+    Inventory,
     MaintenanceRecord,
     Notification,
     PaddyType,
+    PriceRecord,
     Route,
+    TransactionLog,
+    TransactionVerification,
     Vehicle,
     Warehouse,
 )
@@ -51,6 +57,64 @@ class PaddyTypeWriteSerializer(serializers.ModelSerializer):
         fields = ["id", "type_name", "variety", "description", "guaranteed_price", "is_active"]
 
 
+class PriceRecordSerializer(serializers.ModelSerializer):
+    """Read representation of one historical guaranteed-price snapshot for a PaddyType."""
+
+    class Meta:
+        model = PriceRecord
+        fields = ["id", "guaranteed_price", "effective_date"]
+
+
+class InventorySerializer(serializers.ModelSerializer):
+    """Read representation of one warehouse/paddy-type/grade stock line."""
+
+    warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+    updated_by_name = serializers.CharField(source="updated_by.full_name", default=None)
+
+    class Meta:
+        model = Inventory
+        fields = [
+            "id", "warehouse", "warehouse_name", "paddy_type", "paddy_type_name",
+            "grade", "quantity", "unit", "minimum_level", "maximum_level",
+            "last_updated", "updated_by_name",
+        ]
+
+
+class TransactionLogSerializer(serializers.ModelSerializer):
+    """Read representation of one warehouse stock-movement log entry."""
+
+    warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+
+    class Meta:
+        model = TransactionLog
+        fields = [
+            "id", "warehouse", "warehouse_name", "transaction_type",
+            "quantity_change", "harvest", "rice_request", "notes", "created_at",
+        ]
+
+
+class TransactionVerificationSerializer(serializers.ModelSerializer):
+    """Read representation of one after-the-fact transaction sign-off."""
+
+    verified_by_name = serializers.CharField(source="verified_by.full_name", default=None)
+
+    class Meta:
+        model = TransactionVerification
+        fields = [
+            "id", "harvest", "rice_request", "verified_by_name",
+            "verified_at", "status", "notes",
+        ]
+
+
+class TransactionVerificationWriteSerializer(serializers.ModelSerializer):
+    """Validates the optional notes/status submitted with a verify action; harvest/rice_request/verified_by are set server-side."""
+
+    class Meta:
+        model = TransactionVerification
+        fields = ["status", "notes"]
+
+
 class HarvestSerializer(serializers.ModelSerializer):
     """Compact Harvest representation for a farmer's own dashboard (no officer-only assessment fields)."""
 
@@ -58,7 +122,7 @@ class HarvestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Harvest
-        fields = ["id", "paddy_type_name", "quantity_kg", "harvest_date", "status"]
+        fields = ["id", "paddy_type_name", "quantity_kg", "harvest_date", "status", "lot_code"]
 
 
 class FarmerHarvestCreateSerializer(serializers.ModelSerializer):
@@ -91,55 +155,103 @@ class FarmerOptionSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "registration_no"]
 
 
+class FarmerBankDetailsSerializer(serializers.ModelSerializer):
+    """Self-service read/update of the logged-in farmer's own bank details (payout account)."""
+
+    class Meta:
+        model = Farmer
+        fields = ["bank_account", "bank_name"]
+
+
 class WarehouseSerializer(serializers.ModelSerializer):
     """Read representation of a Warehouse, with district/province/manager names resolved for display."""
 
     district_name = serializers.CharField(source="district.name", default=None)
     province_name = serializers.CharField(source="province.name", default=None)
-    manager_name = serializers.CharField(source="manager.full_name", default=None)
+    managed_by_name = serializers.CharField(source="managed_by.full_name", default=None)
+    utilization_pct = serializers.SerializerMethodField()
+    remaining_capacity = serializers.SerializerMethodField()
 
     class Meta:
         model = Warehouse
         fields = [
             "id", "name", "code", "capacity", "current_stock", "status",
             "contact_number", "established_date", "district", "district_name",
-            "province", "province_name", "location", "manager", "manager_name",
+            "province", "province_name", "location", "managed_by", "managed_by_name",
+            "utilization_pct", "remaining_capacity",
         ]
+
+    def get_utilization_pct(self, obj):
+        if not obj.capacity:
+            return 0
+        return round(float(obj.current_stock) / float(obj.capacity) * 100, 1)
+
+    def get_remaining_capacity(self, obj):
+        return obj.capacity - obj.current_stock
 
 
 class WarehouseWriteSerializer(serializers.ModelSerializer):
     """
     Create/update representation of a Warehouse. Deliberately excludes
-    `current_stock` (only ever changed by the harvest-collection workflow,
-    never edited directly) and `province` (derived from `district` by
-    WarehouseViewSet._sync_province in views.py). `manager` lets an officer
-    assign a self-registered Warehouse Manager account to this warehouse —
-    a manager can't claim one at signup, since warehouses belong to the
-    board, not the manager (see RegisterWarehouseManagerSerializer).
+    `current_stock` (only ever changed by the harvest-collection workflow
+    or WarehouseViewSet.adjust_stock, never edited directly) and `province`
+    (derived from `district` by WarehouseViewSet._sync_province in views.py).
     """
 
     class Meta:
         model = Warehouse
         fields = [
             "id", "name", "code", "capacity", "status", "contact_number",
-            "established_date", "district", "location", "manager",
+            "established_date", "district", "location", "managed_by",
         ]
+
+
+class WarehouseManagerSelfUpdateSerializer(serializers.ModelSerializer):
+    """
+    Self-service update for a warehouse_manager editing their own
+    warehouse's operational info — deliberately limited to `contact_number`
+    and `status` (e.g. flipping to "under_maintenance" themselves). Every
+    structural field (capacity/code/district/location/managed_by) stays
+    editable only via WarehouseWriteSerializer (officer/admin, "manage_warehouses").
+    """
+
+    class Meta:
+        model = Warehouse
+        fields = ["contact_number", "status"]
+
+
+class WarehouseStockAdjustmentSerializer(serializers.Serializer):
+    """
+    Write-only payload for WarehouseViewSet.adjust_stock — a manual
+    add/remove of stock for one paddy type (and optional grade) at a
+    warehouse, independent of the harvest-collection/rice-request-fulfillment
+    flows. `direction` picks the sign applied to `quantity` before it's
+    passed to _log_transaction/Warehouse.current_stock.
+    """
+
+    paddy_type = serializers.PrimaryKeyRelatedField(queryset=PaddyType.objects.all())
+    grade = serializers.ChoiceField(choices=Harvest.Grade.choices, required=False, allow_null=True)
+    quantity = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.01"))
+    direction = serializers.ChoiceField(choices=["add", "remove"])
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class OfficerHarvestSerializer(serializers.ModelSerializer):
     """Full Harvest representation for officers, with farmer/paddy-type/warehouse names resolved for display."""
 
     farmer_name = serializers.CharField(source="farmer.name", default=None)
+    farmer_reliability_score = serializers.FloatField(source="farmer.reliability_score", default=None, read_only=True)
     paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
     warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+    processed_by_name = serializers.CharField(source="processed_by.full_name", default=None)
 
     class Meta:
         model = Harvest
         fields = [
-            "id", "farmer", "farmer_name", "paddy_type", "paddy_type_name",
+            "id", "farmer", "farmer_name", "farmer_reliability_score", "paddy_type", "paddy_type_name",
             "warehouse", "warehouse_name", "quantity_kg", "harvest_date",
             "purchase_date", "grade", "moisture_level", "quality_check",
-            "unit_price", "status",
+            "unit_price", "status", "processed_by_name", "lot_code",
         ]
 
 
@@ -158,33 +270,6 @@ class OfficerHarvestWriteSerializer(serializers.ModelSerializer):
             "purchase_date", "grade", "moisture_level", "quality_check",
             "unit_price",
         ]
-
-
-class WarehouseIntakeSerializer(serializers.Serializer):
-    """
-    Validates a Warehouse Manager's single-step "record an intake" form
-    (farmer, paddy type, quantity, unit price). Mirrors
-    OfficerHarvestWriteSerializer's fields but as a plain Serializer, since
-    WarehouseIntakeView drives the farmer/paddy_type/quantity_kg straight
-    into a Harvest that is then pushed through approve+collect in one call
-    (see farmers.views._create_and_collect_harvest) rather than accepting a
-    raw Harvest write.
-    """
-
-    farmer_id = serializers.IntegerField()
-    paddy_type_id = serializers.IntegerField()
-    quantity_kg = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
-    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
-
-    def validate_farmer_id(self, value):
-        if not Farmer.objects.filter(pk=value).exists():
-            raise serializers.ValidationError("Select a valid farmer.")
-        return value
-
-    def validate_paddy_type_id(self, value):
-        if not PaddyType.objects.filter(pk=value, is_active=True).exists():
-            raise serializers.ValidationError("Select a valid paddy type.")
-        return value
 
 
 class VehicleSerializer(serializers.ModelSerializer):

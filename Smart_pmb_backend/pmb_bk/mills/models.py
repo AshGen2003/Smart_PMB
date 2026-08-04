@@ -83,6 +83,15 @@ class MillingReport(models.Model):
     """A mill owner's periodic report of paddy processed and rice produced."""
 
     mill = models.ForeignKey(Mill, on_delete=models.CASCADE, related_name="milling_reports")
+    # Optional links to the specific farmer harvest this report accounts
+    # for and the paddy type it was milled from — a mill owner isn't
+    # necessarily also a farmer, so most reports won't have a `harvest`.
+    harvest = models.ForeignKey(
+        "farmers.Harvest", on_delete=models.SET_NULL, null=True, blank=True, related_name="milling_reports"
+    )
+    paddy_type = models.ForeignKey(
+        "farmers.PaddyType", on_delete=models.SET_NULL, null=True, blank=True, related_name="milling_reports"
+    )
     report_date = models.DateField(auto_now_add=True)
     paddy_processed_kg = models.DecimalField(max_digits=12, decimal_places=2)
     rice_output_kg = models.DecimalField(max_digits=12, decimal_places=2)
@@ -90,3 +99,30 @@ class MillingReport(models.Model):
 
     class Meta:
         ordering = ["-report_date"]
+
+
+class Inspection(models.Model):
+    """
+    An officer's on-site inspection visit to a mill: pass/fail/needs-
+    follow-up, with notes. Purely a record of oversight — unlike License,
+    an inspection doesn't gate the mill's operating status itself.
+    """
+
+    class Result(models.TextChoices):
+        PASS = "pass", "Pass"
+        FAIL = "fail", "Fail"
+        NEEDS_FOLLOW_UP = "needs_follow_up", "Needs Follow-up"
+
+    mill = models.ForeignKey(Mill, on_delete=models.CASCADE, related_name="inspections")
+    officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    inspection_date = models.DateField(auto_now_add=True)
+    result = models.CharField(max_length=20, choices=Result.choices)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-inspection_date"]
+
+    def __str__(self):
+        return f"Inspection of {self.mill.mill_name} ({self.result})"

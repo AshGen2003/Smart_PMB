@@ -1,22 +1,28 @@
 /**
  * Client Component for the roles page: a searchable card grid of roles
  * with their assigned permissions, plus create/edit/delete via a modal
- * form and Server Actions. A role can only be deleted if it's not a
- * built-in system role and has no users currently assigned to it.
+ * form and Server Actions. A role can only be deleted once it has no
+ * users currently assigned to it — including built-in system roles
+ * (Admin/PMB Officer/Farmer/...), which show an extra warning in the
+ * delete-confirmation dialog since some backend flows look a role up by
+ * its slug (see accounts/models.py's Role.is_system docstring).
  */
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
 import {
+  AlertTriangle,
   Briefcase,
   Eye,
+  Loader2,
   Pencil,
   Plus,
   Search,
   ShieldCheck,
   Trash2,
   UserCog,
+  X,
 } from "lucide-react";
 import { deleteRole } from "@/app/actions/roles";
 import RoleFormModal, { type EditableRole, type PermissionOption } from "./RoleFormModal";
@@ -31,6 +37,7 @@ export type RoleRow = {
   is_system: boolean;
   permissions: string[];
   user_count: number;
+  dashboard_widgets: string[];
 };
 
 // Cycle a few tint classes and decorative icons across the role cards for
@@ -50,7 +57,12 @@ export default function RolesManager({
   const [modal, setModal] = useState<
     { mode: "create" } | { mode: "edit"; role: EditableRole } | null
   >(null);
+  // Role pending delete confirmation — opens the confirm dialog below
+  // rather than a native window.confirm(), so a system role can show its
+  // extra warning inline.
+  const [deleteTarget, setDeleteTarget] = useState<RoleRow | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -64,14 +76,25 @@ export default function RolesManager({
   const labelFor = (codename: string) =>
     permissions.find((p) => p.codename === codename)?.label ?? codename;
 
-  function handleDelete(role: RoleRow) {
-    if (!window.confirm(`Delete the "${role.name}" role? This cannot be undone.`))
-      return;
+  function openDeleteConfirm(role: RoleRow) {
+    setDeleteError(null);
+    setDeleteSuccess(null);
+    setDeleteTarget(role);
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
 
     setDeleteError(null);
     startTransition(async () => {
-      const result = await deleteRole(role.id);
-      if (result.error) setDeleteError(result.error);
+      const result = await deleteRole(target.id);
+      if (result.error) {
+        setDeleteError(result.error);
+        return;
+      }
+      setDeleteTarget(null);
+      setDeleteSuccess(`The "${target.name}" role was deleted.`);
     });
   }
 
@@ -102,7 +125,7 @@ export default function RolesManager({
         </div>
       </div>
 
-      {deleteError && <div className={styles.banner}>{deleteError}</div>}
+      {deleteSuccess && <div className={styles.successBanner}>{deleteSuccess}</div>}
 
       <div className={styles.container}>
         <h2 className={styles.sectionLabel}>All roles</h2>
@@ -110,9 +133,11 @@ export default function RolesManager({
         {filtered.length > 0 ? (
           <div className={styles.grid}>
             {filtered.map((r, i) => {
-              // System roles (e.g. built-in Admin) can never be deleted; other
-              // roles can only be deleted once no users are assigned to them.
-              const canDelete = !r.is_system && r.user_count === 0;
+              // Any role — including built-in system roles — can be
+              // deleted once no users are assigned to it (see
+              // RolesManager's file docstring for why system roles get an
+              // extra confirmation warning instead of being blocked).
+              const canDelete = r.user_count === 0;
               const tint = TINTS[i % TINTS.length];
               const Icon = r.is_system
                 ? ShieldCheck
@@ -161,6 +186,7 @@ export default function RolesManager({
                             name: r.name,
                             description: r.description,
                             permissions: r.permissions,
+                            dashboard_widgets: r.dashboard_widgets,
                           },
                         })
                       }
@@ -173,13 +199,9 @@ export default function RolesManager({
                       aria-label="Delete role"
                       disabled={!canDelete || isPending}
                       title={
-                        r.is_system
-                          ? "System roles can't be deleted"
-                          : r.user_count > 0
-                          ? "Reassign users before deleting this role"
-                          : undefined
+                        r.user_count > 0 ? "Reassign users before deleting this role" : undefined
                       }
-                      onClick={() => handleDelete(r)}
+                      onClick={() => openDeleteConfirm(r)}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -203,6 +225,67 @@ export default function RolesManager({
           permissions={permissions}
           onClose={() => setModal(null)}
         />
+      )}
+
+      {deleteTarget && (
+        <div className={styles.overlay} onClick={() => !isPending && setDeleteTarget(null)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div className={styles.modalHeaderTitle}>
+                <Trash2 size={20} />
+                Delete role
+              </div>
+              <button
+                type="button"
+                className={styles.modalCloseBtn}
+                onClick={() => setDeleteTarget(null)}
+                disabled={isPending}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              {deleteError && <div className={styles.modalBanner}>{deleteError}</div>}
+
+              <p>
+                Delete the <strong>{deleteTarget.name}</strong> role? This cannot be undone.
+              </p>
+
+              {deleteTarget.is_system && (
+                <div className={styles.warningBox}>
+                  <AlertTriangle size={16} />
+                  <span>
+                    This is a built-in system role. Some features look it up by name
+                    (e.g. new-account signup, license approval, or appointing staff into this
+                    role) — deleting it may break those flows even though no users currently
+                    hold it.
+                  </span>
+                </div>
+              )}
+
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={isPending}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={styles.dangerBtn}
+                  onClick={confirmDelete}
+                  disabled={isPending}
+                >
+                  {isPending && <Loader2 size={16} className={styles.spin} />}
+                  Delete role
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -11,8 +11,10 @@
 import React, { useState, useTransition } from "react";
 import clsx from "clsx";
 import { format } from "date-fns";
-import { Plus, Sprout } from "lucide-react";
+import Link from "next/link";
+import { Plus, QrCode, Sprout } from "lucide-react";
 import { withdrawHarvest } from "@/app/actions/farmer";
+import { useLanguage } from "@/app/components/LanguageProvider";
 import LogHarvestModal, { type PaddyTypeOption } from "./LogHarvestModal";
 import styles from "./Harvests.module.css";
 
@@ -22,6 +24,7 @@ export type HarvestRow = {
   quantity_kg: string;
   harvest_date: string;
   status: "pending" | "verified" | "collected" | "rejected";
+  lot_code: string | null;
 };
 
 const HARVEST_BADGE: Record<string, string> = {
@@ -38,12 +41,20 @@ export default function HarvestsManager({
   harvests: HarvestRow[];
   paddyTypes: PaddyTypeOption[];
 }) {
+  const { t } = useLanguage();
   const [modalOpen, setModalOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const STATUS_LABEL: Record<string, string> = {
+    pending: t.farmerCharts.statusPending,
+    verified: t.farmerCharts.statusVerified,
+    collected: t.farmerCharts.statusCollected,
+    rejected: t.farmerCharts.statusRejected,
+  };
+
   function handleWithdraw(h: HarvestRow) {
-    if (!window.confirm("Withdraw this harvest submission? This cannot be undone.")) return;
+    if (!window.confirm(t.farmerHarvests.confirmWithdraw)) return;
     setActionError(null);
     startTransition(async () => {
       const result = await withdrawHarvest(h.id);
@@ -55,11 +66,11 @@ export default function HarvestsManager({
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <div>
-          <h1 className={styles.pageTitle}>My Harvests</h1>
-          <span className={styles.subtitle}>Submit new deliveries and track their approval status</span>
+          <h1 className={styles.pageTitle}>{t.farmerHarvests.title}</h1>
+          <span className={styles.subtitle}>{t.farmerHarvests.subtitle}</span>
         </div>
         <button type="button" className={styles.newBtn} onClick={() => setModalOpen(true)}>
-          <Plus size={16} /> Log harvest
+          <Plus size={16} /> {t.farmerHarvests.logHarvest}
         </button>
       </div>
 
@@ -70,10 +81,10 @@ export default function HarvestsManager({
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Paddy Type</th>
-                <th>Quantity (kg)</th>
-                <th>Harvest Date</th>
-                <th>Status</th>
+                <th>{t.farmerHarvests.tablePaddyType}</th>
+                <th>{t.farmerHarvests.tableQuantity}</th>
+                <th>{t.farmerHarvests.tableHarvestDate}</th>
+                <th>{t.farmerHarvests.tableStatus}</th>
                 <th></th>
               </tr>
             </thead>
@@ -85,7 +96,7 @@ export default function HarvestsManager({
                   <td>{format(new Date(h.harvest_date), "MMM d, yyyy")}</td>
                   <td>
                     <span className={clsx(styles.badge, styles[HARVEST_BADGE[h.status] ?? "badge-neutral"])}>
-                      {h.status}
+                      {STATUS_LABEL[h.status] ?? h.status}
                     </span>
                   </td>
                   <td>
@@ -96,8 +107,13 @@ export default function HarvestsManager({
                         disabled={isPending}
                         onClick={() => handleWithdraw(h)}
                       >
-                        Withdraw
+                        {t.farmerHarvests.withdraw}
                       </button>
+                    )}
+                    {h.lot_code && (
+                      <Link href={`/trace/${h.lot_code}`} target="_blank" className={styles.traceLink}>
+                        <QrCode size={14} /> {t.farmerHarvests.viewQr}
+                      </Link>
                     )}
                   </td>
                 </tr>
@@ -107,7 +123,7 @@ export default function HarvestsManager({
         ) : (
           <div className={styles.emptyState}>
             <Sprout size={28} style={{ marginBottom: "0.5rem", opacity: 0.6 }} />
-            <div>No harvests logged yet. Use &quot;Log harvest&quot; to submit your first delivery.</div>
+            <div>{t.farmerHarvests.emptyState}</div>
           </div>
         )}
       </div>

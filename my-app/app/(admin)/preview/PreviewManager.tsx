@@ -1,14 +1,17 @@
 /**
- * Client Component behind `/preview`: a role picker plus a live mockup of
- * that role's sidebar navigation (so an admin can see exactly what a Farmer
- * or PMB Officer's portal looks like) and an "Enter Preview" button that
- * starts a real, read-only preview session as that role. Permission editing
- * lives on `/roles` — this page only mirrors the current permission set to
- * decide which nav items show in the mockup.
+ * Client Component behind `/preview`: a role picker plus a live, clickable
+ * mockup of that role's sidebar navigation (so an admin can see exactly
+ * what any role's portal looks like — admin/officer, farmer, or driver), a
+ * per-button switch to grant/revoke that role's access to each sidebar
+ * item on the spot, and an "Enter Preview" button that starts a real,
+ * read-only preview session as that role. The full role editor (rename,
+ * delete, and permissions with no sidebar button of their own, e.g.
+ * manage_system) still lives on `/roles` — this page is the quick-toggle
+ * view for exactly what shows up in the sidebar.
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import clsx from "clsx";
 import {
   LayoutDashboard,
@@ -22,11 +25,13 @@ import {
   Eye,
   MessageSquare,
   Truck,
+  Info,
   Settings,
-  LogOut,
-  Sprout,
+  User,
+  BadgeCheck,
 } from "lucide-react";
 import { enterPreview } from "@/app/actions/preview";
+import { toggleRolePermission } from "@/app/actions/roles";
 import sidebarStyles from "@/app/components/Sidebar.module.css";
 import styles from "./Preview.module.css";
 import type { RoleRow } from "../roles/RolesManager";
@@ -35,52 +40,81 @@ import type { RoleRow } from "../roles/RolesManager";
 // (rather than importing Sidebar's, which isn't exported) since this one
 // needs each entry's gating permission(s) as plain data to render toggles
 // against, not just to filter against the current user's own permissions.
+// Every item has a single `permission` except Approvals, which is gated by
+// either of two permissions (monitor_operations/record_purchases) — that
+// one has no single checkbox to toggle here, edit those two directly via
+// the full role editor on /roles instead.
 const ADMIN_NAV_ITEMS = [
-  { label: "Dashboard", icon: LayoutDashboard, permission: null },
+  { label: "Dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
   { label: "Users", icon: Users, permission: "manage_users" },
   { label: "Maintenance", icon: Wrench, permission: "view_audit_logs" },
   { label: "Warehouses", icon: Warehouse, permission: "manage_warehouses" },
   { label: "Pricing", icon: Coins, permission: "manage_pricing" },
   { label: "Approvals", icon: ClipboardCheck, permissions: ["monitor_operations", "record_purchases"] },
   { label: "Transportation", icon: Truck, permission: "manage_transport" },
+  { label: "Licenses", icon: BadgeCheck, permission: "approve_licenses" },
   { label: "Reports", icon: BarChart3, permission: "generate_reports" },
   { label: "Roles", icon: ShieldCheck, permission: "manage_roles" },
   { label: "Preview Portal", icon: Eye, permission: "manage_roles" },
-  { label: "Messages", icon: MessageSquare, permission: null },
-  { label: "Settings", icon: Settings, permission: null },
+  { label: "Messages", icon: MessageSquare, permission: "view_messages" },
+  { label: "Settings", icon: Settings, permission: "view_settings" },
+  { label: "Profile", icon: User, permission: "view_profile" },
 ] as const;
 
-// Every farmer sees this exact, fixed nav — it isn't permission-gated at
-// all (see components/FarmerSidebar.tsx), so there's nothing to toggle.
+// Mirrors FarmerSidebar.tsx's NAV_ITEMS. No "Log out" entry — the real
+// sidebar shows that as a static, always-available action with no
+// permission gate, so there's nothing to toggle for it here.
 const FARMER_NAV_ITEMS = [
-  { label: "Dashboard", icon: LayoutDashboard },
-  { label: "Messages", icon: MessageSquare },
-  { label: "Settings", icon: Settings },
-  { label: "Log out", icon: LogOut },
-];
+  { label: "Dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
+  { label: "Messages", icon: MessageSquare, permission: "view_messages" },
+  { label: "Settings", icon: Settings, permission: "view_settings" },
+  { label: "Profile", icon: User, permission: "view_profile" },
+] as const;
 
-// Every driver sees this exact, fixed nav too (see components/DriverSidebar.tsx).
+// Mirrors DriverSidebar.tsx's NAV_ITEMS. Same "no Log out entry" note as
+// farmer above.
 const DRIVER_NAV_ITEMS = [
-  { label: "Dashboard", icon: LayoutDashboard },
-  { label: "Vehicle Log", icon: Truck },
-  { label: "Messages", icon: MessageSquare },
-  { label: "Settings", icon: Settings },
-  { label: "Log out", icon: LogOut },
-];
+  { label: "Dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
+  { label: "Vehicle Details", icon: Info, permission: "view_vehicle_details" },
+  { label: "Vehicle Log", icon: Truck, permission: "view_vehicle_log" },
+  { label: "Messages", icon: MessageSquare, permission: "view_messages" },
+  { label: "Settings", icon: Settings, permission: "view_settings" },
+  { label: "Profile", icon: User, permission: "view_profile" },
+] as const;
+
+// Mirrors PartnerSidebar.tsx's NAV_ITEMS (authorized_purchaser/mill_owner —
+// identical shape to farmer's).
+const PARTNER_NAV_ITEMS = [
+  { label: "Dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
+  { label: "Messages", icon: MessageSquare, permission: "view_messages" },
+  { label: "Settings", icon: Settings, permission: "view_settings" },
+  { label: "Profile", icon: User, permission: "view_profile" },
+] as const;
 
 export default function PreviewManager({ roles }: { roles: RoleRow[] }) {
   const sortedRoles = [...roles].sort((a, b) => a.name.localeCompare(b.name));
   const [selectedId, setSelectedId] = useState<number | undefined>(sortedRoles[0]?.id);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const selected = sortedRoles.find((r) => r.id === selectedId);
-  const isFarmerRole = selected?.slug === "farmer";
-  const isDriverRole = selected?.slug === "driver";
   const currentPermissions = selected?.permissions ?? [];
+  const items =
+    selected?.slug === "farmer"
+      ? FARMER_NAV_ITEMS
+      : selected?.slug === "driver"
+      ? DRIVER_NAV_ITEMS
+      : selected?.slug === "authorized_purchaser" || selected?.slug === "mill_owner"
+      ? PARTNER_NAV_ITEMS
+      : ADMIN_NAV_ITEMS;
 
-  function hasAccess(item: (typeof ADMIN_NAV_ITEMS)[number]) {
-    if ("permissions" in item) return item.permissions.some((p) => currentPermissions.includes(p));
-    if (item.permission) return currentPermissions.includes(item.permission);
-    return true; // no permission field = always visible (Dashboard/Settings)
+  function handleToggle(codename: string, checked: boolean) {
+    if (!selected) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await toggleRolePermission(selected.id, codename, currentPermissions, checked);
+      if (result.error) setError(result.error);
+    });
   }
 
   return (
@@ -99,12 +133,17 @@ export default function PreviewManager({ roles }: { roles: RoleRow[] }) {
             key={r.id}
             type="button"
             className={clsx(styles.roleTab, r.id === selectedId && styles.roleTabActive)}
-            onClick={() => setSelectedId(r.id)}
+            onClick={() => {
+              setSelectedId(r.id);
+              setError(null);
+            }}
           >
             {r.name}
           </button>
         ))}
       </div>
+
+      {error && <div className={styles.banner}>{error}</div>}
 
       {selected && (
         <div className={styles.mockupWrap}>
@@ -122,28 +161,48 @@ export default function PreviewManager({ roles }: { roles: RoleRow[] }) {
                 <span>Smart PMB</span>
               </div>
               <nav className={sidebarStyles.nav}>
-                {isFarmerRole || isDriverRole
-                  ? (isFarmerRole ? FARMER_NAV_ITEMS : DRIVER_NAV_ITEMS).map((item) => (
-                      <span key={item.label} className={sidebarStyles.navItem}>
-                        <item.icon className={sidebarStyles.navIcon} size={18} />
-                        {item.label}
-                      </span>
-                    ))
-                  : ADMIN_NAV_ITEMS.filter(hasAccess).map((item) => (
-                      <span key={item.label} className={sidebarStyles.navItem}>
-                        <item.icon className={sidebarStyles.navIcon} size={18} />
-                        {item.label}
-                      </span>
-                    ))}
+                {items.map((item) => {
+                  const isOrGated = "permissions" in item;
+                  const checked = isOrGated
+                    ? item.permissions.some((p) => currentPermissions.includes(p))
+                    : currentPermissions.includes(item.permission);
+
+                  return (
+                    <label
+                      key={item.label}
+                      className={clsx(
+                        sidebarStyles.navItem,
+                        styles.toggleRow,
+                        !checked && styles.toggleRowOff
+                      )}
+                    >
+                      <item.icon className={sidebarStyles.navIcon} size={18} />
+                      <span className={styles.toggleLabel}>{item.label}</span>
+                      {isOrGated ? (
+                        <span
+                          className={styles.toggleHint}
+                          title="Edit monitor_operations/record_purchases on /roles"
+                        >
+                          —
+                        </span>
+                      ) : (
+                        <span className={styles.switchTrack}>
+                          <input
+                            type="checkbox"
+                            className={styles.switchInput}
+                            checked={checked}
+                            disabled={isPending}
+                            onChange={(e) => handleToggle(item.permission, e.target.checked)}
+                          />
+                          <span className={styles.switchSlider} />
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
               </nav>
             </aside>
           </div>
-          {(isFarmerRole || isDriverRole) && (
-            <p className={styles.mockupNote}>
-              <Sprout size={14} /> {isFarmerRole ? "Farmer" : "Driver"} navigation is fixed for
-              every {isFarmerRole ? "farmer" : "driver"} — it isn&apos;t permission-based.
-            </p>
-          )}
         </div>
       )}
     </div>

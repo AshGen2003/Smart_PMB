@@ -7,12 +7,16 @@
 
 import React, { useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
+import Link from "next/link";
 import {
+  ArrowDownUp,
   Check,
   ClipboardList,
   PackageCheck,
   Pencil,
   Plus,
+  QrCode,
+  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
@@ -21,6 +25,7 @@ import {
   collectHarvest,
   deleteHarvest,
   rejectHarvest,
+  verifyHarvestTransaction,
 } from "@/app/actions/approvals";
 import HarvestFormModal, {
   type EditableHarvest,
@@ -35,6 +40,7 @@ export type HarvestRow = {
   id: number;
   farmer: number;
   farmer_name: string | null;
+  farmer_reliability_score: number | null;
   paddy_type: number | null;
   paddy_type_name: string | null;
   warehouse: number | null;
@@ -47,6 +53,11 @@ export type HarvestRow = {
   quality_check: boolean | null;
   unit_price: string | null;
   status: "pending" | "verified" | "collected" | "rejected";
+  // Whoever most recently ran approve/reject/collect on this harvest — null
+  // until the first action, so pending harvests generally show "—".
+  processed_by_name: string | null;
+  // Set once, in mark_collected — see the public /trace/<lot_code> page.
+  lot_code: string | null;
 };
 
 const TABS: { key: HarvestRow["status"]; label: string }[] = [
@@ -55,6 +66,17 @@ const TABS: { key: HarvestRow["status"]; label: string }[] = [
   { key: "collected", label: "Collected" },
   { key: "rejected", label: "Rejected" },
 ];
+
+// Farmer.reliability_score is 0 both for "no track record yet" and for a
+// genuinely poor trailing-12-month record — HarvestRow can't tell those
+// apart, so a null/0 score renders as "Unknown" rather than a red "Low".
+function reliabilityBadgeClass(score: number | null) {
+  if (score === null) return styles.reliabilityUnknown;
+  if (score === 0) return styles.reliabilityUnknown;
+  if (score >= 70) return styles.reliabilityHigh;
+  if (score >= 40) return styles.reliabilityMedium;
+  return styles.reliabilityLow;
+}
 
 /**
  * Renders the status-tabbed harvest table (pending/verified/collected/
@@ -77,6 +99,7 @@ export default function ApprovalsManager({
   canWrite: boolean;
 }) {
   const [tab, setTab] = useState<HarvestRow["status"]>("pending");
+  const [sortByReliability, setSortByReliability] = useState(false);
   const [modal, setModal] = useState<
     { mode: "create" } | { mode: "edit"; harvest: EditableHarvest } | null
   >(null);
@@ -86,10 +109,15 @@ export default function ApprovalsManager({
   // isPending drives the disabled state on action buttons.
   const [isPending, startTransition] = useTransition();
 
-  const filtered = useMemo(
-    () => harvests.filter((h) => h.status === tab),
-    [harvests, tab]
-  );
+  const filtered = useMemo(() => {
+    const rows = harvests.filter((h) => h.status === tab);
+    if (!sortByReliability) return rows;
+    // Higher reliability first; farmers with no score yet sort last rather
+    // than being mistaken for a poor track record.
+    return [...rows].sort(
+      (a, b) => (b.farmer_reliability_score ?? -1) - (a.farmer_reliability_score ?? -1)
+    );
+  }, [harvests, tab, sortByReliability]);
 
   // Count of harvests per status, used for the badge next to each tab.
   const counts = useMemo(() => {
@@ -142,6 +170,15 @@ export default function ApprovalsManager({
             <span className={styles.tabCount}>{counts[t.key] ?? 0}</span>
           </button>
         ))}
+        <button
+          type="button"
+          className={clsx(styles.tab, styles.sortBtn, sortByReliability && styles.tabActive)}
+          onClick={() => setSortByReliability((v) => !v)}
+          title="Prioritize harvests from more reliable farmers"
+        >
+          <ArrowDownUp size={14} />
+          Sort by reliability
+        </button>
       </div>
 
       {actionError && <div className={styles.banner}>{actionError}</div>}
@@ -153,12 +190,14 @@ export default function ApprovalsManager({
               <thead>
                 <tr>
                   <th>Farmer</th>
+                  <th>Reliability</th>
                   <th>Paddy type</th>
                   <th>Warehouse</th>
                   <th>Quantity (kg)</th>
                   <th>Grade</th>
                   <th>Unit price</th>
                   <th>Date</th>
+                  <th>Processed by</th>
                   <th></th>
                 </tr>
               </thead>
@@ -166,12 +205,18 @@ export default function ApprovalsManager({
                 {filtered.map((h) => (
                   <tr key={h.id}>
                     <td>{h.farmer_name ?? "—"}</td>
+                    <td>
+                      <span className={clsx(styles.reliabilityBadge, reliabilityBadgeClass(h.farmer_reliability_score))}>
+                        {h.farmer_reliability_score ? `${Math.round(h.farmer_reliability_score)}/100` : "No data"}
+                      </span>
+                    </td>
                     <td>{h.paddy_type_name ?? "—"}</td>
                     <td>{h.warehouse_name ?? "—"}</td>
                     <td>{Number(h.quantity_kg).toLocaleString()}</td>
                     <td>{h.grade ? `Grade ${h.grade}` : "—"}</td>
                     <td>{h.unit_price ? `Rs. ${Number(h.unit_price).toLocaleString()}` : "—"}</td>
                     <td>{h.purchase_date ?? h.harvest_date}</td>
+                    <td>{h.processed_by_name ?? "—"}</td>
                     <td>
                       <div className={styles.rowActions}>
                         {canWrite && (
@@ -232,6 +277,29 @@ export default function ApprovalsManager({
                           >
                             <PackageCheck size={15} />
                           </button>
+                        )}
+                        {canWrite && h.status === "collected" && (
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            aria-label="Verify transaction"
+                            title="Record an accountability sign-off on this transaction"
+                            disabled={isPending}
+                            onClick={() => runAction(() => verifyHarvestTransaction(h.id))}
+                          >
+                            <ShieldCheck size={15} />
+                          </button>
+                        )}
+                        {h.lot_code && (
+                          <Link
+                            href={`/trace/${h.lot_code}`}
+                            target="_blank"
+                            className={styles.iconBtn}
+                            aria-label="View QR / trace"
+                            title="View QR / trace"
+                          >
+                            <QrCode size={15} />
+                          </Link>
                         )}
                         {canWrite && (
                           <button

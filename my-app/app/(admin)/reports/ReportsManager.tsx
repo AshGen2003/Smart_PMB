@@ -6,7 +6,7 @@
  */
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import {
@@ -14,6 +14,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
   Pie,
@@ -23,7 +24,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowRight, BarChart3, Download, FileDown, Package, Receipt } from "lucide-react";
+import { ArrowRight, BarChart3, Download, FileDown, Package, Receipt, Search, TrendingUp } from "lucide-react";
+import ChartLegend from "@/app/components/ChartLegend";
 import styles from "./Reports.module.css";
 
 const TOOLTIP_STYLE = {
@@ -34,6 +36,12 @@ const TOOLTIP_STYLE = {
   },
   labelStyle: { color: "var(--foreground)" },
   itemStyle: { color: "var(--foreground)" },
+};
+
+const LEGEND_STYLE = {
+  wrapperStyle: { fontSize: 12, color: "var(--text-muted)" },
+  iconType: "circle" as const,
+  iconSize: 8,
 };
 
 // Fixed (not theme-swapped) chart colors, distinct from the brand
@@ -69,6 +77,13 @@ type TransactionRow = {
   status: string;
 };
 
+type PriceForecastRow = {
+  paddy_type: string;
+  current_price: number;
+  suggested_price: number;
+  based_on_points: number;
+};
+
 export type ReportsData = {
   stock_report: StockRow[];
   transaction_report: TransactionRow[];
@@ -77,6 +92,7 @@ export type ReportsData = {
     payment_status_breakdown: { status: string; label: string; count: number }[];
     monthly_purchases: { period: string; quantity_kg: number; amount: number }[];
   };
+  price_forecast: PriceForecastRow[];
 };
 
 /** Builds a CSV string from headers + rows, quoting/escaping any value that contains a comma, quote, or newline. */
@@ -101,14 +117,56 @@ function downloadCsv(filename: string, csv: string) {
   URL.revokeObjectURL(url);
 }
 
-/** Renders the stock/transaction report tabs with CSV export buttons. */
-export default function ReportsManager({ data }: { data: ReportsData }) {
+/**
+ * Renders the stock/transaction report tabs with CSV export buttons.
+ * `basePath` prefixes the "Harvest Volume/Status" chart links back to
+ * /approvals — "" inside the shared admin shell, "/officer" when rendered
+ * as the PMB Officer portal's own reports page (see officer/reports/page.tsx).
+ */
+export default function ReportsManager({
+  data,
+  basePath = "",
+}: {
+  data: ReportsData;
+  basePath?: string;
+}) {
   const [tab, setTab] = useState<"stock" | "transactions">("stock");
+  const [search, setSearch] = useState("");
+
+  function switchTab(next: "stock" | "transactions") {
+    setTab(next);
+    setSearch("");
+  }
+
+  const filteredStockReport = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return data.stock_report;
+    return data.stock_report.filter(
+      (w) =>
+        w.name.toLowerCase().includes(q) ||
+        w.code.toLowerCase().includes(q) ||
+        (w.district_name ?? "").toLowerCase().includes(q) ||
+        w.status.toLowerCase().includes(q)
+    );
+  }, [data.stock_report, search]);
+
+  const filteredTransactionReport = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return data.transaction_report;
+    return data.transaction_report.filter(
+      (t) =>
+        t.farmer_name.toLowerCase().includes(q) ||
+        (t.paddy_type ?? "").toLowerCase().includes(q) ||
+        (t.warehouse ?? "").toLowerCase().includes(q) ||
+        (t.payment_status ?? "").toLowerCase().includes(q) ||
+        t.status.toLowerCase().includes(q)
+    );
+  }, [data.transaction_report, search]);
 
   function exportStock() {
     const csv = toCsv(
       ["Warehouse", "Code", "District", "Current Stock (kg)", "Capacity (kg)", "Status"],
-      data.stock_report.map((w) => [
+      filteredStockReport.map((w) => [
         w.name,
         w.code,
         w.district_name,
@@ -123,7 +181,7 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
   function exportTransactions() {
     const csv = toCsv(
       ["Date", "Farmer", "Paddy Type", "Warehouse", "Quantity (kg)", "Unit Price", "Amount", "Payment Status", "Status"],
-      data.transaction_report.map((t) => [
+      filteredTransactionReport.map((t) => [
         t.purchase_date,
         t.farmer_name,
         t.paddy_type,
@@ -154,22 +212,37 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
           <button
             type="button"
             className={clsx(styles.tab, tab === "stock" && styles.tabActive)}
-            onClick={() => setTab("stock")}
+            onClick={() => switchTab("stock")}
           >
             <Package size={15} /> Stock Report
           </button>
           <button
             type="button"
             className={clsx(styles.tab, tab === "transactions" && styles.tabActive)}
-            onClick={() => setTab("transactions")}
+            onClick={() => switchTab("transactions")}
           >
             <Receipt size={15} /> Transaction Report
           </button>
         </div>
       </div>
 
+      <div className={styles.searchWrap}>
+        <Search size={16} className={styles.searchIcon} />
+        <input
+          type="text"
+          className={styles.searchInput}
+          placeholder={
+            tab === "stock"
+              ? "Search by warehouse, code, district, or status…"
+              : "Search by farmer, paddy type, warehouse, or status…"
+          }
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
       <div className={styles.chartsGrid}>
-        <Link href="/approvals" className={clsx(styles.chartCard, styles.chartCardLink)}>
+        <Link href={`${basePath}/approvals`} className={clsx(styles.chartCard, styles.chartCardLink)}>
           <h3 className={styles.chartTitle}>
             Purchases by Month
             <ArrowRight size={14} className={styles.chartLinkIcon} />
@@ -181,13 +254,14 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
                 <XAxis dataKey="period" stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip {...TOOLTIP_STYLE} formatter={(value) => Number(value).toLocaleString()} />
+                <Legend {...LEGEND_STYLE} />
                 <Line type="monotone" dataKey="quantity_kg" name="Quantity (kg)" stroke="var(--chart-2)" strokeWidth={3} dot={{ fill: "var(--chart-2)", strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </Link>
 
-        <Link href="/approvals" className={clsx(styles.chartCard, styles.chartCardLink)}>
+        <Link href={`${basePath}/approvals`} className={clsx(styles.chartCard, styles.chartCardLink)}>
           <h3 className={styles.chartTitle}>
             Grade Distribution
             <ArrowRight size={14} className={styles.chartLinkIcon} />
@@ -214,9 +288,15 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
               </PieChart>
             </ResponsiveContainer>
           </div>
+          <ChartLegend
+            items={data.charts.grade_distribution.map((entry) => ({
+              label: `Grade ${entry.grade}`,
+              color: GRADE_COLORS[entry.grade] ?? "var(--chart-neutral)",
+            }))}
+          />
         </Link>
 
-        <Link href="/approvals" className={clsx(styles.chartCard, styles.chartCardLink)}>
+        <Link href={`${basePath}/approvals`} className={clsx(styles.chartCard, styles.chartCardLink)}>
           <h3 className={styles.chartTitle}>
             Payment Status
             <ArrowRight size={14} className={styles.chartLinkIcon} />
@@ -236,8 +316,55 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <ChartLegend
+            items={data.charts.payment_status_breakdown.map((entry) => ({
+              label: entry.label,
+              color: PAYMENT_COLORS[entry.status] ?? "var(--chart-neutral)",
+            }))}
+          />
         </Link>
       </div>
+
+      {data.price_forecast.length > 0 && (
+        <div className={styles.container}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionLabel}>
+              <TrendingUp size={15} style={{ verticalAlign: "-3px", marginRight: "6px" }} />
+              Suggested Guaranteed Prices
+            </h2>
+            <Link href={`${basePath}/pricing`} className={styles.exportBtn}>
+              Update prices <ArrowRight size={14} />
+            </Link>
+          </div>
+          <p className={styles.muted} style={{ marginBottom: "0.75rem" }}>
+            A simple trend projection from recent price history — review and
+            apply manually on the Pricing page, nothing here changes prices
+            automatically.
+          </p>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Paddy type</th>
+                  <th>Current price</th>
+                  <th>Suggested next price</th>
+                  <th>Based on</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.price_forecast.map((p) => (
+                  <tr key={p.paddy_type}>
+                    <td>{p.paddy_type}</td>
+                    <td>Rs. {p.current_price.toLocaleString()}</td>
+                    <td>Rs. {p.suggested_price.toLocaleString()}</td>
+                    <td>{p.based_on_points} price point(s)</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {tab === "stock" && (
         <div className={styles.container}>
@@ -248,7 +375,7 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
             </button>
           </div>
 
-          {data.stock_report.length > 0 ? (
+          {filteredStockReport.length > 0 ? (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
@@ -261,7 +388,7 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.stock_report.map((w) => (
+                  {filteredStockReport.map((w) => (
                     <tr key={w.id}>
                       <td>
                         {w.name} <span className={styles.muted}>({w.code})</span>
@@ -278,7 +405,7 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
           ) : (
             <div className={styles.emptyState}>
               <BarChart3 size={26} />
-              <p>No warehouse data yet.</p>
+              <p>{search ? "No warehouses match your search." : "No warehouse data yet."}</p>
             </div>
           )}
         </div>
@@ -293,7 +420,7 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
             </button>
           </div>
 
-          {data.transaction_report.length > 0 ? (
+          {filteredTransactionReport.length > 0 ? (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
@@ -309,7 +436,7 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.transaction_report.map((t) => (
+                  {filteredTransactionReport.map((t) => (
                     <tr key={t.id}>
                       <td>{t.purchase_date}</td>
                       <td>{t.farmer_name}</td>
@@ -327,7 +454,7 @@ export default function ReportsManager({ data }: { data: ReportsData }) {
           ) : (
             <div className={styles.emptyState}>
               <BarChart3 size={26} />
-              <p>No transactions yet.</p>
+              <p>{search ? "No transactions match your search." : "No transactions yet."}</p>
             </div>
           )}
         </div>

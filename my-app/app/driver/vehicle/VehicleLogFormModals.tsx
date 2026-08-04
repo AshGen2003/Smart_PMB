@@ -16,6 +16,7 @@ import {
   updateMaintenanceRecord,
   type DriverFormState,
 } from "@/app/actions/driver";
+import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./VehicleLog.module.css";
 import type { VehicleOption } from "./VehicleLogManager";
 
@@ -101,21 +102,28 @@ export function FuelRecordFormModal({
       <form action={formAction}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="vehicle">Vehicle</label>
-          <select id="vehicle" name="vehicle" required defaultValue={record?.vehicle ?? ""} className={styles.input}>
-            <option value="" disabled>Select a vehicle</option>
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>{v.registration_no}</option>
-            ))}
-          </select>
+          <StyledSelect
+            id="vehicle"
+            name="vehicle"
+            required
+            defaultValue={record?.vehicle != null ? String(record.vehicle) : undefined}
+            placeholder="Select a vehicle"
+            options={vehicles.map((v) => ({ value: String(v.id), label: v.registration_no }))}
+          />
         </div>
         <div className={styles.fieldRow}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="fuel_type">Fuel type</label>
-            <select id="fuel_type" name="fuel_type" defaultValue={record?.fuel_type ?? "diesel"} className={styles.input}>
-              <option value="petrol">Petrol</option>
-              <option value="diesel">Diesel</option>
-              <option value="cng">CNG</option>
-            </select>
+            <StyledSelect
+              id="fuel_type"
+              name="fuel_type"
+              defaultValue={record?.fuel_type ?? "diesel"}
+              options={[
+                { value: "petrol", label: "Petrol" },
+                { value: "diesel", label: "Diesel" },
+                { value: "cng", label: "CNG" },
+              ]}
+            />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="quantity_litres">Quantity (L)</label>
@@ -167,12 +175,14 @@ export function MaintenanceRecordFormModal({
       <form action={formAction}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="vehicle">Vehicle</label>
-          <select id="vehicle" name="vehicle" required defaultValue={record?.vehicle ?? ""} className={styles.input}>
-            <option value="" disabled>Select a vehicle</option>
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>{v.registration_no}</option>
-            ))}
-          </select>
+          <StyledSelect
+            id="vehicle"
+            name="vehicle"
+            required
+            defaultValue={record?.vehicle != null ? String(record.vehicle) : undefined}
+            placeholder="Select a vehicle"
+            options={vehicles.map((v) => ({ value: String(v.id), label: v.registration_no }))}
+          />
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="description">Description <span className={styles.optional}>(optional)</span></label>

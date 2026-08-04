@@ -1,184 +1,222 @@
 /**
- * Client Component driving the officer-facing mill license review queue:
- * tab-filters applications by status, and (when `canWrite` is true) lets
- * the user approve pending applications or reject them with an optional
- * note. Mirrors the tab/table/action pattern in
- * (admin)/approvals/ApprovalsManager.tsx.
+ * Client Component for the licensing-application review queue: filter by
+ * status, and per-row Approve / Reject (with a reason) actions. Applications
+ * are entirely self-submitted (see (auth)/signup/partner) — there's no
+ * create/edit form here, just decisions.
  */
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
-import clsx from "clsx";
 import { format } from "date-fns";
-import { Check, FileCheck, X } from "lucide-react";
+import clsx from "clsx";
+import { Check, X } from "lucide-react";
 import { approveLicense, rejectLicense } from "@/app/actions/licenses";
-import styles from "./Licenses.module.css";
+import StyledSelect from "@/app/components/StyledSelect";
+import styles from "../residents/Users.module.css";
 
-export type LicenseRow = {
+/** Shape of an application row as returned by `GET /api/admin/license-applications/`. */
+export type LicenseApplicationRow = {
   id: number;
-  mill: number;
-  mill_name: string | null;
-  mill_registration_no: string | null;
-  license_no: string | null;
+  applicant_name: string;
+  applicant_email: string;
+  license_type: "authorized_purchaser" | "mill_owner";
+  license_type_display: string;
+  business_name: string;
+  business_registration_no: string;
+  contact_number: string;
   status: "pending" | "approved" | "rejected";
-  applied_date: string;
-  issued_date: string | null;
-  expiry_date: string | null;
+  submitted_at: string;
   reviewed_by_name: string | null;
-  review_notes: string;
+  reviewed_at: string | null;
+  rejection_reason: string;
 };
 
-const TABS: { key: LicenseRow["status"]; label: string }[] = [
-  { key: "pending", label: "Pending" },
-  { key: "approved", label: "Approved" },
-  { key: "rejected", label: "Rejected" },
-];
+const STATUS_BADGE: Record<LicenseApplicationRow["status"], string> = {
+  pending: styles["badge-neutral"],
+  approved: styles["badge-success"],
+  rejected: styles["badge-danger"],
+};
 
 export default function LicensesManager({
-  licenses,
-  canWrite,
+  applications,
 }: {
-  licenses: LicenseRow[];
-  canWrite: boolean;
+  applications: LicenseApplicationRow[];
 }) {
-  const [tab, setTab] = useState<LicenseRow["status"]>("pending");
-  const [rejectTarget, setRejectTarget] = useState<LicenseRow | null>(null);
-  const [rejectNotes, setRejectNotes] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("pending");
+  const [rejectTarget, setRejectTarget] = useState<LicenseApplicationRow | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const filtered = useMemo(() => licenses.filter((l) => l.status === tab), [licenses, tab]);
+  const filtered = useMemo(
+    () =>
+      statusFilter === "all"
+        ? applications
+        : applications.filter((a) => a.status === statusFilter),
+    [applications, statusFilter]
+  );
 
-  const counts = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const l of licenses) map[l.status] = (map[l.status] ?? 0) + 1;
-    return map;
-  }, [licenses]);
+  function handleApprove(application: LicenseApplicationRow) {
+    if (!window.confirm(`Approve ${application.business_name}'s application?`)) return;
 
-  function runAction(fn: () => Promise<{ error?: string }>) {
-    setActionError(null);
+    setError(null);
     startTransition(async () => {
-      const result = await fn();
-      if (result.error) setActionError(result.error);
+      const result = await approveLicense(application.id);
+      if (result.error) setError(result.error);
     });
   }
 
-  function handleApprove(l: LicenseRow) {
-    runAction(() => approveLicense(l.id));
+  function openReject(application: LicenseApplicationRow) {
+    setError(null);
+    setRejectReason("");
+    setRejectTarget(application);
   }
 
-  function handleRejectConfirm() {
+  function submitReject() {
     if (!rejectTarget) return;
     const target = rejectTarget;
-    setRejectTarget(null);
-    runAction(async () => {
-      const result = await rejectLicense(target.id, rejectNotes);
-      setRejectNotes("");
-      return result;
+
+    setError(null);
+    startTransition(async () => {
+      const result = await rejectLicense(target.id, rejectReason.trim());
+      if (result.error) setError(result.error);
+      else setRejectTarget(null);
     });
   }
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>Mill License Applications</h1>
+      <div className={styles.headerRow}>
+        <div>
+          <h1 className={styles.title}>Licensing Applications</h1>
+          <span className={styles.subtitle}>
+            Authorized purchasers and mill owners requesting access
+          </span>
+        </div>
+
+        <div className={styles.actions}>
+          <StyledSelect
+            fitContent
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: "pending", label: "Pending" },
+              { value: "approved", label: "Approved" },
+              { value: "rejected", label: "Rejected" },
+              { value: "all", label: "All" },
+            ]}
+          />
+        </div>
       </div>
 
-      <div className={styles.tabsRow}>
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className={clsx(styles.tab, tab === t.key && styles.tabActive)}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            <span className={styles.tabCount}>{counts[t.key] ?? 0}</span>
-          </button>
-        ))}
-      </div>
+      {error && <div className={styles.banner}>{error}</div>}
 
-      {actionError && <div className={styles.banner}>{actionError}</div>}
-
-      <div className={styles.container}>
+      <div className={styles.card}>
         {filtered.length > 0 ? (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Mill</th>
-                  <th>Reg. No.</th>
-                  <th>License No.</th>
-                  <th>Applied</th>
-                  <th>Expiry</th>
-                  <th>Reviewed by</th>
-                  {canWrite && <th></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((l) => (
-                  <tr key={l.id}>
-                    <td>{l.mill_name ?? "—"}</td>
-                    <td>{l.mill_registration_no ?? "—"}</td>
-                    <td>{l.license_no ?? "—"}</td>
-                    <td>{format(new Date(l.applied_date), "MMM d, yyyy")}</td>
-                    <td>{l.expiry_date ? format(new Date(l.expiry_date), "MMM d, yyyy") : "—"}</td>
-                    <td>{l.reviewed_by_name ?? "—"}</td>
-                    {canWrite && (
-                      <td>
-                        {l.status === "pending" && (
-                          <div className={styles.rowActions}>
-                            <button
-                              type="button"
-                              className={clsx(styles.iconBtn, styles.approveBtn)}
-                              aria-label="Approve"
-                              disabled={isPending}
-                              onClick={() => handleApprove(l)}
-                            >
-                              <Check size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              className={clsx(styles.iconBtn, styles.rejectBtn)}
-                              aria-label="Reject"
-                              disabled={isPending}
-                              onClick={() => setRejectTarget(l)}
-                            >
-                              <X size={15} />
-                            </button>
-                          </div>
-                        )}
-                      </td>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Applicant</th>
+                <th>Business</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Submitted</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((a) => (
+                <tr key={a.id}>
+                  <td>
+                    {a.applicant_name}
+                    <div className={styles.subtitle}>{a.applicant_email}</div>
+                  </td>
+                  <td>
+                    {a.business_name}
+                    <div className={styles.subtitle}>{a.business_registration_no}</div>
+                  </td>
+                  <td>{a.license_type_display}</td>
+                  <td>
+                    <span className={clsx(styles.badge, STATUS_BADGE[a.status])}>
+                      {a.status}
+                    </span>
+                    {a.status === "rejected" && a.rejection_reason && (
+                      <div className={styles.subtitle}>{a.rejection_reason}</div>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  </td>
+                  <td>{format(new Date(a.submitted_at), "MMM d, yyyy")}</td>
+                  <td>
+                    {a.status === "pending" && (
+                      <div className={styles.rowActions}>
+                        <button
+                          type="button"
+                          className={styles.iconBtn}
+                          aria-label="Approve application"
+                          title="Approve"
+                          disabled={isPending}
+                          onClick={() => handleApprove(a)}
+                        >
+                          <Check size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className={clsx(styles.iconBtn, styles.iconBtnDanger)}
+                          aria-label="Reject application"
+                          title="Reject"
+                          disabled={isPending}
+                          onClick={() => openReject(a)}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : (
-          <div className={styles.emptyState}>
-            <FileCheck size={28} />
-            <p>No {tab} license applications.</p>
-          </div>
+          <p className={styles.emptyState}>No applications match this filter.</p>
         )}
       </div>
 
       {rejectTarget && (
         <div className={styles.overlay} onClick={() => setRejectTarget(null)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <h3 className={styles.modalTitle}>Reject license application</h3>
-            <textarea
-              className={styles.textarea}
-              placeholder="Reason (optional)"
-              value={rejectNotes}
-              onChange={(e) => setRejectNotes(e.target.value)}
-            />
+            <h2 className={styles.modalTitle}>Reject application</h2>
+
+            {error && <div className={styles.banner}>{error}</div>}
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="rejectReason">
+                Reason <span className={styles.optional}>(shown to the applicant)</span>
+              </label>
+              <textarea
+                id="rejectReason"
+                className={styles.input}
+                rows={4}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g. Business registration number could not be verified."
+              />
+            </div>
+
             <div className={styles.modalActions}>
-              <button type="button" className={styles.secondaryBtn} onClick={() => setRejectTarget(null)}>
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={() => setRejectTarget(null)}
+                disabled={isPending}
+              >
                 Cancel
               </button>
-              <button type="button" className={styles.primaryBtn} onClick={handleRejectConfirm}>
-                Reject
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={submitReject}
+                disabled={isPending}
+              >
+                Reject application
               </button>
             </div>
           </div>

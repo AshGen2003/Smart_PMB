@@ -1,0 +1,31 @@
+.page {
+  min-height: 100vh;
+  background: var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.card {
+  max-width: 480px;
+  text-align: center;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  padding: 2.5rem 2rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.06);
+}
+
+.title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--foreground);
+  margin: 0 0 0.75rem;
+}
+
+.body {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin: 0;
+}

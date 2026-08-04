@@ -4,7 +4,7 @@
  * create, edit, approve, reject, mark collected, delete harvest records).
  */
 import { requireAnyPermission } from "@/app/lib/dal";
-import { apiFetch } from "@/app/lib/api";
+import { apiFetch, apiFetchCached } from "@/app/lib/api";
 import {
   PREVIEW_HARVESTS,
   PREVIEW_FARMER_OPTIONS,
@@ -41,11 +41,15 @@ export default async function ApprovalsPage() {
     );
   }
 
+  // Harvests are exactly what this page approves/rejects in real time, and
+  // farmers changes with every signup, so both stay fresh. Paddy types and
+  // warehouses are just reference data for the create/edit form's dropdowns,
+  // shared with their own management pages — see apiFetchCached's docstring.
   const [harvestsRes, farmersRes, paddyTypesRes, warehousesRes] = await Promise.all([
     apiFetch("/api/admin/harvests/"),
     apiFetch("/api/officer/farmers/"),
-    apiFetch("/api/admin/paddy-types/"),
-    apiFetch("/api/admin/warehouses/"),
+    apiFetchCached("/api/admin/paddy-types/", 300, ["paddy-types"]),
+    apiFetchCached("/api/admin/warehouses/", 300, ["warehouses"]),
   ]);
 
   const harvests = harvestsRes.ok ? ((await harvestsRes.json()) as HarvestRow[]) : [];

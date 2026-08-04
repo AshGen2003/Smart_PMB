@@ -7,7 +7,7 @@ import random
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import viewsets
+from rest_framework import generics, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -15,14 +15,17 @@ from rest_framework.views import APIView
 from accounts.permissions import HasAnyPermission, HasPermission
 from sysops.utils import log_audit
 
-from .models import License, Mill, MillingReport
+from .models import Inspection, License, Mill, MillingReport
 from .permissions import IsMillOwner
 from .serializers import (
+    InspectionSerializer,
+    InspectionWriteSerializer,
     LicenseSerializer,
     MillingReportSerializer,
     MillingReportWriteSerializer,
     MillSerializer,
     MillWriteSerializer,
+    OfficerInspectionSerializer,
     OfficerLicenseSerializer,
 )
 
@@ -41,6 +44,7 @@ class MillOwnerDashboardView(APIView):
 
         licenses = mill.licenses.all()[:6]
         milling_reports = mill.milling_reports.all()[:6]
+        inspections = mill.inspections.select_related("officer").all()[:6]
         active_license = mill.licenses.filter(status=License.Status.APPROVED).order_by("-expiry_date").first()
 
         total_paddy_processed = mill.milling_reports.aggregate(
@@ -59,6 +63,7 @@ class MillOwnerDashboardView(APIView):
                 },
                 "licenses": LicenseSerializer(licenses, many=True).data,
                 "milling_reports": MillingReportSerializer(milling_reports, many=True).data,
+                "inspections": InspectionSerializer(inspections, many=True).data,
             }
         )
 
@@ -79,6 +84,20 @@ class MillOwnerProfileView(APIView):
         mill = serializer.save()
         log_audit(request.user, "update_mill_profile", "mills", mill.mill_name)
         return Response(MillSerializer(mill).data)
+
+
+class MillOptionsView(generics.ListAPIView):
+    """GET /api/admin/mills/ — lightweight list of all registered mills, for the officer-side inspection-logging form's mill picker."""
+
+    permission_classes = [HasPermission("approve_licenses")]
+
+    def get_queryset(self):
+        return Mill.objects.order_by("mill_name")
+
+    def list(self, request, *args, **kwargs):
+        return Response(
+            [{"id": m.id, "name": f"{m.mill_name} ({m.registration_no})"} for m in self.get_queryset()]
+        )
 
 
 class LicenseViewSet(viewsets.ModelViewSet):
@@ -179,3 +198,31 @@ class OfficerLicenseViewSet(viewsets.ReadOnlyModelViewSet):
         license_obj.save(update_fields=["status", "review_notes", "reviewed_by"])
         log_audit(request.user, "reject_license", "mills", f"License #{license_obj.id}")
         return Response(OfficerLicenseSerializer(license_obj).data)
+
+
+class OfficerInspectionViewSet(viewsets.ModelViewSet):
+    """
+    PMB officer view/log of mill inspections: list/view all inspection
+    records, plus logging a new one for a given mill. No update/delete —
+    an inspection is a point-in-time record, final once submitted (same
+    as MillingReport). Viewing requires either "monitor_operations" or
+    "approve_licenses"; logging a new inspection requires "approve_licenses"
+    specifically — the same split as OfficerLicenseViewSet above.
+    """
+
+    queryset = Inspection.objects.select_related("mill", "officer").all()
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return InspectionWriteSerializer
+        return OfficerInspectionSerializer
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [HasAnyPermission("monitor_operations", "approve_licenses")]
+        return [HasPermission("approve_licenses")]
+
+    def perform_create(self, serializer):
+        inspection = serializer.save(officer=self.request.user)
+        log_audit(self.request.user, "log_inspection", "mills", f"Inspection #{inspection.id} ({inspection.mill.mill_name})")

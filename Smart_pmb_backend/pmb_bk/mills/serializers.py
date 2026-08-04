@@ -3,7 +3,7 @@
 # pattern used in farmers/serializers.py.
 from rest_framework import serializers
 
-from .models import License, Mill, MillingReport
+from .models import Inspection, License, Mill, MillingReport
 
 
 class MillSerializer(serializers.ModelSerializer):
@@ -72,16 +72,54 @@ class OfficerLicenseSerializer(serializers.ModelSerializer):
 
 
 class MillingReportSerializer(serializers.ModelSerializer):
-    """Read representation of a MillingReport."""
+    """Read representation of a MillingReport, with the linked harvest/paddy type resolved for display."""
+
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
 
     class Meta:
         model = MillingReport
-        fields = ["id", "report_date", "paddy_processed_kg", "rice_output_kg", "notes"]
+        fields = [
+            "id", "report_date", "paddy_processed_kg", "rice_output_kg", "notes",
+            "harvest", "paddy_type", "paddy_type_name",
+        ]
 
 
 class MillingReportWriteSerializer(serializers.ModelSerializer):
-    """Create representation of a MillingReport (submitted by the mill owner)."""
+    """Create representation of a MillingReport (submitted by the mill owner). harvest/paddy_type are optional — see MillingReport's docstring."""
 
     class Meta:
         model = MillingReport
-        fields = ["id", "paddy_processed_kg", "rice_output_kg", "notes"]
+        fields = ["id", "paddy_processed_kg", "rice_output_kg", "notes", "harvest", "paddy_type"]
+
+
+class InspectionSerializer(serializers.ModelSerializer):
+    """Read representation of an Inspection, for a mill owner viewing their own inspection history."""
+
+    officer_name = serializers.CharField(source="officer.full_name", default=None)
+
+    class Meta:
+        model = Inspection
+        fields = ["id", "inspection_date", "result", "notes", "officer_name"]
+
+
+class OfficerInspectionSerializer(serializers.ModelSerializer):
+    """Read representation of an Inspection for the officer-side view, with the mill's details nested in."""
+
+    mill_name = serializers.CharField(source="mill.mill_name", default=None)
+    mill_registration_no = serializers.CharField(source="mill.registration_no", default=None)
+    officer_name = serializers.CharField(source="officer.full_name", default=None)
+
+    class Meta:
+        model = Inspection
+        fields = [
+            "id", "mill", "mill_name", "mill_registration_no",
+            "inspection_date", "result", "notes", "officer_name",
+        ]
+
+
+class InspectionWriteSerializer(serializers.ModelSerializer):
+    """Create representation of an Inspection, submitted by an officer for a specific mill."""
+
+    class Meta:
+        model = Inspection
+        fields = ["id", "mill", "result", "notes"]

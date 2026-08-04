@@ -32,9 +32,11 @@ const API_URL = process.env.NEXT_PUBLIC_DJANGO_API_URL!;
  * - Defaults the request body to JSON, except when the caller passes a
  *   `FormData` body (file uploads), in which case the browser/runtime needs
  *   to set its own `multipart/form-data` boundary in the Content-Type header.
- * - Always disables Next.js's fetch cache (`cache: "no-store"`) because
- *   responses are user-specific and often mutate server state; caching them
- *   would leak data between users or show stale results.
+ * - Disables Next.js's fetch cache (`cache: "no-store"`) by default because
+ *   most responses are user-specific and often mutate server state; caching
+ *   them would leak data between users or show stale results. Callers that
+ *   explicitly opt in via `init.next` (see `apiFetchCached` below) keep
+ *   their own caching options instead of being forced to `no-store`.
  *
  * @param path Path appended to the Django base URL, e.g. "/api/admin/users/".
  * @param init Standard fetch options (method, body, extra headers, etc.).
@@ -58,6 +60,28 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   return fetch(`${API_URL}${path}`, {
     ...init,
     headers,
-    cache: "no-store",
+    cache: init.next ? undefined : "no-store",
   });
+}
+
+/**
+ * Cached variant of `apiFetch`, for read-only reference/lookup data that is
+ * identical for every authorized caller — roles, warehouses, paddy types,
+ * districts. These same lists get re-fetched from several different pages
+ * (e.g. the warehouse list backs both /warehouses and the harvest form's
+ * picker on /approvals), and each hit is a round-trip to a remote database,
+ * so reusing one cached response across pages avoids paying that cost
+ * repeatedly for data that rarely changes.
+ *
+ * Never use this for anything user-specific (profile, messages, dashboards,
+ * the users list) — Next's Data Cache is keyed by URL only, not by which
+ * user's Bearer token fetched it, so caching a personal response here would
+ * serve one user's data to another.
+ *
+ * `revalidate` is a time-based safety net; pair `tags` with a
+ * `revalidateTag()` call in whichever Server Action mutates the same
+ * resource so edits show up immediately instead of waiting it out.
+ */
+export async function apiFetchCached(path: string, revalidate: number, tags: string[]) {
+  return apiFetch(path, { next: { revalidate, tags } });
 }

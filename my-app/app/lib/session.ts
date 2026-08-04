@@ -15,6 +15,14 @@ import { cookies } from "next/headers";
 
 export const ACCESS_COOKIE = "access_token";
 export const REFRESH_COOKIE = "refresh_token";
+// Stash for the impersonating admin's own real tokens while
+// actions/impersonation.ts's startImpersonation has swapped
+// access_token/refresh_token to the target user's — restored by
+// stopImpersonation. Separate from PREVIEW_COOKIE (lib/dal.ts): Portal
+// Preview never changes the real session, so it never needs to stash
+// anything.
+export const IMPERSONATOR_ACCESS_COOKIE = "impersonator_access_token";
+export const IMPERSONATOR_REFRESH_COOKIE = "impersonator_refresh_token";
 
 // Shared flags for both auth cookies:
 // - httpOnly: blocks client-side JS (document.cookie) from ever reading the
@@ -64,4 +72,35 @@ export async function clearTokenCookies() {
   const cookieStore = await cookies();
   cookieStore.delete(ACCESS_COOKIE);
   cookieStore.delete(REFRESH_COOKIE);
+}
+
+/**
+ * Copies the admin's *current* access/refresh cookies into the impersonator
+ * stash, before startImpersonation overwrites them with the target user's
+ * tokens — so stopImpersonation has something real to restore. 1-hour
+ * lifetime, matching PREVIEW_COOKIE's — an impersonation session shouldn't
+ * quietly outlive the tab either.
+ */
+export async function stashImpersonatorTokens() {
+  const cookieStore = await cookies();
+  const access = cookieStore.get(ACCESS_COOKIE)?.value;
+  const refresh = cookieStore.get(REFRESH_COOKIE)?.value;
+  if (!access || !refresh) return;
+  cookieStore.set(IMPERSONATOR_ACCESS_COOKIE, access, { ...cookieOpts, maxAge: 60 * 60 });
+  cookieStore.set(IMPERSONATOR_REFRESH_COOKIE, refresh, { ...cookieOpts, maxAge: 60 * 60 });
+}
+
+/**
+ * Restores the admin's real tokens from the impersonator stash (if any)
+ * and clears the stash. Returns true if there was something to restore.
+ */
+export async function restoreImpersonatorTokens(): Promise<boolean> {
+  const cookieStore = await cookies();
+  const access = cookieStore.get(IMPERSONATOR_ACCESS_COOKIE)?.value;
+  const refresh = cookieStore.get(IMPERSONATOR_REFRESH_COOKIE)?.value;
+  cookieStore.delete(IMPERSONATOR_ACCESS_COOKIE);
+  cookieStore.delete(IMPERSONATOR_REFRESH_COOKIE);
+  if (!access || !refresh) return false;
+  await setTokenCookies(access, refresh);
+  return true;
 }

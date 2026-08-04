@@ -11,6 +11,7 @@ import {
   updateWarehouse,
   type WarehouseFormState,
 } from "@/app/actions/warehouses";
+import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./Warehouses.module.css";
 
 export type DistrictOption = {
@@ -18,6 +19,8 @@ export type DistrictOption = {
   name: string;
   province: { name: string } | null;
 };
+
+export type OfficerOption = { id: string; name: string; role: "pmb_officer" | "warehouse_manager" };
 
 /** Subset of warehouse fields needed to pre-fill the form when editing. */
 export type EditableWarehouse = {
@@ -30,6 +33,7 @@ export type EditableWarehouse = {
   established_date: string | null;
   district: number | null;
   location: string;
+  managed_by: string | null;
 };
 
 const initialState: WarehouseFormState = {};
@@ -43,11 +47,13 @@ export default function WarehouseFormModal({
   mode,
   warehouse,
   districts,
+  officers,
   onClose,
 }: {
   mode: "create" | "edit";
   warehouse?: EditableWarehouse;
   districts: DistrictOption[];
+  officers: OfficerOption[];
   onClose: () => void;
 }) {
   const action =
@@ -63,7 +69,7 @@ export default function WarehouseFormModal({
     }
   }, [pending, state, onClose]);
 
-  // Group districts under their province name so the <select> can render
+  // Group districts under their province name so the dropdown can render
   // them as <optgroup>s instead of one long flat list.
   const districtsByProvince = useMemo(() => {
     const groups = new Map<string, DistrictOption[]>();
@@ -134,17 +140,17 @@ export default function WarehouseFormModal({
               </div>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="status">Status</label>
-                <select
+                <StyledSelect
                   id="status"
                   name="status"
                   defaultValue={warehouse?.status ?? "active"}
-                  className={styles.input}
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="full">Full</option>
-                  <option value="under_maintenance">Under Maintenance</option>
-                </select>
+                  options={[
+                    { value: "active", label: "Active" },
+                    { value: "inactive", label: "Inactive" },
+                    { value: "full", label: "Full" },
+                    { value: "under_maintenance", label: "Under Maintenance" },
+                  ]}
+                />
               </div>
             </div>
 
@@ -173,23 +179,32 @@ export default function WarehouseFormModal({
 
             <div className={styles.field}>
               <label className={styles.label} htmlFor="district">District</label>
-              <select
+              <StyledSelect
                 id="district"
                 name="district"
-                defaultValue={warehouse?.district ?? ""}
-                className={styles.input}
-              >
-                <option value="">Select district</option>
-                {Array.from(districtsByProvince.entries()).map(([province, items]) => (
-                  <optgroup key={province} label={province}>
-                    {items.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+                defaultValue={warehouse?.district != null ? String(warehouse.district) : ""}
+                placeholder="Select district"
+                groups={Array.from(districtsByProvince.entries()).map(([province, items]) => ({
+                  label: province,
+                  options: items.map((d) => ({ value: String(d.id), label: d.name })),
+                }))}
+              />
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="managed_by">
+                Managed by <span className={styles.optional}>(optional)</span>
+              </label>
+              <StyledSelect
+                id="managed_by"
+                name="managed_by"
+                defaultValue={warehouse?.managed_by ?? ""}
+                placeholder="Select an officer or warehouse manager"
+                options={officers.map((o) => ({
+                  value: o.id,
+                  label: `${o.name} (${o.role === "warehouse_manager" ? "Warehouse Manager" : "PMB Officer"})`,
+                }))}
+              />
             </div>
 
             <div className={styles.field}>

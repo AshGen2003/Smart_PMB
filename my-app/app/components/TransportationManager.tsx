@@ -32,6 +32,7 @@ import {
   DeliveryTrackModal,
   type EditableDelivery,
 } from "./TransportationFormModals";
+import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./Transportation.module.css";
 
 export type VehicleRow = {
@@ -382,16 +383,14 @@ export default function TransportationManager({
                         </td>
                         <td>
                           {canWrite ? (
-                            <select
-                              className={styles.statusSelect}
+                            <StyledSelect
+                              compact
+                              fitContent
                               value={d.status}
                               disabled={isPending}
-                              onChange={(e) => handleStatusChange(d.id, e.target.value)}
-                            >
-                              {Object.entries(DELIVERY_STATUS_LABEL).map(([value, label]) => (
-                                <option key={value} value={value}>{label}</option>
-                              ))}
-                            </select>
+                              onChange={(newStatus) => handleStatusChange(d.id, newStatus)}
+                              options={Object.entries(DELIVERY_STATUS_LABEL).map(([value, label]) => ({ value, label }))}
+                            />
                           ) : (
                             <span className={styles.badge}>{DELIVERY_STATUS_LABEL[d.status]}</span>
                           )}

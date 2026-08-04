@@ -14,18 +14,33 @@ import DriverSidebar from "./DriverSidebar";
 import Header from "./Header";
 import IdleRefreshGuard from "./IdleRefreshGuard";
 import PreviewBanner from "./PreviewBanner";
+import ImpersonationBanner from "./ImpersonationBanner";
 import styles from "./DashboardShell.module.css";
 import clsx from "clsx";
 
 interface DriverShellProps {
   children: React.ReactNode;
   userName: string;
+  permissions: string[];
   profilePictureUrl?: string | null;
+  notifyMessages?: boolean;
   previewing?: { slug: string; name: string };
+  impersonating?: { email: string };
 }
 
-/** Reads sidebar open/collapsed state from LayoutProvider and arranges the driver sidebar, header, and page content. */
-function LayoutWrapper({ children, userName, profilePictureUrl, previewing }: DriverShellProps) {
+/**
+ * Reads sidebar open/collapsed state from LayoutProvider and arranges the
+ * driver sidebar, header, and page content. `userName`/`profilePictureUrl`
+ * aren't needed here — profile lives in the sidebar as a plain nav link
+ * (see DriverSidebar.tsx) rather than a header widget.
+ */
+function LayoutWrapper({
+  children,
+  permissions,
+  notifyMessages,
+  previewing,
+  impersonating,
+}: Omit<DriverShellProps, "userName" | "profilePictureUrl">) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
   return (
@@ -38,20 +53,17 @@ function LayoutWrapper({ children, userName, profilePictureUrl, previewing }: Dr
           isMobileSidebarOpen && styles.mobileOpen
         )}
       >
-        <DriverSidebar />
+        <DriverSidebar permissions={permissions} />
       </div>
       <div className={styles.mainWrapper}>
         {previewing && <PreviewBanner roleName={previewing.name} />}
+        {impersonating && <ImpersonationBanner adminEmail={impersonating.email} />}
         <div className={styles.headerArea}>
           <Header
-            userName={userName}
-            roleLabel="Driver"
-            profileHref="/driver/profile"
-            settingsHref="/driver/settings"
             messagesHref="/driver/messages"
-            profilePictureUrl={profilePictureUrl}
             restrictedCompose
             previewing={!!previewing}
+            notifyMessages={notifyMessages}
           />
         </div>
         <main className={styles.mainArea}>{children}</main>
@@ -63,13 +75,19 @@ function LayoutWrapper({ children, userName, profilePictureUrl, previewing }: Dr
 /** Wraps LayoutWrapper in a LayoutProvider so sidebar open/collapsed state is available via context. */
 export default function DriverShell({
   children,
-  userName,
-  profilePictureUrl,
+  permissions,
+  notifyMessages,
   previewing,
+  impersonating,
 }: DriverShellProps) {
   return (
     <LayoutProvider>
-      <LayoutWrapper userName={userName} profilePictureUrl={profilePictureUrl} previewing={previewing}>
+      <LayoutWrapper
+        permissions={permissions}
+        notifyMessages={notifyMessages}
+        previewing={previewing}
+        impersonating={impersonating}
+      >
         {children}
       </LayoutWrapper>
     </LayoutProvider>
