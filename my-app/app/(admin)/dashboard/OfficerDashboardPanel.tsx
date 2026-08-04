@@ -184,7 +184,7 @@ export default function OfficerDashboardPanel({
           {show("chart_harvest_trend") && (
             <Link href={`${basePath}/approvals`} className={clsx(styles.chartCard, styles.chartCardLink)}>
               <h3 className={styles.chartTitle}>
-                Harvest Volume (last 12 weeks)
+                Harvest Volume (last 4 months)
                 <ArrowRight size={14} className={styles.chartLinkIcon} />
               </h3>
               <div className={styles.chartContainer}>

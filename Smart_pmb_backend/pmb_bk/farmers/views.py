@@ -990,7 +990,8 @@ class OfficerDashboardView(APIView):
                 "warehouse_stock": WarehouseSerializer(warehouses, many=True).data,
                 "charts": {
                     "status_breakdown": _status_breakdown(Harvest.objects.all()),
-                    "harvest_trend": _harvest_trend(Harvest.objects.all()),
+                    # ~4 months, per officer feedback (was 12 weeks).
+                    "harvest_trend": _harvest_trend(Harvest.objects.all(), weeks=17),
                 },
             }
         )

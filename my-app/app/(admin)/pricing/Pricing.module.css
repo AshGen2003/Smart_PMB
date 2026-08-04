@@ -108,6 +108,12 @@
   color: var(--foreground);
 }
 
+.statDetail {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
 .container {
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);

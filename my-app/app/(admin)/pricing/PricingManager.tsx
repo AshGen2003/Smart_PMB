@@ -51,10 +51,18 @@ export default function PricingManager({
     );
   }, [paddyTypes, query]);
 
-  const prices = paddyTypes.map((p) => Number(p.guaranteed_price));
   const activeCount = paddyTypes.filter((p) => p.is_active).length;
-  const highest = prices.length ? Math.max(...prices) : 0;
-  const lowest = prices.length ? Math.min(...prices) : 0;
+  // Track which paddy type each extreme belongs to (not just the number)
+  // so officers can see at a glance what's driving the highest/lowest
+  // guaranteed price, instead of an unexplained figure.
+  const highestType = paddyTypes.reduce<PaddyTypeRow | null>(
+    (max, p) => (!max || Number(p.guaranteed_price) > Number(max.guaranteed_price) ? p : max),
+    null
+  );
+  const lowestType = paddyTypes.reduce<PaddyTypeRow | null>(
+    (min, p) => (!min || Number(p.guaranteed_price) < Number(min.guaranteed_price) ? p : min),
+    null
+  );
 
   // Confirms with the user, then calls the deletePaddyType Server Action
   // inside a transition so the UI doesn't block while it runs.
@@ -104,11 +112,27 @@ export default function PricingManager({
         </div>
         <div className={styles.statCard}>
           <div className={styles.statLabel}>Highest price</div>
-          <div className={styles.statValue}>Rs. {highest.toLocaleString()}</div>
+          <div className={styles.statValue}>
+            Rs. {highestType ? Number(highestType.guaranteed_price).toLocaleString() : 0}
+          </div>
+          {highestType && (
+            <div className={styles.statDetail}>
+              {highestType.type_name}
+              {highestType.variety ? ` · ${highestType.variety}` : ""}
+            </div>
+          )}
         </div>
         <div className={styles.statCard}>
           <div className={styles.statLabel}>Lowest price</div>
-          <div className={styles.statValue}>Rs. {lowest.toLocaleString()}</div>
+          <div className={styles.statValue}>
+            Rs. {lowestType ? Number(lowestType.guaranteed_price).toLocaleString() : 0}
+          </div>
+          {lowestType && (
+            <div className={styles.statDetail}>
+              {lowestType.type_name}
+              {lowestType.variety ? ` · ${lowestType.variety}` : ""}
+            </div>
+          )}
         </div>
       </div>
 
