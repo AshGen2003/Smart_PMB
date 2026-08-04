@@ -12,7 +12,14 @@ import { ArrowRight, Sprout, Warehouse } from "lucide-react";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import styles from "./Trace.module.css";
 
-const API_URL = process.env.NEXT_PUBLIC_DJANGO_API_URL!;
+// The QR <img> below is rendered in the visitor's browser, not on the
+// server — so it needs a URL the browser can actually reach. On a
+// same-host VM deployment, NEXT_PUBLIC_DJANGO_API_URL is often set to a
+// loopback address (127.0.0.1) so *server-side* fetches skip Nginx/TLS;
+// that address is meaningless to an end user's browser. This falls back
+// to NEXT_PUBLIC_DJANGO_API_URL for local dev, where the two are the same.
+const API_URL =
+  process.env.NEXT_PUBLIC_DJANGO_PUBLIC_API_URL || process.env.NEXT_PUBLIC_DJANGO_API_URL!;
 
 export type TraceData = {
   lot_code: string;
