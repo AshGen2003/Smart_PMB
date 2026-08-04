@@ -44,7 +44,17 @@ CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
 # Django's `check --deploy` flags these by default when off — meaningless
 # (and actively wrong) locally over plain HTTP, so tied to DEBUG rather
 # than hardcoded, same as the STORAGES backend choice above.
-SECURE_SSL_REDIRECT = not DEBUG
+#
+# SECURE_SSL_REDIRECT is independently overridable (unlike the others
+# below) because a reverse-proxy deployment on the same host as this
+# process — e.g. Nginx terminating TLS in front of Gunicorn on the same
+# VM — needs plain-HTTP loopback traffic (health checks, server-side
+# fetches from a Next.js frontend running on the same machine) to reach
+# Django directly without being redirected into a TLS port Gunicorn never
+# actually serves. Nginx already enforces HTTPS for real public/browser
+# traffic in that setup, so Django's own redirect is redundant there
+# anyway — set DJANGO_SECURE_SSL_REDIRECT=False for that case.
+SECURE_SSL_REDIRECT = config('DJANGO_SECURE_SSL_REDIRECT', default=not DEBUG, cast=bool)
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SECURE_HSTS_SECONDS = 0 if DEBUG else 31536000
@@ -243,6 +253,10 @@ REST_FRAMEWORK = {
         # endpoint has no per-account lockout of its own (it's unauthenticated
         # by definition), so this is its only abuse/spam guard.
         'password_reset': '5/min',
+        # The scheduler calls this at most once a day — a generous cap that
+        # still bounds how fast a leaked/guessed INTERNAL_TASK_SECRET could
+        # be brute-forced or used to spam the job.
+        'internal_task': '10/hour',
     },
     # Logs every exception any view raises to ErrorLog (see
     # sysops/exception_handler.py) before falling back to DRF's normal
@@ -281,6 +295,13 @@ TEXTLK_API_URL = config('TEXTLK_API_URL', default='https://app.text.lk/api/v3/sm
 # a missing key is caught immediately rather than discovered at payment time.
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
+
+# Shared secret an external scheduler (see .github/workflows/capacity-forecast-schedule.yml)
+# presents to POST /api/internal/run-capacity-forecasts/ instead of a JWT —
+# same "unauthenticated caller, secret-verified" shape as the Stripe webhook
+# above. Left blank, that view refuses every request (fails closed) rather
+# than accepting an unauthenticated trigger by default.
+INTERNAL_TASK_SECRET = config('INTERNAL_TASK_SECRET', default='')
 
 # Secret used to sign/verify JWTs; kept separate from SECRET_KEY so it can
 # be rotated independently without invalidating Django's other signed data
