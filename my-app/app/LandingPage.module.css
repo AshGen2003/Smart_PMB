@@ -647,7 +647,13 @@
   gap: 2.5rem;
   padding: 3rem;
   border-radius: 20px;
-  background: var(--gradient-brand);
+  /* Same layered mesh gradient as the login portal's brand panel
+     (AuthLayout.module.css .brandPanel) — driven by the same theme
+     tokens, so it stays visually consistent across light/dark. */
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.18), transparent 42%),
+    radial-gradient(circle at 88% 85%, var(--accent) 0%, transparent 48%),
+    linear-gradient(160deg, var(--primary) 0%, var(--primary-hover) 100%);
   box-shadow: var(--shadow-md);
 }
 
