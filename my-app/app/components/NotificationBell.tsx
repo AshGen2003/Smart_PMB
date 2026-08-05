@@ -40,7 +40,12 @@ type RecipientOption = {
   role_name: string;
 };
 
-const POLL_INTERVAL_MS = 15_000;
+// Every active session polls this on its own timer indefinitely while the
+// app is open, so this interval directly sets the server's steady-state
+// request load — 15s was needlessly aggressive for something that doesn't
+// need to feel instant; 45s still reads as "live" to a user while cutting
+// request volume 3x.
+const POLL_INTERVAL_MS = 45_000;
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
