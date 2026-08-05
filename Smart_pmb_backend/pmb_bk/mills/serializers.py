@@ -3,7 +3,15 @@
 # pattern used in farmers/serializers.py.
 from rest_framework import serializers
 
-from .models import Inspection, License, Mill, MillingReport
+from .models import (
+    Inspection,
+    License,
+    Mill,
+    MillingAllocation,
+    MillingReport,
+    MillingReturnRequest,
+    MillStock,
+)
 
 
 class MillSerializer(serializers.ModelSerializer):
@@ -51,8 +59,36 @@ class LicenseSerializer(serializers.ModelSerializer):
         model = License
         fields = [
             "id", "license_no", "status", "applied_date", "issued_date",
-            "expiry_date", "review_notes",
+            "expiry_date", "review_notes", "renewed_from",
+            "requested_capacity_mt_per_day", "milling_type", "premises_address",
+            "justification", "contact_number",
         ]
+
+
+class LicenseCreateSerializer(serializers.ModelSerializer):
+    """
+    Create representation for a mill owner applying for a new license or
+    renewing an existing one (pass `renewed_from`) — the full set of
+    details an officer needs to review before issuing a license, not just
+    a bare request.
+    """
+
+    class Meta:
+        model = License
+        fields = [
+            "id", "renewed_from", "requested_capacity_mt_per_day",
+            "milling_type", "premises_address", "justification", "contact_number",
+        ]
+
+    def validate_renewed_from(self, value):
+        if value is None:
+            return value
+        request = self.context.get("request")
+        if request and value.mill.user_id != request.user.id:
+            raise serializers.ValidationError("You can only renew your own mill's license.")
+        if value.status != License.Status.APPROVED:
+            raise serializers.ValidationError("Only an approved license can be renewed.")
+        return value
 
 
 class OfficerLicenseSerializer(serializers.ModelSerializer):
@@ -67,7 +103,9 @@ class OfficerLicenseSerializer(serializers.ModelSerializer):
         fields = [
             "id", "mill", "mill_name", "mill_registration_no", "license_no",
             "status", "applied_date", "issued_date", "expiry_date",
-            "reviewed_by_name", "review_notes",
+            "reviewed_by_name", "review_notes", "renewed_from",
+            "requested_capacity_mt_per_day", "milling_type", "premises_address",
+            "justification", "contact_number",
         ]
 
 
@@ -79,17 +117,20 @@ class MillingReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = MillingReport
         fields = [
-            "id", "report_date", "paddy_processed_kg", "rice_output_kg", "notes",
-            "harvest", "paddy_type", "paddy_type_name",
+            "id", "report_date", "paddy_processed_kg", "rice_output_kg",
+            "husk_kg", "bran_kg", "notes", "harvest", "allocation", "paddy_type", "paddy_type_name",
         ]
 
 
 class MillingReportWriteSerializer(serializers.ModelSerializer):
-    """Create representation of a MillingReport (submitted by the mill owner). harvest/paddy_type are optional — see MillingReport's docstring."""
+    """Create representation of a MillingReport (submitted by the mill owner). harvest/allocation/paddy_type/husk_kg/bran_kg are optional — see MillingReport's docstring."""
 
     class Meta:
         model = MillingReport
-        fields = ["id", "paddy_processed_kg", "rice_output_kg", "notes", "harvest", "paddy_type"]
+        fields = [
+            "id", "paddy_processed_kg", "rice_output_kg", "husk_kg", "bran_kg",
+            "notes", "harvest", "allocation", "paddy_type",
+        ]
 
 
 class InspectionSerializer(serializers.ModelSerializer):
@@ -123,3 +164,96 @@ class InspectionWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Inspection
         fields = ["id", "mill", "result", "notes"]
+
+
+class MillingAllocationSerializer(serializers.ModelSerializer):
+    """Read representation of a MillingAllocation, for a mill owner viewing their own requests."""
+
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+
+    class Meta:
+        model = MillingAllocation
+        fields = [
+            "id", "paddy_type", "paddy_type_name", "quantity_kg", "status",
+            "requested_date", "review_notes",
+        ]
+
+
+class MillingAllocationCreateSerializer(serializers.ModelSerializer):
+    """Create representation of a MillingAllocation (submitted by the mill owner); mill/status are set server-side."""
+
+    class Meta:
+        model = MillingAllocation
+        fields = ["id", "paddy_type", "quantity_kg"]
+
+
+class OfficerMillingAllocationSerializer(serializers.ModelSerializer):
+    """Read representation of a MillingAllocation for the officer-side review queue, with the requester mill's details nested in."""
+
+    mill_name = serializers.CharField(source="mill.mill_name", default=None)
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+    reviewed_by_name = serializers.CharField(source="reviewed_by.full_name", default=None)
+    fulfilled_from_warehouse_name = serializers.CharField(source="fulfilled_from_warehouse.name", default=None)
+
+    class Meta:
+        model = MillingAllocation
+        fields = [
+            "id", "mill", "mill_name", "paddy_type", "paddy_type_name",
+            "quantity_kg", "status", "requested_date", "reviewed_by_name",
+            "fulfilled_from_warehouse", "fulfilled_from_warehouse_name", "review_notes",
+        ]
+
+
+class MillStockSerializer(serializers.ModelSerializer):
+    """Read representation of a mill's stock-on-hand for a single paddy type."""
+
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+
+    class Meta:
+        model = MillStock
+        fields = ["id", "paddy_type", "paddy_type_name", "quantity_kg"]
+
+
+class MillingReturnRequestSerializer(serializers.ModelSerializer):
+    """Read representation of a MillingReturnRequest, for a mill owner viewing their own return requests."""
+
+    destination_warehouse_name = serializers.CharField(source="destination_warehouse.name", default=None)
+
+    class Meta:
+        model = MillingReturnRequest
+        fields = [
+            "id", "allocation", "destination_warehouse", "destination_warehouse_name",
+            "rice_kg", "status", "requested_date", "review_notes",
+        ]
+
+
+class MillingReturnRequestCreateSerializer(serializers.ModelSerializer):
+    """Create representation of a MillingReturnRequest (submitted by the mill owner); mill/status are set server-side."""
+
+    class Meta:
+        model = MillingReturnRequest
+        fields = ["id", "allocation", "destination_warehouse", "rice_kg"]
+
+    def validate_allocation(self, value):
+        request = self.context.get("request")
+        if request and value.mill.user_id != request.user.id:
+            raise serializers.ValidationError("You can only request a return for your own mill's allocation.")
+        if value.status != MillingAllocation.Status.FULFILLED:
+            raise serializers.ValidationError("Only a fulfilled allocation can have a return requested.")
+        return value
+
+
+class OfficerMillingReturnRequestSerializer(serializers.ModelSerializer):
+    """Read representation of a MillingReturnRequest for the officer-side review queue."""
+
+    mill_name = serializers.CharField(source="mill.mill_name", default=None)
+    destination_warehouse_name = serializers.CharField(source="destination_warehouse.name", default=None)
+    reviewed_by_name = serializers.CharField(source="reviewed_by.full_name", default=None)
+
+    class Meta:
+        model = MillingReturnRequest
+        fields = [
+            "id", "mill", "mill_name", "allocation", "destination_warehouse",
+            "destination_warehouse_name", "rice_kg", "status", "requested_date",
+            "reviewed_by_name", "review_notes",
+        ]

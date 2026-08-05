@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   FileCheck,
   ClipboardList,
+  Boxes,
   MessageSquare,
   Settings,
   LogOut,
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", href: "/mill-owner", icon: LayoutDashboard },
   { label: "Licenses", href: "/mill-owner/licenses", icon: FileCheck },
   { label: "Milling Reports", href: "/mill-owner/milling-reports", icon: ClipboardList },
+  { label: "Milling Allocations", href: "/mill-owner/milling-allocations", icon: Boxes },
   { label: "Messages", href: "/mill-owner/messages", icon: MessageSquare },
   { label: "Settings", href: "/mill-owner/settings", icon: Settings },
 ];

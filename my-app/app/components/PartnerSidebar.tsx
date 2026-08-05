@@ -24,6 +24,7 @@ import {
   FileCheck,
   ClipboardList,
   Package,
+  Receipt,
 } from "lucide-react";
 
 const BASE_NAV_ITEMS = [
@@ -43,6 +44,7 @@ const MILL_OWNER_NAV_ITEMS = [
 
 const PURCHASER_NAV_ITEMS = [
   { label: "Rice Requests", href: "/partner/rice-requests", icon: Package, permission: "view_dashboard" },
+  { label: "Farm-Gate Purchases", href: "/partner/farm-gate-purchases", icon: Receipt, permission: "view_dashboard" },
 ];
 
 const TAIL_NAV_ITEMS = [

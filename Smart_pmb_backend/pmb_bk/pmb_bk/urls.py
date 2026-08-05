@@ -38,11 +38,13 @@ from farmers.views import (
     DriverFuelRecordViewSet,
     DriverMaintenanceRecordViewSet,
     DriverOptionsView,
+    FarmerDeliverySlotViewSet,
     FarmerHarvestViewSet,
     FuelRecordViewSet,
     InventoryViewSet,
     MaintenanceRecordViewSet,
     OfficerHarvestViewSet,
+    OfficerPaymentViewSet,
     PaddyTypeViewSet,
     RouteViewSet,
     TransactionLogViewSet,
@@ -53,12 +55,24 @@ from farmers.views import (
 )
 from mills.views import (
     LicenseViewSet,
+    MillingAllocationViewSet,
     MillingReportViewSet,
+    MillingReturnRequestViewSet,
     MillOptionsView,
     OfficerInspectionViewSet,
     OfficerLicenseViewSet,
+    OfficerMillingAllocationViewSet,
+    OfficerMillingReturnRequestViewSet,
 )
-from purchases.views import OfficerRiceRequestViewSet, RiceRequestViewSet
+from purchases.views import (
+    DispatchManifestViewSet,
+    FarmGatePurchaseViewSet,
+    OfficerAuthorizedPurchaserViewSet,
+    OfficerDispatchManifestViewSet,
+    OfficerFarmGatePurchaseViewSet,
+    OfficerRiceRequestViewSet,
+    RiceRequestViewSet,
+)
 from sysops.views import (
     AdminReportPdfView,
     AdminReportView,
@@ -91,6 +105,17 @@ router.register('admin/mill-licenses', OfficerLicenseViewSet, basename='admin-mi
 router.register('admin/mill-inspections', OfficerInspectionViewSet, basename='admin-mill-inspections')
 router.register('purchaser/requests', RiceRequestViewSet, basename='purchaser-requests')
 router.register('admin/rice-requests', OfficerRiceRequestViewSet, basename='admin-rice-requests')
+router.register('admin/authorized-purchasers', OfficerAuthorizedPurchaserViewSet, basename='admin-authorized-purchasers')
+router.register('mill-owner/milling-allocations', MillingAllocationViewSet, basename='mill-owner-milling-allocations')
+router.register('admin/milling-allocations', OfficerMillingAllocationViewSet, basename='admin-milling-allocations')
+router.register('mill-owner/milling-returns', MillingReturnRequestViewSet, basename='mill-owner-milling-returns')
+router.register('admin/milling-returns', OfficerMillingReturnRequestViewSet, basename='admin-milling-returns')
+router.register('farmer/delivery-slots', FarmerDeliverySlotViewSet, basename='farmer-delivery-slots')
+router.register('purchaser/farm-gate-purchases', FarmGatePurchaseViewSet, basename='purchaser-farm-gate-purchases')
+router.register('admin/farm-gate-purchases', OfficerFarmGatePurchaseViewSet, basename='admin-farm-gate-purchases')
+router.register('purchaser/dispatch-manifests', DispatchManifestViewSet, basename='purchaser-dispatch-manifests')
+router.register('admin/dispatch-manifests', OfficerDispatchManifestViewSet, basename='admin-dispatch-manifests')
+router.register('admin/payments', OfficerPaymentViewSet, basename='admin-payments')
 router.register('admin/audit-logs', AuditLogViewSet, basename='admin-audit-logs')
 router.register('admin/auth-logs', AuthLogViewSet, basename='admin-auth-logs')
 router.register('admin/error-logs', ErrorLogViewSet, basename='admin-error-logs')

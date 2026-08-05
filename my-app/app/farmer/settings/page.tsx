@@ -22,9 +22,9 @@ export default async function FarmerSettingsPage() {
   const user = await requirePermission("view_settings");
 
   const bankRes = await apiFetch("/api/farmer/bank-details/");
-  const bank: { bank_account: string; bank_name: string } = bankRes.ok
+  const bank: { bank_account: string; bank_name: string; bank_branch: string } = bankRes.ok
     ? await bankRes.json()
-    : { bank_account: "", bank_name: "" };
+    : { bank_account: "", bank_name: "", bank_branch: "" };
 
   return (
     <div className={styles.dashboard}>
@@ -36,7 +36,7 @@ export default async function FarmerSettingsPage() {
       </div>
 
       <AccountSettingsForm fullName={user.fullName ?? ""} email={user.email} nic={user.nic} phoneNumber={user.phoneNumber} />
-      <FarmerBankDetailsForm bankAccount={bank.bank_account} bankName={bank.bank_name} />
+      <FarmerBankDetailsForm bankAccount={bank.bank_account} bankName={bank.bank_name} bankBranch={bank.bank_branch} />
       <AppearanceSettings />
       <LanguageSettings />
       <NotificationSettings

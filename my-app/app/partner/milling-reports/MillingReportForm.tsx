@@ -66,6 +66,21 @@ export default function MillingReportForm({ paddyTypes }: { paddyTypes: PaddyTyp
           </div>
         </div>
 
+        <div className={styles.fieldRow}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="husk_kg">
+              Husk <span className={styles.optional}>(kg, optional)</span>
+            </label>
+            <input id="husk_kg" name="husk_kg" type="number" step="0.01" min="0" className={styles.input} />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="bran_kg">
+              Bran <span className={styles.optional}>(kg, optional)</span>
+            </label>
+            <input id="bran_kg" name="bran_kg" type="number" step="0.01" min="0" className={styles.input} />
+          </div>
+        </div>
+
         <div className={styles.field}>
           <label className={styles.label} htmlFor="paddy_type">
             Paddy type <span className={styles.optional}>(optional)</span>

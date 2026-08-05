@@ -17,4 +17,5 @@ urlpatterns = [
     path("refresh/", TokenRefreshView.as_view()),  # simplejwt's built-in refresh endpoint
     path("logout/", views.LogoutView.as_view()),  # blacklists the refresh token
     path("me/", views.MeView.as_view()),  # get/update the logged-in user's own profile
+    path("license-application/document/", views.LicenseApplicationDocumentView.as_view()),  # applicant uploads their own supporting document while pending
 ]

@@ -28,6 +28,12 @@ export default async function PartnerDashboardPage() {
     !user.previewing && user.role === "authorized_purchaser"
       ? await apiFetch("/api/purchaser/dashboard/").then((res) => (res.ok ? res.json() : null))
       : null;
+  // Guaranteed prices — neither dashboard endpoint above returns these, so
+  // fetched separately here and passed to whichever panel renders below.
+  const paddyTypes =
+    !user.previewing && (millData || purchaserData)
+      ? await apiFetch("/api/admin/paddy-types/").then((res) => (res.ok ? res.json() : []))
+      : [];
 
   return (
     <div className={styles.dashboard}>
@@ -54,8 +60,8 @@ export default async function PartnerDashboardPage() {
         </div>
       )}
 
-      {millData && <MillOwnerPanel data={millData} />}
-      {purchaserData && <PurchaserPanel data={purchaserData} />}
+      {millData && <MillOwnerPanel data={millData} paddyTypes={paddyTypes} />}
+      {purchaserData && <PurchaserPanel data={purchaserData} paddyTypes={paddyTypes} />}
       {user.previewing && (
         <p className={styles.subtitle}>Business data isn&apos;t available while previewing.</p>
       )}

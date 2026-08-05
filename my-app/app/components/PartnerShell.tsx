@@ -68,6 +68,7 @@ function LayoutWrapper({
             restrictedCompose
             notifyMessages={notifyMessages}
             previewing={!!previewing}
+            sectionLabel={role === "mill_owner" ? "Mill Owner" : "Authorized Purchaser"}
           />
         </div>
         <main className={styles.mainArea}>{children}</main>

@@ -236,6 +236,10 @@ class LicenseApplication(models.Model):
     reviewed_at = models.DateTimeField(null=True, blank=True)
     # Shown to the applicant on their pending-approval holding screen when rejected.
     rejection_reason = models.TextField(blank=True)
+    # Supporting business registration document, uploadable by the
+    # applicant from their pending-approval holding screen while the
+    # application is still pending — see LicenseApplicationDocumentView.
+    document = models.FileField(upload_to="license_application_documents/%Y/%m/", null=True, blank=True)
 
     class Meta:
         ordering = ["-submitted_at"]

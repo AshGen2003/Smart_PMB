@@ -7,7 +7,7 @@
 
 import React, { useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
-import { Coins, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Coins, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { deletePaddyType } from "@/app/actions/pricing";
 import PaddyTypeFormModal, { type EditablePaddyType } from "./PaddyTypeFormModal";
 import styles from "./Pricing.module.css";
@@ -22,15 +22,28 @@ export type PaddyTypeRow = {
   is_active: boolean;
 };
 
+/** One historical guaranteed-price snapshot, as returned by `GET /api/admin/paddy-types/<id>/price-history/`. */
+export type PriceHistoryRow = {
+  id: number;
+  guaranteed_price: string;
+  season: "yala" | "maha";
+  effective_date: string;
+};
+
+const SEASON_LABEL: Record<"yala" | "maha", string> = { yala: "Yala", maha: "Maha" };
+
 // Cycles a few background tint classes across the cards purely for visual variety.
 const TINTS = [styles.tintGreen, styles.tintGold, styles.tintNeutral];
 
 /** Renders the search bar, summary stat cards, and the paddy-type card grid; owns the create/edit modal and delete-confirmation flow. */
 export default function PricingManager({
   paddyTypes,
+  priceHistory = {},
   canWrite = true,
 }: {
   paddyTypes: PaddyTypeRow[];
+  // Pre-fetched server-side (see page.tsx) — keyed by paddy type id.
+  priceHistory?: Record<number, PriceHistoryRow[]>;
   // False for viewers who can only see prices (e.g. Portal Preview) — hides
   // the create/edit/delete affordances.
   canWrite?: boolean;
@@ -40,6 +53,7 @@ export default function PricingManager({
     { mode: "create" } | { mode: "edit"; paddyType: EditablePaddyType } | null
   >(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Client-side filter by type name or variety (case-insensitive substring match).
@@ -144,6 +158,31 @@ export default function PricingManager({
                 </div>
 
                 {p.description && <p className={styles.description}>{p.description}</p>}
+
+                <button
+                  type="button"
+                  className={styles.historyToggle}
+                  onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}
+                >
+                  {expandedId === p.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  Price history
+                </button>
+
+                {expandedId === p.id && (
+                  <div className={styles.historyList}>
+                    {(priceHistory[p.id] ?? []).length > 0 ? (
+                      (priceHistory[p.id] ?? []).map((h) => (
+                        <div key={h.id} className={styles.historyRow}>
+                          <span>{h.effective_date}</span>
+                          <span className={styles.historySeason}>{SEASON_LABEL[h.season]}</span>
+                          <span className={styles.historyPrice}>Rs. {Number(h.guaranteed_price).toLocaleString()}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className={styles.emptyState}>No price history yet.</p>
+                    )}
+                  </div>
+                )}
 
                 {canWrite && (
                   <div className={styles.cardActions}>

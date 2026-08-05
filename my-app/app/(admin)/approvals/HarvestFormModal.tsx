@@ -6,10 +6,12 @@
  */
 "use client";
 
-import React, { useEffect, useRef, useActionState } from "react";
+import React, { useEffect, useRef, useState, useActionState } from "react";
+import clsx from "clsx";
 import { ClipboardList, Loader2, X } from "lucide-react";
 import { createHarvest, updateHarvest, type HarvestFormState } from "@/app/actions/approvals";
 import StyledSelect from "@/app/components/StyledSelect";
+import { PMB_QUALITY_THRESHOLDS } from "@/app/lib/pmbConstants";
 import styles from "./Approvals.module.css";
 
 export type FarmerOption = { id: number; name: string; registration_no: string };
@@ -26,6 +28,8 @@ export type EditableHarvest = {
   purchase_date: string | null;
   grade: "A" | "B" | "C" | null;
   moisture_level: string | null;
+  impurity_percent: string | null;
+  empty_grains_percent: string | null;
   quality_check: boolean | null;
   unit_price: string | null;
 };
@@ -61,6 +65,19 @@ export default function HarvestFormModal({
   // and `pending` is true while the action is in flight.
   const [state, formAction, pending] = useActionState(action, initialState);
   const wasSubmitting = useRef(false);
+
+  // Live client-side preview only — the authoritative pass/fail comes back
+  // from the saved record (Harvest.meets_pmb_quality_standard on the
+  // backend), this just gives the officer an immediate nudge before submit.
+  const [moisturePreview, setMoisturePreview] = useState(harvest?.moisture_level ?? "");
+  const [impurityPreview, setImpurityPreview] = useState(harvest?.impurity_percent ?? "");
+  const previewMoisture = parseFloat(moisturePreview);
+  const previewImpurity = parseFloat(impurityPreview);
+  const previewResult =
+    Number.isNaN(previewMoisture) || Number.isNaN(previewImpurity)
+      ? null
+      : previewMoisture <= PMB_QUALITY_THRESHOLDS.maxMoisturePct &&
+        previewImpurity < PMB_QUALITY_THRESHOLDS.maxImpurityPct;
 
   // Once a submission that was pending finishes without an error, close the
   // modal automatically (mirrors a successful save-and-close UX).
@@ -171,10 +188,50 @@ export default function HarvestFormModal({
                   type="number"
                   step="0.01"
                   defaultValue={harvest?.moisture_level ?? ""}
+                  onChange={(e) => setMoisturePreview(e.target.value)}
                   className={styles.input}
                 />
               </div>
             </div>
+
+            <div className={styles.fieldRow}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="impurity_percent">Impurity / chaff (%)</label>
+                <input
+                  id="impurity_percent"
+                  name="impurity_percent"
+                  type="number"
+                  step="0.01"
+                  defaultValue={harvest?.impurity_percent ?? ""}
+                  onChange={(e) => setImpurityPreview(e.target.value)}
+                  className={styles.input}
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="empty_grains_percent">Empty grains (%)</label>
+                <input
+                  id="empty_grains_percent"
+                  name="empty_grains_percent"
+                  type="number"
+                  step="0.01"
+                  defaultValue={harvest?.empty_grains_percent ?? ""}
+                  className={styles.input}
+                />
+              </div>
+            </div>
+
+            {previewResult !== null && (
+              <div
+                className={clsx(
+                  styles.badge,
+                  previewResult ? styles["badge-success"] : styles["badge-danger"]
+                )}
+              >
+                {previewResult
+                  ? `Meets PMB standard (moisture ≤ ${PMB_QUALITY_THRESHOLDS.maxMoisturePct}%, impurity < ${PMB_QUALITY_THRESHOLDS.maxImpurityPct}%)`
+                  : `Fails PMB standard (moisture ≤ ${PMB_QUALITY_THRESHOLDS.maxMoisturePct}%, impurity < ${PMB_QUALITY_THRESHOLDS.maxImpurityPct}%)`}
+              </div>
+            )}
 
             <div className={styles.field}>
               <label className={styles.label} htmlFor="unit_price">Unit price (Rs./kg)</label>

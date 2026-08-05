@@ -6,6 +6,7 @@ import secrets
 import string
 from datetime import timedelta
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -18,6 +19,7 @@ from purchases.models import AuthorizedPurchaser
 from sysops.utils import get_config_value, log_auth, raise_repeated_login_failure_alert
 
 from .constants import OFFICER_DASHBOARD_WIDGETS
+from .validators import validate_nic as validate_nic_format
 from .models import LicenseApplication, Message, Permission, PmbOfficer, Role, User
 
 
@@ -143,6 +145,10 @@ class RegisterFarmerSerializer(serializers.Serializer):
         return value
 
     def validate_nic(self, value):
+        try:
+            validate_nic_format(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message)
         if Farmer.objects.filter(nic=value).exists():
             raise serializers.ValidationError("An account with this NIC already exists.")
         return value
@@ -238,6 +244,10 @@ class RegisterLicenseApplicantSerializer(serializers.Serializer):
         if attrs["license_type"] == LicenseApplication.LicenseType.MILL_OWNER:
             if not attrs.get("nic"):
                 raise serializers.ValidationError({"nic": "NIC is required for a mill owner application."})
+            try:
+                validate_nic_format(attrs["nic"])
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError({"nic": exc.message})
             if Mill.objects.filter(nic=attrs["nic"]).exists():
                 raise serializers.ValidationError({"nic": "An account with this NIC already exists."})
             district_id = attrs.get("district_id")
@@ -310,6 +320,7 @@ class LicenseApplicationSerializer(serializers.ModelSerializer):
     applicant_email = serializers.CharField(source="user.email", read_only=True)
     license_type_display = serializers.CharField(source="get_license_type_display", read_only=True)
     reviewed_by_name = serializers.SerializerMethodField()
+    document_url = serializers.SerializerMethodField()
 
     class Meta:
         model = LicenseApplication
@@ -317,11 +328,17 @@ class LicenseApplicationSerializer(serializers.ModelSerializer):
             "id", "applicant_name", "applicant_email", "license_type",
             "license_type_display", "business_name", "business_registration_no",
             "contact_number", "status", "submitted_at", "reviewed_by_name",
-            "reviewed_at", "rejection_reason",
+            "reviewed_at", "rejection_reason", "document_url",
         ]
 
     def get_reviewed_by_name(self, obj):
         return obj.reviewed_by.full_name if obj.reviewed_by else None
+
+    def get_document_url(self, obj):
+        request = self.context.get("request")
+        if not obj.document:
+            return None
+        return request.build_absolute_uri(obj.document.url) if request else obj.document.url
 
 
 class LicenseDecisionSerializer(serializers.Serializer):
@@ -348,6 +365,14 @@ class SelfProfileSerializer(serializers.Serializer):
     # without a farmer_profile, so it's safe to accept from every caller.
     notify_harvest_updates = serializers.BooleanField(required=False)
     notify_via_sms = serializers.BooleanField(required=False)
+
+    def validate_nic(self, value):
+        if value:
+            try:
+                validate_nic_format(value)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message)
+        return value
 
     def validate(self, attrs):
         # Changing the password requires re-confirming the current one,
@@ -534,6 +559,14 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
             "is_active", "email_confirmed", "password", "designation", "district",
         ]
         read_only_fields = ["id"]
+
+    def validate_nic(self, value):
+        if value:
+            try:
+                validate_nic_format(value)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message)
+        return value
 
     def create(self, validated_data):
         password = validated_data.pop("password", "") or generate_temp_password()

@@ -17,6 +17,13 @@ CONFIG_DEFS = {
     "payments_enabled": {"default": "true", "category": "system", "type": "bool"},
     "sms_enabled": {"default": "true", "category": "system", "type": "bool"},
     "signups_enabled": {"default": "true", "category": "system", "type": "bool"},
+    # PMB business constants — kept admin-editable rather than hardcoded
+    # since government-set quotas/recovery rates change season to season.
+    "quota_kg_per_acre": {"default": "2000", "category": "quotas", "type": "int"},
+    "milling_recovery_raw_pct": {"default": "68", "category": "milling", "type": "int"},
+    "milling_recovery_parboiled_pct": {"default": "65", "category": "milling", "type": "int"},
+    "milling_husk_pct": {"default": "20", "category": "milling", "type": "int"},
+    "milling_bran_pct": {"default": "10", "category": "milling", "type": "int"},
 }
 
 

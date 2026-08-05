@@ -26,6 +26,10 @@ interface HeaderProps {
   // Settings → Notifications → "Message alerts". Defaults to true so a
   // failed/omitted preference fetch doesn't silently mute the bell.
   notifyMessages?: boolean;
+  // PartnerShell passes this so the breadcrumb reads "Mill Owner"/
+  // "Authorized Purchaser" instead of the shared route segment "partner",
+  // which doesn't tell the two roles apart.
+  sectionLabel?: string;
 }
 
 /**
@@ -38,13 +42,15 @@ export default function Header({
   restrictedCompose = false,
   previewing = false,
   notifyMessages = true,
+  sectionLabel,
 }: HeaderProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const { toggleMobileSidebar } = useLayout();
 
   // Simple breadcrumb logic based on pathname
-  const routeName = pathname === "/" ? "Dashboard" : pathname.replace("/", "");
+  const rawRouteName = pathname === "/" ? "Dashboard" : pathname.replace("/", "");
+  const routeName = sectionLabel ? rawRouteName.replace(/^partner/, sectionLabel) : rawRouteName;
 
   return (
     <header className={styles.header}>

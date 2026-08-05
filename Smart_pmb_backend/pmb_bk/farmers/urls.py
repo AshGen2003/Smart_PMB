@@ -7,8 +7,10 @@ from . import views
 
 urlpatterns = [
     path("districts/", views.DistrictListView.as_view()),  # public dropdown data for registration
+    path("warehouses/options/", views.WarehouseOptionsView.as_view()),  # destination-warehouse picker for mill-owner/purchaser self-service forms
     path("farmer/dashboard/", views.FarmerDashboardView.as_view()),
     path("farmer/bank-details/", views.FarmerBankDetailsView.as_view()),
+    path("farmer/payments/", views.FarmerPaymentListView.as_view()),
     path("notifications/<int:pk>/read/", views.NotificationMarkReadView.as_view()),
     path("officer/dashboard/", views.OfficerDashboardView.as_view()),
     path("officer/reports/", views.OfficerReportsView.as_view()),
@@ -22,6 +24,9 @@ urlpatterns = [
     path("warehouse-manager/dashboard/", views.WarehouseManagerDashboardView.as_view()),
     path("warehouse-manager/adjust-stock/", views.WarehouseManagerAdjustStockView.as_view()),
     path("warehouse-manager/transactions/", views.WarehouseManagerTransactionsView.as_view()),
+    path("warehouse-manager/delivery-slots/lookup/", views.WarehouseManagerDeliverySlotLookupView.as_view()),
+    path("warehouse-manager/delivery-slots/<int:pk>/check-in/", views.WarehouseManagerDeliverySlotCheckInView.as_view()),
+    path("delivery-slots/<str:booking_reference>/qr.png", views.DeliverySlotQrView.as_view()),
     path("public/trace/<str:lot_code>/", views.PublicHarvestTraceView.as_view()),
     path("public/trace/<str:lot_code>/qr.png", views.PublicHarvestTraceQrView.as_view()),
     path("public/transparency/", views.PublicTransparencyStatsView.as_view()),

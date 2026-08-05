@@ -9,6 +9,13 @@ import { FileCheck, Sprout, Factory } from "lucide-react";
 import { format } from "date-fns";
 import styles from "./PartnerDashboard.module.css";
 
+type PaddyTypeOption = {
+  id: number;
+  type_name: string;
+  variety: string;
+  guaranteed_price: string;
+};
+
 type MillOwnerDashboardData = {
   kpis: {
     total_licenses: number;
@@ -44,7 +51,13 @@ const INSPECTION_RESULT_LABEL: Record<string, string> = {
   needs_follow_up: "Needs Follow-up",
 };
 
-export default function MillOwnerPanel({ data }: { data: MillOwnerDashboardData }) {
+export default function MillOwnerPanel({
+  data,
+  paddyTypes = [],
+}: {
+  data: MillOwnerDashboardData;
+  paddyTypes?: PaddyTypeOption[];
+}) {
   return (
     <>
       <div className={styles.kpiGrid}>
@@ -77,6 +90,32 @@ export default function MillOwnerPanel({ data }: { data: MillOwnerDashboardData 
           <h2 className={styles.kpiValue}>{data.kpis.total_milling_reports}</h2>
         </div>
       </div>
+
+      {paddyTypes.length > 0 && (
+        <div className={styles.tableCard}>
+          <div className={styles.tableHeader}>
+            <h3 className={styles.tableTitle}>Guaranteed Paddy Prices (this season)</h3>
+          </div>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Paddy type</th>
+                <th>Variety</th>
+                <th>Guaranteed price (Rs./kg)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paddyTypes.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.type_name}</td>
+                  <td>{p.variety || "—"}</td>
+                  <td>Rs. {Number(p.guaranteed_price).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className={styles.tablesGrid}>
         <div className={styles.tableCard}>

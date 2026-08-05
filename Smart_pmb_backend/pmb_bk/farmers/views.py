@@ -30,7 +30,7 @@ from accounts.serializers import generate_temp_password
 from accounts.sms import send_sms
 from sysops.models import SystemAlert
 from sysops.serializers import SystemAlertSerializer
-from sysops.utils import log_audit
+from sysops.utils import get_config_value, log_audit
 
 from .pdf import build_officer_report_pdf
 from .reports import build_officer_report_data
@@ -39,6 +39,7 @@ from .scoring import recalculate_reliability_score
 from .models import (
     Delivery,
     DeliveryLocationPing,
+    DeliverySlot,
     Farmer,
     FuelRecord,
     Harvest,
@@ -52,11 +53,15 @@ from .models import (
     TransactionLog,
     Vehicle,
     Warehouse,
+    season_date_range,
+    season_for_date,
 )
 from .permissions import CanViewVehicles, IsDriver, IsFarmer
 from .serializers import (
     DeliveryLocationPingSerializer,
     DeliverySerializer,
+    DeliverySlotCreateSerializer,
+    DeliverySlotSerializer,
     DeliveryWriteSerializer,
     DistrictSerializer,
     FarmerBankDetailsSerializer,
@@ -69,14 +74,17 @@ from .serializers import (
     NotificationSerializer,
     OfficerHarvestSerializer,
     OfficerHarvestWriteSerializer,
+    OfficerPaymentSerializer,
     PaddyTypeSerializer,
     PaddyTypeWriteSerializer,
+    PaymentSerializer,
     PriceRecordSerializer,
     RouteSerializer,
     TransactionLogSerializer,
     TransactionVerificationSerializer,
     TransactionVerificationWriteSerializer,
     VehicleSerializer,
+    WarehouseManagerDeliverySlotSerializer,
     WarehouseManagerSelfUpdateSerializer,
     WarehouseSerializer,
     WarehouseStockAdjustmentSerializer,
@@ -129,6 +137,34 @@ class DistrictListView(generics.ListAPIView):
     permission_classes = [AllowAny]
 
 
+def _current_season_harvest_total_kg(farmer):
+    """Sum of this farmer's confirmed (verified/collected) harvest quantity within the current season."""
+    start, end = season_date_range(timezone.now().date())
+    return farmer.harvests.filter(
+        harvest_date__range=(start, end), status__in=["verified", "collected"]
+    ).aggregate(total=Sum("quantity_kg"))["total"] or 0
+
+
+def _current_season_channel_totals_kg(farmer):
+    """
+    Confirmed Harvest kg plus FarmGatePurchase kg for this farmer in the
+    current season — the combined figure the seasonal quota is actually
+    checked against, since a real farmer sells through multiple channels
+    (the collection pipeline and direct farm-gate purchases) against one
+    seasonal cap. Local import of purchases.models avoids a circular
+    import at module load (purchases/views.py already imports from this
+    module, farmers/views.py must not import back at the top level).
+    """
+    from purchases.models import FarmGatePurchase
+
+    start, end = season_date_range(timezone.now().date())
+    harvest_kg = _current_season_harvest_total_kg(farmer)
+    farmgate_kg = FarmGatePurchase.objects.filter(
+        farmer=farmer, purchase_date__range=(start, end)
+    ).aggregate(total=Sum("weight_kg"))["total"] or 0
+    return harvest_kg + farmgate_kg
+
+
 class FarmerDashboardView(APIView):
     """Aggregates a logged-in farmer's own profile, recent harvests/payments/notifications, and KPI summary."""
 
@@ -144,10 +180,15 @@ class FarmerDashboardView(APIView):
         notifications = farmer.notifications.all()[:6]
         paddy_types = PaddyType.objects.filter(is_active=True)
 
-        total_earnings = payments.filter(status="completed").aggregate(
+        total_earnings = payments.filter(status="disbursed").aggregate(
             total=Sum("amount")
         )["total"] or 0
-        pending_payments = payments.filter(status="pending").count()
+        pending_payments = payments.filter(status__in=["pending", "processing"]).count()
+
+        current_season = season_for_date(timezone.now().date())
+        quota_kg_per_acre = get_config_value("quota_kg_per_acre")
+        max_quota_kg = float(farmer.land_size) * quota_kg_per_acre if farmer.land_size is not None else None
+        quota_used_kg = float(_current_season_channel_totals_kg(farmer))
 
         return Response(
             {
@@ -159,6 +200,7 @@ class FarmerDashboardView(APIView):
                     "province": farmer.province.name if farmer.province else None,
                     "bank_account": farmer.bank_account,
                     "bank_name": farmer.bank_name,
+                    "bank_branch": farmer.bank_branch,
                     "reliability_score": farmer.reliability_score,
                 },
                 "kpis": {
@@ -166,8 +208,18 @@ class FarmerDashboardView(APIView):
                     "pending_payments": pending_payments,
                     "total_earnings": total_earnings,
                 },
+                "quota": {
+                    "max_quota_kg": max_quota_kg,
+                    "quota_used_kg": quota_used_kg,
+                    "quota_remaining_kg": (
+                        max(max_quota_kg - quota_used_kg, 0) if max_quota_kg is not None else None
+                    ),
+                    "season": current_season,
+                },
+                "current_season": current_season,
                 "paddy_types": PaddyTypeSerializer(paddy_types, many=True).data,
                 "harvests": HarvestSerializer(harvests, many=True).data,
+                "payments": PaymentSerializer(payments.order_by("-id")[:10], many=True).data,
                 "notifications": NotificationSerializer(notifications, many=True).data,
                 "charts": {
                     "status_breakdown": _status_breakdown(farmer.harvests),
@@ -245,6 +297,119 @@ class FarmerHarvestViewSet(viewsets.ModelViewSet):
                 {"detail": "Only pending harvests can be withdrawn."}, status=400
             )
         return super().destroy(request, *args, **kwargs)
+
+
+class FarmerDeliverySlotViewSet(viewsets.ModelViewSet):
+    """
+    Self-service CRUD for a farmer's own DeliverySlot bookings: list/view
+    their history, book a new slot, and cancel one while it's still
+    booked. Mirrors FarmerHarvestViewSet's shape.
+    """
+
+    permission_classes = [IsAuthenticated, IsFarmer]
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_queryset(self):
+        return DeliverySlot.objects.filter(farmer__user=self.request.user).select_related(
+            "warehouse", "paddy_type"
+        )
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return DeliverySlotCreateSerializer
+        return DeliverySlotSerializer
+
+    def perform_create(self, serializer):
+        booking_reference = f"BK-{timezone.now():%Y%m%d}-{secrets.token_hex(3).upper()}"
+        serializer.save(farmer=self.request.user.farmer_profile, booking_reference=booking_reference)
+
+    def destroy(self, request, *args, **kwargs):
+        slot = self.get_object()
+        if slot.status != DeliverySlot.Status.BOOKED:
+            return Response({"detail": "Only a booked slot can be cancelled."}, status=400)
+        slot.status = DeliverySlot.Status.CANCELLED
+        slot.save(update_fields=["status"])
+        return Response(status=204)
+
+
+class FarmerPaymentListView(generics.ListAPIView):
+    """A farmer's own full payment history (not just the dashboard's most-recent-10 slice) — see Payment's docstring."""
+
+    permission_classes = [IsAuthenticated, IsFarmer]
+    serializer_class = PaymentSerializer
+
+    def get_queryset(self):
+        return Payment.objects.filter(farmer__user=self.request.user).select_related("harvest").order_by(
+            "-payment_date", "-id"
+        )
+
+
+class DeliverySlotQrView(APIView):
+    """
+    Generates a QR PNG (on the fly, never stored) encoding the booking's
+    check-in URL — unlike PublicHarvestTraceQrView, this is NOT AllowAny:
+    only the booking's own farmer or the warehouse's assigned manager can
+    fetch it. Served via a Next.js Route Handler proxy on the frontend
+    (see app/api/backups/[id]/download/route.ts's pattern), not a direct
+    &lt;img&gt; to this origin.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, booking_reference):
+        slot = get_object_or_404(DeliverySlot, booking_reference=booking_reference)
+        is_own_farmer = getattr(request.user, "farmer_profile", None) and slot.farmer_id == request.user.farmer_profile.id
+        is_warehouse_manager = slot.warehouse.managed_by_id == request.user.id
+        if not (is_own_farmer or is_warehouse_manager):
+            return Response(status=403)
+
+        img = qrcode.make(f"{settings.FRONTEND_URL}/warehouse-manager/intake?ref={booking_reference}")
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        return HttpResponse(buffer.getvalue(), content_type="image/png")
+
+
+class WarehouseManagerDeliverySlotLookupView(APIView):
+    """GET ?ref=<booking_reference> — looks up a DeliverySlot booking, scoped to warehouses this manager actually manages."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        ref = request.query_params.get("ref", "").strip()
+        if not ref:
+            return Response({"detail": "ref query param is required."}, status=400)
+        slot = DeliverySlot.objects.filter(
+            booking_reference=ref, warehouse__managed_by=request.user
+        ).select_related("farmer", "paddy_type").first()
+        if not slot:
+            return Response({"detail": "No booking found with that reference for your warehouse."}, status=404)
+        return Response(WarehouseManagerDeliverySlotSerializer(slot).data)
+
+
+class WarehouseManagerDeliverySlotCheckInView(APIView):
+    """POST {"action": "arrived"|"completed"|"no_show"} — the warehouse manager updates a booking's status on physical arrival/departure/no-show."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        slot = get_object_or_404(DeliverySlot, pk=pk, warehouse__managed_by=request.user)
+        action_name = request.data.get("action")
+        transitions = {
+            "arrived": DeliverySlot.Status.ARRIVED,
+            "completed": DeliverySlot.Status.COMPLETED,
+            "no_show": DeliverySlot.Status.NO_SHOW,
+        }
+        if action_name not in transitions:
+            return Response({"detail": "action must be 'arrived', 'completed', or 'no_show'."}, status=400)
+
+        slot.status = transitions[action_name]
+        if action_name == "arrived":
+            slot.checked_in_by = request.user
+            slot.checked_in_at = timezone.now()
+            slot.save(update_fields=["status", "checked_in_by", "checked_in_at"])
+        else:
+            slot.save(update_fields=["status"])
+        return Response(WarehouseManagerDeliverySlotSerializer(slot).data)
 
 
 class FarmerListView(generics.ListAPIView):
@@ -386,6 +551,24 @@ class WarehouseManagerOptionsView(generics.ListAPIView):
                 for u in self.get_queryset()
             ]
         )
+
+
+class WarehouseOptionsView(generics.ListAPIView):
+    """
+    GET /api/warehouses/options/ — lightweight id/name list of active
+    warehouses, for self-service pickers where a mill owner or authorized
+    purchaser needs to choose a destination warehouse (e.g. a milling
+    return request or dispatch manifest) but doesn't have the
+    "manage_warehouses" permission WarehouseViewSet requires.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Warehouse.objects.filter(status=Warehouse.Status.ACTIVE).order_by("name")
+
+    def list(self, request, *args, **kwargs):
+        return Response([{"id": w.id, "name": w.name} for w in self.get_queryset()])
 
 
 class WarehouseManagerDashboardView(APIView):
@@ -536,7 +719,10 @@ class PaddyTypeViewSet(viewsets.ModelViewSet):
     queryset = PaddyType.objects.all().order_by("type_name")
 
     def get_permissions(self):
-        if self.action in ("list", "retrieve"):
+        # price_history is read-only historical data for prices that are
+        # already visible in the plain list (farmers/purchasers need to see
+        # price trends, not just the current guaranteed price).
+        if self.action in ("list", "retrieve", "price_history"):
             return [IsAuthenticated()]
         return [HasPermission("manage_pricing")]
 
@@ -554,7 +740,8 @@ class PaddyTypeViewSet(viewsets.ModelViewSet):
         # The very first guaranteed_price is itself a price point worth
         # keeping in the history, same as every later change below.
         PriceRecord.objects.create(
-            paddy_type=paddy_type, guaranteed_price=paddy_type.guaranteed_price
+            paddy_type=paddy_type, guaranteed_price=paddy_type.guaranteed_price,
+            season=season_for_date(timezone.now().date()),
         )
 
     def perform_update(self, serializer):
@@ -566,15 +753,19 @@ class PaddyTypeViewSet(viewsets.ModelViewSet):
         )
         if paddy_type.guaranteed_price != previous_price:
             PriceRecord.objects.create(
-                paddy_type=paddy_type, guaranteed_price=paddy_type.guaranteed_price
+                paddy_type=paddy_type, guaranteed_price=paddy_type.guaranteed_price,
+                season=season_for_date(timezone.now().date()),
             )
 
     @action(detail=True, methods=["get"], url_path="price-history")
     def price_history(self, request, pk=None):
-        """Historical guaranteed-price snapshots for this PaddyType, most recent first."""
+        """Historical guaranteed-price snapshots for this PaddyType, most recent first. Optional ?season=yala|maha filter."""
         paddy_type = self.get_object()
-        records = paddy_type.price_records.order_by("-effective_date")[:50]
-        return Response(PriceRecordSerializer(records, many=True).data)
+        records = paddy_type.price_records.order_by("-effective_date")
+        season = request.query_params.get("season")
+        if season:
+            records = records.filter(season=season)
+        return Response(PriceRecordSerializer(records[:50], many=True).data)
 
 
 def _log_transaction(
@@ -589,8 +780,13 @@ def _log_transaction(
     the aggregate number and is updated separately by the caller. Called
     from OfficerHarvestViewSet.mark_collected below (positive
     quantity_change), purchases.OfficerRiceRequestViewSet.fulfill (negative
-    quantity_change), and WarehouseViewSet.adjust_stock above (either sign,
-    the only caller that passes `notes`).
+    quantity_change), WarehouseViewSet.adjust_stock above (either sign,
+    passes `notes`), mills.OfficerMillingAllocationViewSet.fulfill (negative
+    quantity_change, passes `notes` since TransactionLog has no dedicated
+    MillingAllocation FK), and DeliveryViewSet.update_status /
+    DriverDeliveryStatusView below (positive quantity_change, for a
+    Delivery transitioning to "delivered" with a linked dispatch_manifest
+    or milling_return_request).
     """
     TransactionLog.objects.create(
         warehouse=warehouse,
@@ -606,6 +802,51 @@ def _log_transaction(
     Inventory.objects.filter(pk=inventory.pk).update(
         quantity=F("quantity") + quantity_change, updated_by=updated_by
     )
+
+
+def _handle_delivery_delivered(delivery, user):
+    """
+    When a Delivery carrying a linked purchaser/mill-owner request
+    transitions to "delivered", adds the relevant quantity into the
+    destination warehouse's stock and flips the linked request to
+    "delivered" too — mirrors the existing harvest-collection stock-
+    increment pattern. Called from DeliveryViewSet.update_status and
+    DriverDeliveryStatusView.post. Local imports of purchases/mills models
+    avoid a circular import (those apps' views.py already import from this
+    module at load time).
+    """
+    if not delivery.warehouse_id:
+        return
+
+    if delivery.dispatch_manifest_id:
+        from purchases.models import DispatchManifest
+
+        manifest = delivery.dispatch_manifest
+        paddy_type_ids = manifest.purchases.values_list("paddy_type", flat=True).distinct()
+        for paddy_type in PaddyType.objects.filter(id__in=paddy_type_ids):
+            qty = manifest.purchases.filter(paddy_type=paddy_type).aggregate(total=Sum("weight_kg"))["total"] or 0
+            if not qty:
+                continue
+            Warehouse.objects.filter(pk=delivery.warehouse_id).update(current_stock=F("current_stock") + qty)
+            _log_transaction(
+                delivery.warehouse, TransactionLog.TransactionType.DISPATCH_MANIFEST_DELIVERY,
+                qty, paddy_type=paddy_type, updated_by=user, notes=f"DispatchManifest #{manifest.id}",
+            )
+        manifest.status = DispatchManifest.Status.DELIVERED
+        manifest.save(update_fields=["status"])
+
+    elif delivery.milling_return_request_id:
+        from mills.models import MillingReturnRequest
+
+        req = delivery.milling_return_request
+        Warehouse.objects.filter(pk=delivery.warehouse_id).update(current_stock=F("current_stock") + req.rice_kg)
+        _log_transaction(
+            delivery.warehouse, TransactionLog.TransactionType.MILLING_RETURN_DELIVERY,
+            req.rice_kg, paddy_type=req.allocation.paddy_type, updated_by=user,
+            notes=f"MillingReturnRequest #{req.id}",
+        )
+        req.status = MillingReturnRequest.Status.DELIVERED
+        req.save(update_fields=["status"])
 
 
 def _notify_farmer(harvest, message):
@@ -815,7 +1056,7 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
         harvest.save(update_fields=update_fields)
 
         Payment.objects.filter(harvest=harvest).update(
-            status=Payment.Status.COMPLETED, payment_date=timezone.now().date()
+            status=Payment.Status.PROCESSING, payment_date=timezone.now().date()
         )
 
         if harvest.warehouse_id:
@@ -842,7 +1083,7 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
         _notify_farmer(
             harvest,
             f"Your harvest of {harvest.quantity_kg} kg has been collected. "
-            "Payment has been completed.",
+            "Your payment is now being processed for disbursement.",
         )
         return Response(OfficerHarvestSerializer(harvest).data)
 
@@ -864,6 +1105,56 @@ class OfficerHarvestViewSet(viewsets.ModelViewSet):
         verification = serializer.save(harvest=harvest, verified_by=request.user)
         log_audit(request.user, "verify_transaction", "farmers", f"Harvest #{harvest.id}")
         return Response(TransactionVerificationSerializer(verification).data, status=201)
+
+
+class OfficerPaymentViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    PMB officer view of every farmer Payment, plus the disburse/mark_failed
+    actions that record what actually happened to a queued payout — each
+    requires an input, mirroring mills.License's suspend/revoke actions
+    (a real decision needs a recorded reason/reference, not a bare click).
+    """
+
+    queryset = Payment.objects.select_related("farmer", "harvest").order_by("-payment_date", "-id")
+    serializer_class = OfficerPaymentSerializer
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [HasAnyPermission("monitor_operations", "record_purchases")]
+        return [HasPermission("record_purchases")]
+
+    @action(detail=True, methods=["post"])
+    def disburse(self, request, pk=None):
+        """Marks a processing payment as disbursed, recording the disbursement reference (e.g. a bank transfer id)."""
+        payment = self.get_object()
+        if payment.status != Payment.Status.PROCESSING:
+            return Response({"detail": "Only a processing payment can be marked disbursed."}, status=400)
+        reference = request.data.get("disbursement_reference", "").strip()
+        if not reference:
+            return Response({"detail": "A disbursement reference is required."}, status=400)
+
+        payment.status = Payment.Status.DISBURSED
+        payment.disbursement_reference = reference
+        payment.disbursed_date = timezone.now().date()
+        payment.save(update_fields=["status", "disbursement_reference", "disbursed_date"])
+        log_audit(request.user, "disburse_payment", "farmers", f"Payment #{payment.id}: {reference}")
+        return Response(self.get_serializer(payment).data)
+
+    @action(detail=True, methods=["post"])
+    def mark_failed(self, request, pk=None):
+        """Marks a processing payment as failed, recording a required reason (reused via disbursement_reference)."""
+        payment = self.get_object()
+        if payment.status != Payment.Status.PROCESSING:
+            return Response({"detail": "Only a processing payment can be marked failed."}, status=400)
+        reason = request.data.get("reason", "").strip()
+        if not reason:
+            return Response({"detail": "A reason is required."}, status=400)
+
+        payment.status = Payment.Status.FAILED
+        payment.disbursement_reference = reason
+        payment.save(update_fields=["status", "disbursement_reference"])
+        log_audit(request.user, "fail_payment", "farmers", f"Payment #{payment.id}: {reason}")
+        return Response(self.get_serializer(payment).data)
 
 
 class PublicHarvestTraceView(APIView):
@@ -1131,6 +1422,8 @@ class DeliveryViewSet(viewsets.ModelViewSet):
             )
         delivery.status = new_status
         delivery.save(update_fields=["status"])
+        if new_status == Delivery.Status.DELIVERED:
+            _handle_delivery_delivered(delivery, request.user)
         return Response(DeliverySerializer(delivery).data)
 
 
@@ -1286,6 +1579,8 @@ class DriverDeliveryStatusView(APIView):
             )
         delivery.status = new_status
         delivery.save(update_fields=["status"])
+        if new_status == Delivery.Status.DELIVERED:
+            _handle_delivery_delivered(delivery, request.user)
         return Response(DeliverySerializer(delivery).data)
 
 

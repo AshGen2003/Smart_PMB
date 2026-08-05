@@ -4,11 +4,17 @@
  * and can log in, but there's nothing to navigate to until an officer/admin
  * reviews it (see accounts.LicenseApplication / LicenseApplicationViewSet).
  */
+"use client";
+
 import Image from "next/image";
+import { useActionState } from "react";
 import clsx from "clsx";
 import { logout } from "@/app/actions/auth";
+import { uploadLicenseApplicationDocument } from "@/app/actions/licenses";
 import AuthShell from "../(auth)/AuthShell";
 import styles from "../(auth)/AuthForm.module.css";
+
+const initialUploadState: { error?: string } = {};
 
 export default function PendingLicenseScreen({
   status,
@@ -22,6 +28,10 @@ export default function PendingLicenseScreen({
   rejectionReason: string;
 }) {
   const rejected = status === "rejected";
+  const [uploadState, uploadAction, uploadPending] = useActionState(
+    uploadLicenseApplicationDocument,
+    initialUploadState
+  );
 
   return (
     <AuthShell>
@@ -55,6 +65,19 @@ export default function PendingLicenseScreen({
             "An officer is reviewing your application. You'll get an email as soon as a decision is made — there's nothing else to do in the meantime."
           )}
         </div>
+
+        {!rejected && (
+          <form action={uploadAction} className={styles.field}>
+            <label className={styles.label} htmlFor="document">
+              Supporting business document <span className={styles.optional}>(optional)</span>
+            </label>
+            {uploadState.error && <div className={clsx(styles.banner, styles.bannerError)}>{uploadState.error}</div>}
+            <input id="document" name="document" type="file" className={styles.input} />
+            <button type="submit" className={styles.submitBtn} disabled={uploadPending}>
+              {uploadPending ? "Uploading…" : "Upload document"}
+            </button>
+          </form>
+        )}
 
         <form action={logout}>
           <button type="submit" className={styles.submitBtn}>

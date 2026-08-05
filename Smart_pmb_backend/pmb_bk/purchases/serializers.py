@@ -3,7 +3,7 @@
 # ids" pattern used in mills/serializers.py and farmers/serializers.py.
 from rest_framework import serializers
 
-from .models import AuthorizedPurchaser, PurchaserStock, RiceRequest
+from .models import AuthorizedPurchaser, DispatchManifest, FarmGatePurchase, PurchaserStock, RiceRequest
 
 
 class AuthorizedPurchaserSerializer(serializers.ModelSerializer):
@@ -13,7 +13,18 @@ class AuthorizedPurchaserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuthorizedPurchaser
-        fields = ["id", "organization", "reg_number", "district", "district_name", "phone", "authorized_date"]
+        fields = [
+            "id", "organization", "reg_number", "district", "district_name", "phone",
+            "authorized_date", "weight_limit_kg", "advance_amount",
+        ]
+
+
+class OfficerAuthorizedPurchaserWriteSerializer(serializers.ModelSerializer):
+    """Officer-only update of a purchaser's buying weight limit and government advance."""
+
+    class Meta:
+        model = AuthorizedPurchaser
+        fields = ["weight_limit_kg", "advance_amount"]
 
 
 class RiceRequestSerializer(serializers.ModelSerializer):
@@ -61,3 +72,111 @@ class PurchaserStockSerializer(serializers.ModelSerializer):
     class Meta:
         model = PurchaserStock
         fields = ["id", "paddy_type", "paddy_type_name", "quantity_kg"]
+
+
+class FarmerNicLookupSerializer(serializers.Serializer):
+    """
+    Narrow, purchaser-scoped farmer lookup result for the farm-gate buying
+    terminal — deliberately not FarmerOptionSerializer/FarmerListView
+    (officer-only, unfiltered, no quota shown). `quota` is computed by the
+    view (farmers.views._current_season_channel_totals_kg) and passed in via
+    context, not a model field.
+    """
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    registration_no = serializers.CharField()
+    reliability_score = serializers.FloatField()
+    quota = serializers.SerializerMethodField()
+
+    def get_quota(self, obj):
+        return self.context.get("quota")
+
+
+class FarmGatePurchaseSerializer(serializers.ModelSerializer):
+    """Read representation of a FarmGatePurchase, for a purchaser viewing their own purchase history."""
+
+    farmer_name = serializers.CharField(source="farmer.name", default=None)
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+
+    class Meta:
+        model = FarmGatePurchase
+        fields = [
+            "id", "farmer", "farmer_name", "paddy_type", "paddy_type_name",
+            "weight_kg", "unit_price", "total_amount", "receipt_no",
+            "purchase_date", "manifest",
+        ]
+
+
+class FarmGatePurchaseCreateSerializer(serializers.ModelSerializer):
+    """
+    Create representation of a FarmGatePurchase (submitted by the
+    purchaser). `unit_price`/`total_amount`/`receipt_no`/`purchaser` are set
+    server-side in FarmGatePurchaseViewSet.perform_create, which also
+    enforces the purchaser's weight limit and the farmer's seasonal quota.
+    """
+
+    class Meta:
+        model = FarmGatePurchase
+        fields = ["id", "farmer", "paddy_type", "weight_kg"]
+
+
+class OfficerFarmGatePurchaseSerializer(serializers.ModelSerializer):
+    """Read-only representation of a FarmGatePurchase for the officer-side audit list."""
+
+    purchaser_name = serializers.CharField(source="purchaser.full_name", default=None)
+    farmer_name = serializers.CharField(source="farmer.name", default=None)
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+
+    class Meta:
+        model = FarmGatePurchase
+        fields = [
+            "id", "purchaser", "purchaser_name", "farmer", "farmer_name",
+            "paddy_type", "paddy_type_name", "weight_kg", "unit_price",
+            "total_amount", "receipt_no", "purchase_date", "manifest",
+        ]
+
+
+class DispatchManifestSerializer(serializers.ModelSerializer):
+    """Read representation of a DispatchManifest, for a purchaser viewing their own manifests."""
+
+    destination_warehouse_name = serializers.CharField(source="destination_warehouse.name", default=None)
+    purchases = FarmGatePurchaseSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = DispatchManifest
+        fields = [
+            "id", "destination_warehouse", "destination_warehouse_name",
+            "status", "requested_date", "review_notes", "purchases",
+        ]
+
+
+class DispatchManifestCreateSerializer(serializers.ModelSerializer):
+    """
+    Create representation of a DispatchManifest (submitted by the
+    purchaser). `purchase_ids` bulk-attaches the purchaser's own
+    unassigned FarmGatePurchase rows — see DispatchManifestViewSet.perform_create.
+    """
+
+    purchase_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
+
+    class Meta:
+        model = DispatchManifest
+        fields = ["id", "destination_warehouse", "purchase_ids"]
+
+
+class OfficerDispatchManifestSerializer(serializers.ModelSerializer):
+    """Read representation of a DispatchManifest for the officer-side review queue."""
+
+    purchaser_name = serializers.CharField(source="purchaser.full_name", default=None)
+    destination_warehouse_name = serializers.CharField(source="destination_warehouse.name", default=None)
+    reviewed_by_name = serializers.CharField(source="reviewed_by.full_name", default=None)
+    purchases = FarmGatePurchaseSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = DispatchManifest
+        fields = [
+            "id", "purchaser", "purchaser_name", "destination_warehouse",
+            "destination_warehouse_name", "status", "requested_date",
+            "reviewed_by_name", "review_notes", "purchases",
+        ]

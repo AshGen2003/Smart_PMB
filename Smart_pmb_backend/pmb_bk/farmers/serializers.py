@@ -8,6 +8,7 @@ from rest_framework import serializers
 from .models import (
     Delivery,
     DeliveryLocationPing,
+    DeliverySlot,
     District,
     Farmer,
     FuelRecord,
@@ -16,6 +17,7 @@ from .models import (
     MaintenanceRecord,
     Notification,
     PaddyType,
+    Payment,
     PriceRecord,
     Route,
     TransactionLog,
@@ -62,7 +64,7 @@ class PriceRecordSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PriceRecord
-        fields = ["id", "guaranteed_price", "effective_date"]
+        fields = ["id", "guaranteed_price", "season", "effective_date"]
 
 
 class InventorySerializer(serializers.ModelSerializer):
@@ -116,27 +118,43 @@ class TransactionVerificationWriteSerializer(serializers.ModelSerializer):
 
 
 class HarvestSerializer(serializers.ModelSerializer):
-    """Compact Harvest representation for a farmer's own dashboard (no officer-only assessment fields)."""
+    """
+    Compact Harvest representation for a farmer's own dashboard. Includes
+    the quality-assessment fields (once an officer has recorded them) so a
+    farmer can see why a harvest passed/failed the PMB quality standard,
+    but not officer-workflow-only fields like grade/unit_price/quality_check.
+    """
 
     paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+    meets_pmb_quality_standard = serializers.BooleanField(read_only=True, allow_null=True)
 
     class Meta:
         model = Harvest
-        fields = ["id", "paddy_type_name", "quantity_kg", "harvest_date", "status", "lot_code"]
+        fields = [
+            "id", "paddy_type_name", "quantity_kg", "harvest_date", "status", "lot_code",
+            "moisture_level", "impurity_percent", "empty_grains_percent", "meets_pmb_quality_standard",
+            "delivery_slot",
+        ]
 
 
 class FarmerHarvestCreateSerializer(serializers.ModelSerializer):
     """
     Create representation of a Harvest for a farmer submitting their own
-    delivery. Deliberately limited to the two fields a farmer actually
-    knows at submission time — grade/moisture/quality_check/unit_price/
-    warehouse are filled in later by an officer during approval, and
-    `status` defaults to "pending" on the model.
+    delivery. Deliberately limited to the fields a farmer actually knows at
+    submission time — grade/moisture/quality_check/unit_price/warehouse are
+    filled in later by an officer during approval, and `status` defaults to
+    "pending" on the model. `delivery_slot` is optional, linking this
+    harvest back to a prior DeliverySlot booking for traceability only.
     """
 
     class Meta:
         model = Harvest
-        fields = ["id", "paddy_type", "quantity_kg"]
+        fields = ["id", "paddy_type", "quantity_kg", "delivery_slot"]
+
+    def validate_delivery_slot(self, value):
+        if value is not None and value.farmer.user_id != self.context["request"].user.id:
+            raise serializers.ValidationError("You can only link your own delivery slot bookings.")
+        return value
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -160,7 +178,7 @@ class FarmerBankDetailsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Farmer
-        fields = ["bank_account", "bank_name"]
+        fields = ["bank_account", "bank_name", "bank_branch"]
 
 
 class WarehouseSerializer(serializers.ModelSerializer):
@@ -244,13 +262,15 @@ class OfficerHarvestSerializer(serializers.ModelSerializer):
     paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
     warehouse_name = serializers.CharField(source="warehouse.name", default=None)
     processed_by_name = serializers.CharField(source="processed_by.full_name", default=None)
+    meets_pmb_quality_standard = serializers.BooleanField(read_only=True, allow_null=True)
 
     class Meta:
         model = Harvest
         fields = [
             "id", "farmer", "farmer_name", "farmer_reliability_score", "paddy_type", "paddy_type_name",
             "warehouse", "warehouse_name", "quantity_kg", "harvest_date",
-            "purchase_date", "grade", "moisture_level", "quality_check",
+            "purchase_date", "grade", "moisture_level", "impurity_percent", "empty_grains_percent",
+            "meets_pmb_quality_standard", "quality_check",
             "unit_price", "status", "processed_by_name", "lot_code",
         ]
 
@@ -267,8 +287,8 @@ class OfficerHarvestWriteSerializer(serializers.ModelSerializer):
         model = Harvest
         fields = [
             "id", "farmer", "paddy_type", "warehouse", "quantity_kg",
-            "purchase_date", "grade", "moisture_level", "quality_check",
-            "unit_price",
+            "purchase_date", "grade", "moisture_level", "impurity_percent",
+            "empty_grains_percent", "quality_check", "unit_price",
         ]
 
 
@@ -303,7 +323,8 @@ class DeliverySerializer(serializers.ModelSerializer):
         fields = [
             "id", "vehicle", "vehicle_registration", "driver", "driver_name",
             "route", "route_label", "warehouse", "warehouse_name",
-            "approved_by", "approved_by_name", "scheduled_date", "status",
+            "approved_by", "approved_by_name", "dispatch_manifest",
+            "milling_return_request", "scheduled_date", "status",
             "assignment_status", "latest_location",
         ]
 
@@ -343,6 +364,7 @@ class DeliveryWriteSerializer(serializers.ModelSerializer):
         model = Delivery
         fields = [
             "id", "vehicle", "driver", "route", "warehouse",
+            "dispatch_manifest", "milling_return_request",
             "scheduled_date", "status",
         ]
 
@@ -379,4 +401,80 @@ class MaintenanceRecordSerializer(serializers.ModelSerializer):
         fields = [
             "id", "vehicle", "vehicle_registration", "service_date",
             "description", "cost", "next_service_date",
+        ]
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    """Read representation of a Payment, for a farmer viewing their own itemized payment history."""
+
+    class Meta:
+        model = Payment
+        fields = [
+            "id", "harvest", "amount", "status", "payment_date", "method",
+            "disbursement_reference", "disbursed_date",
+        ]
+
+
+class OfficerPaymentSerializer(serializers.ModelSerializer):
+    """Read representation of a Payment for the officer-side payments list, with farmer details resolved for display."""
+
+    farmer_name = serializers.CharField(source="farmer.name", default=None)
+    farmer_registration_no = serializers.CharField(source="farmer.registration_no", default=None)
+
+    class Meta:
+        model = Payment
+        fields = [
+            "id", "harvest", "farmer", "farmer_name", "farmer_registration_no",
+            "amount", "status", "payment_date", "method",
+            "disbursement_reference", "disbursed_date",
+        ]
+
+
+class DeliverySlotSerializer(serializers.ModelSerializer):
+    """Read representation of a DeliverySlot, for a farmer viewing their own bookings."""
+
+    warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+
+    class Meta:
+        model = DeliverySlot
+        fields = [
+            "id", "warehouse", "warehouse_name", "paddy_type", "paddy_type_name",
+            "estimated_quantity_kg", "scheduled_date", "status", "booking_reference",
+            "checked_in_at",
+        ]
+
+
+class DeliverySlotCreateSerializer(serializers.ModelSerializer):
+    """Create representation of a DeliverySlot (submitted by the farmer). booking_reference/farmer/status are set server-side."""
+
+    class Meta:
+        model = DeliverySlot
+        fields = ["id", "warehouse", "paddy_type", "estimated_quantity_kg", "scheduled_date"]
+
+    def validate_scheduled_date(self, value):
+        from django.utils import timezone
+        if value < timezone.now().date():
+            raise serializers.ValidationError("Scheduled date can't be in the past.")
+        return value
+
+
+class WarehouseManagerDeliverySlotSerializer(serializers.ModelSerializer):
+    """
+    Read representation of a DeliverySlot for the warehouse manager's
+    check-in screen. Includes the farmer's name -- unlike the public
+    harvest-trace endpoint, this is not public; the manager is verifying an
+    in-person arrival and genuinely needs to identify who they're talking to.
+    """
+
+    farmer_name = serializers.CharField(source="farmer.name", default=None)
+    farmer_registration_no = serializers.CharField(source="farmer.registration_no", default=None)
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+
+    class Meta:
+        model = DeliverySlot
+        fields = [
+            "id", "farmer_name", "farmer_registration_no", "paddy_type_name",
+            "estimated_quantity_kg", "scheduled_date", "status", "booking_reference",
+            "checked_in_at",
         ]

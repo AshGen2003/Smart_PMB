@@ -4,6 +4,7 @@
  */
 import { format } from "date-fns";
 import { apiFetch } from "@/app/lib/api";
+import MillingCalculator from "./MillingCalculator";
 import MillingReportForm, { type PaddyTypeOption } from "./MillingReportForm";
 import styles from "./MillingReports.module.css";
 
@@ -12,6 +13,8 @@ type MillingReportRow = {
   report_date: string;
   paddy_processed_kg: string;
   rice_output_kg: string;
+  husk_kg: string | null;
+  bran_kg: string | null;
   paddy_type_name: string | null;
   notes: string;
 };
@@ -31,6 +34,8 @@ export default async function MillingReportsPage() {
         <span className={styles.subtitle}>Submit periodic reports of paddy processed and rice produced</span>
       </div>
 
+      <MillingCalculator />
+
       <MillingReportForm paddyTypes={paddyTypes} />
 
       <div className={styles.container}>
@@ -41,6 +46,8 @@ export default async function MillingReportsPage() {
                 <th>Date</th>
                 <th>Paddy Processed (kg)</th>
                 <th>Rice Output (kg)</th>
+                <th>Husk (kg)</th>
+                <th>Bran (kg)</th>
                 <th>Paddy Type</th>
                 <th>Notes</th>
               </tr>
@@ -51,6 +58,8 @@ export default async function MillingReportsPage() {
                   <td>{format(new Date(r.report_date), "MMM d, yyyy")}</td>
                   <td>{Number(r.paddy_processed_kg).toLocaleString()}</td>
                   <td>{Number(r.rice_output_kg).toLocaleString()}</td>
+                  <td>{r.husk_kg ? Number(r.husk_kg).toLocaleString() : "—"}</td>
+                  <td>{r.bran_kg ? Number(r.bran_kg).toLocaleString() : "—"}</td>
                   <td>{r.paddy_type_name ?? "—"}</td>
                   <td>{r.notes || "—"}</td>
                 </tr>

@@ -46,16 +46,26 @@ class License(models.Model):
     """
     A mill's license application and its approval workflow: pending ->
     approved (an officer assigns a license number, issue/expiry dates) or
-    pending -> rejected. See OfficerLicenseViewSet's approve/reject actions
-    in views.py for the transitions. A pending application can be deleted
-    by its owner — that deletion *is* the "withdraw" action, so there is no
-    separate "withdrawn" status.
+    pending -> rejected; an approved license can later be suspended or
+    revoked by an officer (see OfficerLicenseViewSet's suspend/revoke
+    actions in views.py), reusing `review_notes` for the reason. A pending
+    application can be deleted by its owner — that deletion *is* the
+    "withdraw" action, so there is no separate "withdrawn" status.
+    Renewal is just applying for a new License with `renewed_from` set to
+    the one being renewed — there's no separate renewal model.
     """
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
+        SUSPENDED = "suspended", "Suspended"
+        REVOKED = "revoked", "Revoked"
+
+    class MillingType(models.TextChoices):
+        RAW = "raw", "Raw"
+        PARBOILED = "parboiled", "Parboiled"
+        BOTH = "both", "Both"
 
     mill = models.ForeignKey(Mill, on_delete=models.CASCADE, related_name="licenses")
     license_no = models.CharField(max_length=50, unique=True, null=True, blank=True)
@@ -71,12 +81,81 @@ class License(models.Model):
         related_name="reviewed_licenses",
     )
     review_notes = models.TextField(blank=True)
+    renewed_from = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="renewals"
+    )
+    # Applicant-submitted details an officer reviews before issuing a
+    # license — what the applicant is actually asking to be licensed to do,
+    # not just a bare "please issue me a license" request.
+    requested_capacity_mt_per_day = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    milling_type = models.CharField(max_length=10, choices=MillingType.choices, blank=True)
+    premises_address = models.TextField(blank=True)
+    justification = models.TextField(blank=True)
+    contact_number = models.CharField(max_length=20, blank=True)
 
     class Meta:
         ordering = ["-applied_date"]
 
     def __str__(self):
         return f"License for {self.mill.mill_name} ({self.status})"
+
+
+class MillingAllocation(models.Model):
+    """
+    A mill owner's request for a raw-paddy batch to be allocated from a PMB
+    warehouse for milling: pending -> approved -> fulfilled (deducted from
+    the chosen warehouse and added to the mill's MillStock), or pending ->
+    rejected. Mirrors purchases.RiceRequest exactly, for the mill-owner
+    actor instead of the authorized-purchaser actor. See
+    OfficerMillingAllocationViewSet's approve/reject/fulfill actions.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        FULFILLED = "fulfilled", "Fulfilled"
+
+    mill = models.ForeignKey(Mill, on_delete=models.CASCADE, related_name="milling_allocations")
+    paddy_type = models.ForeignKey(
+        "farmers.PaddyType", on_delete=models.PROTECT, related_name="milling_allocations"
+    )
+    quantity_kg = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    requested_date = models.DateTimeField(auto_now_add=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_milling_allocations",
+    )
+    fulfilled_from_warehouse = models.ForeignKey(
+        "farmers.Warehouse", on_delete=models.SET_NULL, null=True, blank=True, related_name="fulfilled_milling_allocations"
+    )
+    review_notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-requested_date"]
+
+    def __str__(self):
+        return f"{self.quantity_kg}kg {self.paddy_type} for {self.mill} ({self.status})"
+
+
+class MillStock(models.Model):
+    """A mill's running raw-paddy inventory by type, mirroring purchases.PurchaserStock. Only ever changed by OfficerMillingAllocationViewSet.fulfill."""
+
+    mill = models.ForeignKey(Mill, on_delete=models.CASCADE, related_name="stock_entries")
+    paddy_type = models.ForeignKey(
+        "farmers.PaddyType", on_delete=models.PROTECT, related_name="mill_stocks"
+    )
+    quantity_kg = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        unique_together = ("mill", "paddy_type")
+
+    def __str__(self):
+        return f"{self.mill} holds {self.quantity_kg}kg of {self.paddy_type}"
 
 
 class MillingReport(models.Model):
@@ -89,12 +168,19 @@ class MillingReport(models.Model):
     harvest = models.ForeignKey(
         "farmers.Harvest", on_delete=models.SET_NULL, null=True, blank=True, related_name="milling_reports"
     )
+    # Optional link to the fulfilled MillingAllocation this report accounts
+    # for, so allocated-vs-reported-processed figures can be compared.
+    allocation = models.ForeignKey(
+        MillingAllocation, on_delete=models.SET_NULL, null=True, blank=True, related_name="milling_reports"
+    )
     paddy_type = models.ForeignKey(
         "farmers.PaddyType", on_delete=models.SET_NULL, null=True, blank=True, related_name="milling_reports"
     )
     report_date = models.DateField(auto_now_add=True)
     paddy_processed_kg = models.DecimalField(max_digits=12, decimal_places=2)
     rice_output_kg = models.DecimalField(max_digits=12, decimal_places=2)
+    husk_kg = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    bran_kg = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -126,3 +212,44 @@ class Inspection(models.Model):
 
     def __str__(self):
         return f"Inspection of {self.mill.mill_name} ({self.result})"
+
+
+class MillingReturnRequest(models.Model):
+    """
+    A mill owner's request to transport milled rice (processed from a
+    fulfilled MillingAllocation) back to a PMB warehouse: pending ->
+    approved -> dispatched -> delivered, or pending -> rejected. Approval
+    doesn't create the Delivery itself — an officer does that separately
+    via the existing Transportation page, picking this request as the
+    "linked request" (see farmers.Delivery.milling_return_request).
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        DISPATCHED = "dispatched", "Dispatched"
+        DELIVERED = "delivered", "Delivered"
+
+    mill = models.ForeignKey(Mill, on_delete=models.CASCADE, related_name="return_requests")
+    allocation = models.ForeignKey(MillingAllocation, on_delete=models.PROTECT, related_name="return_requests")
+    destination_warehouse = models.ForeignKey(
+        "farmers.Warehouse", on_delete=models.PROTECT, related_name="incoming_milling_returns"
+    )
+    rice_kg = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    requested_date = models.DateTimeField(auto_now_add=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_milling_returns",
+    )
+    review_notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-requested_date"]
+
+    def __str__(self):
+        return f"{self.rice_kg}kg rice return for {self.mill} ({self.status})"

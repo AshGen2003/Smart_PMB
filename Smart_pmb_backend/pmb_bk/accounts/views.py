@@ -15,6 +15,7 @@ from django.utils import timezone
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -563,6 +564,9 @@ class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(status=status_filter)
         return qs
 
+    def get_serializer_context(self):
+        return {**super().get_serializer_context(), "request": self.request}
+
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
         application = self.get_object()
@@ -573,7 +577,7 @@ class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):
         application.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
         log_audit(request.user, "approve_license", "accounts", application.business_name)
         send_license_decision_email(application)
-        return Response(LicenseApplicationSerializer(application).data)
+        return Response(self.get_serializer(application).data)
 
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
@@ -588,7 +592,23 @@ class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):
         application.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
         log_audit(request.user, "reject_license", "accounts", application.business_name)
         send_license_decision_email(application)
-        return Response(LicenseApplicationSerializer(application).data)
+        return Response(self.get_serializer(application).data)
+
+
+class LicenseApplicationDocumentView(APIView):
+    """Lets an applicant upload/replace their own license application's supporting document while it's pending review."""
+
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def patch(self, request):
+        application = get_object_or_404(LicenseApplication, user=request.user)
+        document = request.FILES.get("document")
+        if not document:
+            return Response({"detail": "A document file is required."}, status=400)
+        application.document = document
+        application.save(update_fields=["document"])
+        return Response(LicenseApplicationSerializer(application, context={"request": request}).data)
 
 
 class RoleViewSet(viewsets.ModelViewSet):

@@ -284,3 +284,32 @@
   opacity: 0.7;
   cursor: not-allowed;
 }
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.limitsForm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.limitsInput {
+  width: 8rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: var(--input-bg, transparent);
+  color: var(--foreground);
+  font-size: 0.85rem;
+}

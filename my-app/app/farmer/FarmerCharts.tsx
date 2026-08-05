@@ -8,34 +8,20 @@
 
 import {
   CartesianGrid,
-  Cell,
   Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import ChartLegend from "@/app/components/ChartLegend";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import styles from "./FarmerDashboard.module.css";
 
 type FarmerChartsData = {
   status_breakdown: { status: string; label: string; count: number }[];
   harvest_trend: { period: string; quantity_kg: number }[];
-};
-
-// Fixed (not theme-swapped) chart colors, distinct from the brand
-// primary/accent so data marks stay legible against both a light and a
-// dark card surface instead of blending into the surrounding UI chrome.
-const STATUS_COLORS: Record<string, string> = {
-  pending: "var(--chart-3)",
-  verified: "var(--chart-2)",
-  collected: "var(--chart-1)",
-  rejected: "var(--chart-4)",
 };
 
 const TOOLTIP_STYLE = {
@@ -54,73 +40,26 @@ const LEGEND_STYLE = {
   iconSize: 8,
 };
 
-/** Renders the "Harvest Volume" line chart and "Harvest Status" pie chart, side by side. */
+/** Renders the "Harvest Volume" line chart. */
 export default function FarmerCharts({ data }: { data: FarmerChartsData }) {
   const { t } = useLanguage();
 
-  const STATUS_LABEL: Record<string, string> = {
-    pending: t.farmerCharts.statusPending,
-    verified: t.farmerCharts.statusVerified,
-    collected: t.farmerCharts.statusCollected,
-    rejected: t.farmerCharts.statusRejected,
-  };
-  const statusBreakdown = data.status_breakdown.map((entry) => ({
-    ...entry,
-    label: STATUS_LABEL[entry.status] ?? entry.label,
-  }));
-
   return (
-    <div className={styles.gridTwo}>
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <h3 className={styles.cardTitle}>{t.farmerCharts.harvestVolumeTitle}</h3>
-        </div>
-        <div className={styles.chartContainer}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data.harvest_trend} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--card-border)" />
-              <XAxis dataKey="period" stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
-              <Tooltip {...TOOLTIP_STYLE} formatter={(value) => [`${Number(value).toLocaleString()} kg`, t.farmerCharts.quantityLabel]} />
-              <Legend {...LEGEND_STYLE} />
-              <Line type="monotone" dataKey="quantity_kg" name={t.farmerCharts.quantityLabel} stroke="var(--chart-2)" strokeWidth={3} dot={{ fill: "var(--chart-2)", strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+    <div className={styles.card}>
+      <div className={styles.cardHeader}>
+        <h3 className={styles.cardTitle}>{t.farmerCharts.harvestVolumeTitle}</h3>
       </div>
-
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <h3 className={styles.cardTitle}>{t.farmerCharts.harvestStatusTitle}</h3>
-        </div>
-        <div className={styles.chartContainer}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={statusBreakdown}
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={90}
-                paddingAngle={5}
-                dataKey="count"
-                nameKey="label"
-                stroke="none"
-              >
-                {statusBreakdown.map((entry) => (
-                  <Cell key={entry.status} fill={STATUS_COLORS[entry.status] ?? "var(--chart-neutral)"} />
-                ))}
-              </Pie>
-              <Tooltip {...TOOLTIP_STYLE} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <ChartLegend
-          items={statusBreakdown.map((entry) => ({
-            label: entry.label,
-            color: STATUS_COLORS[entry.status] ?? "var(--chart-neutral)",
-          }))}
-        />
+      <div className={styles.chartContainer}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data.harvest_trend} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--card-border)" />
+            <XAxis dataKey="period" stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis stroke="var(--text-muted)" tick={{ fill: "var(--text-muted)" }} fontSize={12} tickLine={false} axisLine={false} />
+            <Tooltip {...TOOLTIP_STYLE} formatter={(value) => [`${Number(value).toLocaleString()} kg`, t.farmerCharts.quantityLabel]} />
+            <Legend {...LEGEND_STYLE} />
+            <Line type="monotone" dataKey="quantity_kg" name={t.farmerCharts.quantityLabel} stroke="var(--chart-2)" strokeWidth={3} dot={{ fill: "var(--chart-2)", strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

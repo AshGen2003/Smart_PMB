@@ -36,7 +36,7 @@ export default function LicensesManager({ licenses }: { licenses: LicenseRow[] }
   function handleApply() {
     setActionError(null);
     startTransition(async () => {
-      const result = await applyForLicense();
+      const result = await applyForLicense({}, new FormData());
       if (result.error) setActionError(result.error);
     });
   }
