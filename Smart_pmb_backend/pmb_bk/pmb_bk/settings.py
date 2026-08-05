@@ -127,17 +127,18 @@ DATABASES = {
         'NAME': config('DB_NAME', default='postgres'),
         'USER': config('DB_USER'),
         'PASSWORD': config('DB_PASSWORD'),
-        # CONN_MAX_AGE intentionally left at the default (0, reconnect
-        # every request) — tried 60s to cut down on the remote DB's
-        # connection-setup latency, but Django's dev server spawns an
-        # unbounded thread per request, so each thread parked its own
-        # persistent connection open for the full 60s. That blew straight
+        # Defaults to 0 (reconnect every request) because Django's dev
+        # server (`manage.py runserver`) spawns an unbounded thread per
+        # request -- each thread would park its own persistent connection
+        # open for the full duration, which previously blew straight
         # through Supabase's session-pooler cap of 15 concurrent
-        # connections and locked the whole app out with
-        # "max clients reached". Safe to revisit behind a real WSGI
-        # server with a small fixed worker count (e.g. gunicorn
-        # --workers 4), or by pointing DB_HOST/DB_PORT at Supabase's
-        # transaction pooler instead of the session pooler.
+        # connections ("max clients reached"). Safe to raise behind a real
+        # WSGI server with a small fixed worker count (e.g. gunicorn
+        # --workers 4, see deploy/gunicorn.service -- 4 workers means at
+        # most 4 connections held open, well under the cap), so production
+        # sets DB_CONN_MAX_AGE=60 to skip the connection-setup handshake
+        # (TCP+TLS+auth to a remote DB) on every single request.
+        'CONN_MAX_AGE': config('DB_CONN_MAX_AGE', default=0, cast=int),
     }
 }
 
