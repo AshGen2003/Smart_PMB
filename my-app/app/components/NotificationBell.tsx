@@ -17,6 +17,7 @@ import clsx from "clsx";
 import StyledSelect from "./StyledSelect";
 import { SkeletonRows } from "./Skeleton";
 import { useLanguage } from "./LanguageProvider";
+import { useNotificationSocket } from "./useNotificationSocket";
 import styles from "./NotificationBell.module.css";
 
 type MessageRow = {
@@ -40,12 +41,10 @@ type RecipientOption = {
   role_name: string;
 };
 
-// Every active session polls this on its own timer indefinitely while the
-// app is open, so this interval directly sets the server's steady-state
-// request load — 15s was needlessly aggressive for something that doesn't
-// need to feel instant; 45s still reads as "live" to a user while cutting
-// request volume 3x.
-const POLL_INTERVAL_MS = 45_000;
+// Fallback only — new messages normally arrive instantly over the
+// WebSocket (useNotificationSocket below). This just catches anything
+// missed if that connection is ever down, so it can stay slow.
+const POLL_INTERVAL_MS = 120_000;
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
@@ -119,6 +118,19 @@ export default function NotificationBell({
       clearInterval(id);
     };
   }, [previewing, notifyMessages]);
+
+  // Real-time delivery: pushes a new message into state the instant the
+  // server creates it (see accounts/signals.py), instead of waiting for
+  // the fallback poll above. Upserts by id rather than appending, since a
+  // message could in principle already be in state from a poll tick.
+  useNotificationSocket<MessageRow>(!previewing && notifyMessages, (incoming) => {
+    setMessages((prev) => {
+      if (!prev) return [incoming];
+      const exists = prev.some((m) => m.id === incoming.id);
+      if (exists) return prev.map((m) => (m.id === incoming.id ? incoming : m));
+      return [incoming, ...prev];
+    });
+  });
 
   // Lazily load the recipient picker the first time a staff member opens
   // the dropdown, rather than on every page load.

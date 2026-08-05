@@ -1,0 +1,25 @@
+[Unit]
+Description=Smart PMB WebSocket notification server (Daphne/Channels)
+After=network.target
+
+[Service]
+# Replace deploy_user with whatever Linux user owns the checkout (e.g. azureuser).
+User=deploy_user
+Group=www-data
+WorkingDirectory=/home/deploy_user/smart-pmb/Smart_pmb_backend/pmb_bk
+EnvironmentFile=/home/deploy_user/smart-pmb/Smart_pmb_backend/pmb_bk/.env
+# Loopback-only, single process (no worker pool) -- this app's real-time
+# push only ever needs to reach sockets held by THIS process, so a single
+# process + Channels' in-memory channel layer is sufficient (no Redis).
+# Never exposed directly; Nginx proxies /ws/ under APP_HOST to this port
+# (see deploy/nginx-smartpmb.conf), and the internal push endpoint
+# accounts/signals.py calls is loopback-only, never routed through Nginx.
+ExecStart=/home/deploy_user/smart-pmb/Smart_pmb_backend/pmb_bk/venv/bin/daphne \
+    --bind 127.0.0.1 \
+    --port 8001 \
+    pmb_bk.asgi:application
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

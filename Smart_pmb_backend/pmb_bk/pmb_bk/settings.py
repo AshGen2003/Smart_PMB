@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'channels',  # must precede staticfiles -- lets Channels override `runserver` to serve ASGI locally too
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
@@ -80,6 +81,7 @@ INSTALLED_APPS = [
     'mills',
     'purchases',
     'sysops',
+    'notifications',  # real-time WebSocket notification push (no models)
 ]
 
 MIDDLEWARE = [
@@ -308,6 +310,30 @@ STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 # above. Left blank, that view refuses every request (fails closed) rather
 # than accepting an unauthenticated trigger by default.
 INTERNAL_TASK_SECRET = config('INTERNAL_TASK_SECRET', default='')
+
+# Real-time notification push (see notifications app + accounts/signals.py):
+# whenever a Message is created, a post_save signal in THIS (WSGI) process
+# makes a loopback HTTP call to the separate ASGI process (Daphne, see
+# deploy/daphne.service) that actually holds the WebSocket connections, so
+# it can fan the message out to the right connected browser(s). Same
+# "unauthenticated caller, secret-verified" shape as INTERNAL_TASK_SECRET
+# above. Both left blank by default -- accounts/signals.py just no-ops in
+# that case, and the notification bell falls back to its ~2 minute poll,
+# so this is entirely optional for local dev.
+WS_PUSH_URL = config('WS_PUSH_URL', default='')
+WS_INTERNAL_SECRET = config('WS_INTERNAL_SECRET', default='')
+
+ASGI_APPLICATION = 'pmb_bk.asgi.application'
+
+# In-memory, not Redis: only one Daphne process ever runs (see
+# deploy/daphne.service), so every WebSocket connection this app ever
+# needs to reach is already held in that single process's own memory --
+# no cross-process message bus needed at this app's scale.
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
 
 # Secret used to sign/verify JWTs; kept separate from SECRET_KEY so it can
 # be rotated independently without invalidating Django's other signed data
