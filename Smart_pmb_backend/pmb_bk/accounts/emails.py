@@ -2,10 +2,26 @@
 # self-registration, an admin-created account's temporary password, a
 # self-service password-reset OTP code, and a licensing application's
 # approve/reject decision.
+import threading
+
 from django.conf import settings
 from django.core.mail import send_mail
 
 from .tokens import make_email_confirmation_token
+
+
+def send_async(func, *args, **kwargs):
+    """
+    Runs an email-sending function on a background thread instead of the
+    request thread. A real SMTP send (TLS handshake + auth + send) takes
+    several seconds — fine for signup/password-reset flows where the user
+    already expects to wait for an email, but impersonation's OTP request
+    is meant to feel like an instant "code sent" confirmation, not a multi
+    -second hang. No task queue exists in this codebase, so this is the
+    lightweight equivalent for call sites where the caller doesn't need to
+    block on (or handle failure of) the send.
+    """
+    threading.Thread(target=func, args=args, kwargs=kwargs, daemon=True).start()
 
 
 def send_confirmation_email(user):

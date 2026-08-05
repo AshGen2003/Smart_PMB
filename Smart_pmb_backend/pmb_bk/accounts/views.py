@@ -26,6 +26,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from sysops.utils import get_config_value, log_audit, log_auth
 
 from .emails import (
+    send_async,
     send_confirmation_email,
     send_impersonation_notice_email,
     send_impersonation_otp_email,
@@ -549,7 +550,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
             code_hash=make_password(code),
             expires_at=timezone.now() + timedelta(minutes=OTP_EXPIRY_MINUTES),
         )
-        send_impersonation_otp_email(user, request.user.email, code)
+        send_async(send_impersonation_otp_email, user, request.user.email, code)
         log_audit(
             request.user, "request_impersonation_otp", "accounts",
             f"for {user.email} ({user.id})",
@@ -622,7 +623,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
                 "account for support or troubleshooting purposes just now."
             ),
         )
-        send_impersonation_notice_email(user, request.user.email)
+        send_async(send_impersonation_notice_email, user, request.user.email)
         return Response({"access": str(token.access_token), "refresh": str(token)})
 
     @action(
@@ -664,7 +665,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
                 f"emailed code because you couldn't be reached. Reason given: {reason}"
             ),
         )
-        send_impersonation_notice_email(user, request.user.email)
+        send_async(send_impersonation_notice_email, user, request.user.email)
         return Response({"access": str(token.access_token), "refresh": str(token)})
 
 

@@ -280,6 +280,11 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@smartpmb.local')
+# Without this, a stalled SMTP connection (network hiccup, provider
+# throttling) hangs the socket indefinitely instead of failing — and since
+# some call sites send email on a background thread (see accounts/emails.py
+# send_async), a hung thread would otherwise never get cleaned up.
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=10, cast=int)
 
 # Text.lk SMS gateway, used to deliver the forgot-password OTP when the user
 # picks the SMS channel (accounts/sms.py). Left blank, send_otp_sms logs the
