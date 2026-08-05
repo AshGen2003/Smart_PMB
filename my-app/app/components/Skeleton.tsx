@@ -124,3 +124,44 @@ export function SkeletonRows({ count = 4 }: { count?: number }) {
     </div>
   );
 }
+
+/** Avatar + identity card + a details card, for profile-style pages. */
+export function SkeletonProfile({ fields = 5 }: { fields?: number }) {
+  return (
+    <div className={styles.page} aria-busy="true" aria-live="polite">
+      <div className={styles.card} style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <Skeleton width={64} height={64} circle />
+        <div>
+          <Skeleton height={18} width={160} />
+          <Skeleton height={13} width={120} className={styles.gapTop} />
+        </div>
+      </div>
+      <div className={styles.card}>
+        {Array.from({ length: fields }).map((_, i) => (
+          <div key={i} style={{ marginTop: i === 0 ? 0 : "1rem" }}>
+            <Skeleton height={11} width={90} />
+            <Skeleton height={15} width="45%" className={styles.gapTop} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A card of label + input-shaped bars, for settings/edit-form pages. */
+export function SkeletonForm({ fields = 4 }: { fields?: number }) {
+  return (
+    <div className={styles.page} aria-busy="true" aria-live="polite">
+      <Skeleton height={26} width={140} />
+      <div className={styles.card}>
+        {Array.from({ length: fields }).map((_, i) => (
+          <div key={i} style={{ marginTop: i === 0 ? 0 : "1.1rem" }}>
+            <Skeleton height={11} width={100} />
+            <Skeleton height={38} width="100%" className={clsx(styles.gapTop, styles.radiusSm)} />
+          </div>
+        ))}
+        <Skeleton height={38} width={130} className={clsx(styles.gapTop, styles.radiusSm)} />
+      </div>
+    </div>
+  );
+}
