@@ -11,6 +11,7 @@ import clsx from "clsx";
 import { format } from "date-fns";
 import { Package } from "lucide-react";
 import { withdrawRiceRequest } from "@/app/actions/purchases";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import RequestRiceForm, { type PaddyTypeOption } from "./RequestRiceForm";
 import styles from "../PartnerDashboard.module.css";
 
@@ -40,12 +41,20 @@ export default function RiceRequestsManager({
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const [withdrawTarget, setWithdrawTarget] = useState<RiceRequestRow | null>(null);
+
   function handleWithdraw(r: RiceRequestRow) {
-    if (!window.confirm("Withdraw this rice request? This cannot be undone.")) return;
+    setWithdrawTarget(r);
+  }
+
+  function confirmWithdraw() {
+    if (!withdrawTarget) return;
+    const target = withdrawTarget;
     setActionError(null);
     startTransition(async () => {
-      const result = await withdrawRiceRequest(r.id);
+      const result = await withdrawRiceRequest(target.id);
       if (result.error) setActionError(result.error);
+      setWithdrawTarget(null);
     });
   }
 
@@ -104,6 +113,19 @@ export default function RiceRequestsManager({
           </div>
         )}
       </div>
+
+      {withdrawTarget && (
+        <ConfirmModal
+          title="Withdraw this request?"
+          message="This cannot be undone."
+          confirmLabel="Withdraw"
+          pendingLabel="Withdrawing…"
+          variant="warning"
+          pending={isPending}
+          onConfirm={confirmWithdraw}
+          onClose={() => setWithdrawTarget(null)}
+        />
+      )}
     </div>
   );
 }

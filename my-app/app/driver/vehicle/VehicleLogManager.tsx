@@ -16,6 +16,7 @@ import {
   type EditableFuelRecord,
   type EditableMaintenanceRecord,
 } from "./VehicleLogFormModals";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import styles from "./VehicleLog.module.css";
 
 export type VehicleOption = { id: number; registration_no: string };
@@ -61,12 +62,22 @@ export default function VehicleLogManager({
     { mode: "create" } | { mode: "edit"; row: EditableMaintenanceRecord } | null
   >(null);
 
+  const [deleteTarget, setDeleteTarget] = useState<
+    { label: string; fn: () => Promise<{ error?: string }> } | null
+  >(null);
+
   function handleDelete(label: string, fn: () => Promise<{ error?: string }>) {
-    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+    setDeleteTarget({ label, fn });
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const { fn } = deleteTarget;
     setError(null);
     startTransition(async () => {
       const result = await fn();
       if (result.error) setError(result.error);
+      setDeleteTarget(null);
     });
   }
 
@@ -205,6 +216,23 @@ export default function VehicleLogManager({
 
       {maintenanceModal?.mode === "create" && <MaintenanceRecordFormModal mode="create" vehicles={vehicles} onClose={() => setMaintenanceModal(null)} />}
       {maintenanceModal?.mode === "edit" && <MaintenanceRecordFormModal mode="edit" record={maintenanceModal.row} vehicles={vehicles} onClose={() => setMaintenanceModal(null)} />}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete this record?"
+          message={
+            <>
+              Delete <strong>{deleteTarget.label}</strong>? This cannot be undone.
+            </>
+          }
+          confirmLabel="Delete"
+          pendingLabel="Deleting…"
+          variant="danger"
+          pending={isPending}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   );
 }

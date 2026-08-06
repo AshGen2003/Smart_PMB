@@ -9,9 +9,10 @@
 import React, { useMemo, useState, useTransition } from "react";
 import { format } from "date-fns";
 import clsx from "clsx";
-import { Check, X } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import { approveLicense, rejectLicense } from "@/app/actions/licenses";
 import StyledSelect from "@/app/components/StyledSelect";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import styles from "../residents/Users.module.css";
 
 /** Shape of an application row as returned by `GET /api/admin/license-applications/`. */
@@ -56,13 +57,20 @@ export default function LicensesManager({
     [applications, statusFilter]
   );
 
-  function handleApprove(application: LicenseApplicationRow) {
-    if (!window.confirm(`Approve ${application.business_name}'s application?`)) return;
+  const [approveTarget, setApproveTarget] = useState<LicenseApplicationRow | null>(null);
 
+  function handleApprove(application: LicenseApplicationRow) {
+    setApproveTarget(application);
+  }
+
+  function confirmApprove() {
+    if (!approveTarget) return;
+    const target = approveTarget;
     setError(null);
     startTransition(async () => {
-      const result = await approveLicense(application.id);
+      const result = await approveLicense(target.id);
       if (result.error) setError(result.error);
+      setApproveTarget(null);
     });
   }
 
@@ -216,11 +224,29 @@ export default function LicensesManager({
                 onClick={submitReject}
                 disabled={isPending}
               >
-                Reject application
+                {isPending && <Loader2 size={16} className={styles.spin} />}
+                {isPending ? "Rejecting…" : "Reject application"}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {approveTarget && (
+        <ConfirmModal
+          title="Approve this application?"
+          message={
+            <>
+              Approve <strong>{approveTarget.business_name}</strong>&apos;s application?
+            </>
+          }
+          confirmLabel="Approve"
+          pendingLabel="Approving…"
+          variant="warning"
+          pending={isPending}
+          onConfirm={confirmApprove}
+          onClose={() => setApproveTarget(null)}
+        />
       )}
     </div>
   );

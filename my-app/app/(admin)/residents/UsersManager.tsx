@@ -19,6 +19,7 @@ import DeleteUserModal from "./DeleteUserModal";
 import ImpersonateConfirmModal from "./ImpersonateConfirmModal";
 import StyledSelect from "@/app/components/StyledSelect";
 import Toast, { type ToastState } from "@/app/components/Toast";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import styles from "./Users.module.css";
 
 /** Shape of a user row as returned by `GET /api/admin/users/`. */
@@ -126,27 +127,40 @@ export default function UsersManager({
     });
   }
 
-  function handleResetPassword(user: AdminUserRow) {
-    if (!window.confirm(`Reset ${user.email}'s password? A new temporary password will be emailed to them.`)) return;
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<AdminUserRow | null>(null);
+  const [forceLogoutTarget, setForceLogoutTarget] = useState<AdminUserRow | null>(null);
 
+  function handleResetPassword(user: AdminUserRow) {
+    setResetPasswordTarget(user);
+  }
+
+  function confirmResetPassword() {
+    if (!resetPasswordTarget) return;
+    const user = resetPasswordTarget;
     setDeleteError(null);
     setActionMessage(null);
     startTransition(async () => {
       const result = await resetUserPassword(user.id);
       if (result.error) setDeleteError(result.error);
       else setActionMessage(`${user.email}'s password was reset and emailed to them.`);
+      setResetPasswordTarget(null);
     });
   }
 
   function handleForceLogout(user: AdminUserRow) {
-    if (!window.confirm(`Force-logout ${user.email} from all devices?`)) return;
+    setForceLogoutTarget(user);
+  }
 
+  function confirmForceLogout() {
+    if (!forceLogoutTarget) return;
+    const user = forceLogoutTarget;
     setDeleteError(null);
     setActionMessage(null);
     startTransition(async () => {
       const result = await forceLogoutUser(user.id);
       if (result.error) setDeleteError(result.error);
       else setActionMessage(`${user.email} signed out everywhere.`);
+      setForceLogoutTarget(null);
     });
   }
 
@@ -396,6 +410,41 @@ export default function UsersManager({
           onConfirm={confirmImpersonate}
           onOverride={handleOverrideImpersonation}
           onClose={() => setImpersonateTarget(null)}
+        />
+      )}
+
+      {resetPasswordTarget && (
+        <ConfirmModal
+          title="Reset this user's password?"
+          message={
+            <>
+              Reset <strong>{resetPasswordTarget.email}</strong>&apos;s password? A new
+              temporary password will be emailed to them.
+            </>
+          }
+          confirmLabel="Reset password"
+          pendingLabel="Resetting…"
+          variant="warning"
+          pending={isPending}
+          onConfirm={confirmResetPassword}
+          onClose={() => setResetPasswordTarget(null)}
+        />
+      )}
+
+      {forceLogoutTarget && (
+        <ConfirmModal
+          title="Force-logout this user?"
+          message={
+            <>
+              Force-logout <strong>{forceLogoutTarget.email}</strong> from all devices?
+            </>
+          }
+          confirmLabel="Force logout"
+          pendingLabel="Signing out…"
+          variant="warning"
+          pending={isPending}
+          onConfirm={confirmForceLogout}
+          onClose={() => setForceLogoutTarget(null)}
         />
       )}
 

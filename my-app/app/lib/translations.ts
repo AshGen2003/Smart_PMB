@@ -179,6 +179,8 @@ const en = {
     viewQr: "View QR",
     emptyState: "No harvests logged yet. Use \"Log harvest\" to submit your first delivery.",
     confirmWithdraw: "Withdraw this harvest submission? This cannot be undone.",
+    confirmWithdrawTitle: "Withdraw this harvest?",
+    withdrawing: "Withdrawing…",
   },
   logHarvestModal: {
     title: "Log harvest",
@@ -534,6 +536,8 @@ const si: typeof en = {
     viewQr: "QR බලන්න",
     emptyState: "තවම අස්වැන්නක් ලියාපදිංචි කර නැත. ඔබේ පළමු බෙදාහැරීම ඉදිරිපත් කිරීමට \"අස්වැන්නක් ලියාපදිංචි කරන්න\" භාවිත කරන්න.",
     confirmWithdraw: "මෙම අස්වැන්න ඉදිරිපත් කිරීම ඉවත් කරන්නද? මෙය අහෝසි කළ නොහැක.",
+    confirmWithdrawTitle: "මෙම අස්වැන්න ඉවත් කරන්නද?",
+    withdrawing: "ඉවත් කරමින්…",
   },
   logHarvestModal: {
     title: "අස්වැන්නක් ලියාපදිංචි කරන්න",

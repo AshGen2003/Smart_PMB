@@ -15,6 +15,7 @@ import Link from "next/link";
 import { Plus, QrCode, Sprout } from "lucide-react";
 import { withdrawHarvest } from "@/app/actions/farmer";
 import { useLanguage } from "@/app/components/LanguageProvider";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import LogHarvestModal, { type PaddyTypeOption } from "./LogHarvestModal";
 import styles from "./Harvests.module.css";
 
@@ -53,12 +54,20 @@ export default function HarvestsManager({
     rejected: t.farmerCharts.statusRejected,
   };
 
+  const [withdrawTarget, setWithdrawTarget] = useState<HarvestRow | null>(null);
+
   function handleWithdraw(h: HarvestRow) {
-    if (!window.confirm(t.farmerHarvests.confirmWithdraw)) return;
+    setWithdrawTarget(h);
+  }
+
+  function confirmWithdraw() {
+    if (!withdrawTarget) return;
+    const target = withdrawTarget;
     setActionError(null);
     startTransition(async () => {
-      const result = await withdrawHarvest(h.id);
+      const result = await withdrawHarvest(target.id);
       if (result.error) setActionError(result.error);
+      setWithdrawTarget(null);
     });
   }
 
@@ -130,6 +139,19 @@ export default function HarvestsManager({
 
       {modalOpen && (
         <LogHarvestModal paddyTypes={paddyTypes} onClose={() => setModalOpen(false)} />
+      )}
+
+      {withdrawTarget && (
+        <ConfirmModal
+          title={t.farmerHarvests.confirmWithdrawTitle}
+          message={t.farmerHarvests.confirmWithdraw}
+          confirmLabel={t.farmerHarvests.withdraw}
+          pendingLabel={t.farmerHarvests.withdrawing}
+          variant="warning"
+          pending={isPending}
+          onConfirm={confirmWithdraw}
+          onClose={() => setWithdrawTarget(null)}
+        />
       )}
     </div>
   );

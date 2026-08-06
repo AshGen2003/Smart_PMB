@@ -33,6 +33,7 @@ import {
   type EditableDelivery,
 } from "./TransportationFormModals";
 import StyledSelect from "@/app/components/StyledSelect";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import styles from "./Transportation.module.css";
 
 export type VehicleRow = {
@@ -166,12 +167,22 @@ export default function TransportationManager({
   >(null);
   const [trackDelivery, setTrackDelivery] = useState<DeliveryRow | null>(null);
 
+  const [deleteTarget, setDeleteTarget] = useState<
+    { label: string; fn: () => Promise<{ error?: string }> } | null
+  >(null);
+
   function handleDelete(label: string, fn: () => Promise<{ error?: string }>) {
-    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+    setDeleteTarget({ label, fn });
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const { fn } = deleteTarget;
     setError(null);
     startTransition(async () => {
       const result = await fn();
       if (result.error) setError(result.error);
+      setDeleteTarget(null);
     });
   }
 
@@ -534,6 +545,23 @@ export default function TransportationManager({
 
       {trackDelivery && (
         <DeliveryTrackModal delivery={trackDelivery} live={canWrite} onClose={() => setTrackDelivery(null)} />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete this record?"
+          message={
+            <>
+              Delete <strong>{deleteTarget.label}</strong>? This cannot be undone.
+            </>
+          }
+          confirmLabel="Delete"
+          pendingLabel="Deleting…"
+          variant="danger"
+          pending={isPending}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
+        />
       )}
     </div>
   );

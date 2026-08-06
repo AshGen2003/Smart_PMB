@@ -18,6 +18,7 @@ import WarehouseDetailModal, {
   type TransactionLogEntry,
 } from "./WarehouseDetailModal";
 import type { PaddyTypeOption } from "./WarehouseStockAdjustModal";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import styles from "./Warehouses.module.css";
 
 /** Shape of a warehouse row as returned by `GET /api/admin/warehouses/`. */
@@ -98,13 +99,20 @@ export default function WarehousesManager({
     );
   }, [warehouses, query]);
 
-  function handleDelete(warehouse: WarehouseRow) {
-    if (!window.confirm(`Delete "${warehouse.name}"? This cannot be undone.`)) return;
+  const [deleteTarget, setDeleteTarget] = useState<WarehouseRow | null>(null);
 
+  function handleDelete(warehouse: WarehouseRow) {
+    setDeleteTarget(warehouse);
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
     setDeleteError(null);
     startTransition(async () => {
-      const result = await deleteWarehouse(warehouse.id);
+      const result = await deleteWarehouse(target.id);
       if (result.error) setDeleteError(result.error);
+      setDeleteTarget(null);
     });
   }
 
@@ -265,6 +273,23 @@ export default function WarehousesManager({
           permissions={permissions}
           canWrite={canWrite}
           onClose={() => setDetailWarehouse(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete this warehouse?"
+          message={
+            <>
+              Delete <strong>&quot;{deleteTarget.name}&quot;</strong>? This cannot be undone.
+            </>
+          }
+          confirmLabel="Delete"
+          pendingLabel="Deleting…"
+          variant="danger"
+          pending={isPending}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
         />
       )}
     </div>

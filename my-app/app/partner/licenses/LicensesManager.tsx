@@ -11,6 +11,7 @@ import clsx from "clsx";
 import { format } from "date-fns";
 import { Plus, FileCheck } from "lucide-react";
 import { applyForLicense, withdrawLicense } from "@/app/actions/mills";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import styles from "./Licenses.module.css";
 
 export type LicenseRow = {
@@ -41,12 +42,20 @@ export default function LicensesManager({ licenses }: { licenses: LicenseRow[] }
     });
   }
 
+  const [withdrawTarget, setWithdrawTarget] = useState<LicenseRow | null>(null);
+
   function handleWithdraw(l: LicenseRow) {
-    if (!window.confirm("Withdraw this license application? This cannot be undone.")) return;
+    setWithdrawTarget(l);
+  }
+
+  function confirmWithdraw() {
+    if (!withdrawTarget) return;
+    const target = withdrawTarget;
     setActionError(null);
     startTransition(async () => {
-      const result = await withdrawLicense(l.id);
+      const result = await withdrawLicense(target.id);
       if (result.error) setActionError(result.error);
+      setWithdrawTarget(null);
     });
   }
 
@@ -110,6 +119,19 @@ export default function LicensesManager({ licenses }: { licenses: LicenseRow[] }
           </div>
         )}
       </div>
+
+      {withdrawTarget && (
+        <ConfirmModal
+          title="Withdraw this application?"
+          message="This cannot be undone."
+          confirmLabel="Withdraw"
+          pendingLabel="Withdrawing…"
+          variant="warning"
+          pending={isPending}
+          onConfirm={confirmWithdraw}
+          onClose={() => setWithdrawTarget(null)}
+        />
+      )}
     </div>
   );
 }

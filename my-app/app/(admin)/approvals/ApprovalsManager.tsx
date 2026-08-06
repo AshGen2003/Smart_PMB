@@ -33,6 +33,7 @@ import HarvestFormModal, {
   type PaddyTypeOption,
   type WarehouseOption,
 } from "./HarvestFormModal";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import styles from "./Approvals.module.css";
 
 /** Shape of a harvest record as returned by `GET /api/admin/harvests/`. */
@@ -137,9 +138,21 @@ export default function ApprovalsManager({
     });
   }
 
+  const [deleteTarget, setDeleteTarget] = useState<HarvestRow | null>(null);
+
   function handleDelete(h: HarvestRow) {
-    if (!window.confirm("Delete this harvest record? This cannot be undone.")) return;
-    runAction(() => deleteHarvest(h.id));
+    setDeleteTarget(h);
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setActionError(null);
+    startTransition(async () => {
+      const result = await deleteHarvest(target.id);
+      if (result.error) setActionError(result.error);
+      setDeleteTarget(null);
+    });
   }
 
   return (
@@ -344,6 +357,19 @@ export default function ApprovalsManager({
           paddyTypes={paddyTypes}
           warehouses={warehouses}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete this harvest record?"
+          message="This cannot be undone."
+          confirmLabel="Delete"
+          pendingLabel="Deleting…"
+          variant="danger"
+          pending={isPending}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
         />
       )}
     </div>

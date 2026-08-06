@@ -9,6 +9,7 @@ import React, { useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
 import { Coins, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { deletePaddyType } from "@/app/actions/pricing";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import PaddyTypeFormModal, { type EditablePaddyType } from "./PaddyTypeFormModal";
 import styles from "./Pricing.module.css";
 
@@ -40,6 +41,7 @@ export default function PricingManager({
     { mode: "create" } | { mode: "edit"; paddyType: EditablePaddyType } | null
   >(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PaddyTypeRow | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Client-side filter by type name or variety (case-insensitive substring match).
@@ -64,15 +66,21 @@ export default function PricingManager({
     null
   );
 
-  // Confirms with the user, then calls the deletePaddyType Server Action
-  // inside a transition so the UI doesn't block while it runs.
+  // Opens the confirmation modal; confirmDelete below actually calls the
+  // deletePaddyType Server Action inside a transition once the user
+  // confirms, so the UI doesn't block while it runs.
   function handleDelete(paddyType: PaddyTypeRow) {
-    if (!window.confirm(`Delete "${paddyType.type_name}"? This cannot be undone.`)) return;
+    setDeleteTarget(paddyType);
+  }
 
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
     setDeleteError(null);
     startTransition(async () => {
-      const result = await deletePaddyType(paddyType.id);
+      const result = await deletePaddyType(target.id);
       if (result.error) setDeleteError(result.error);
+      setDeleteTarget(null);
     });
   }
 
@@ -217,6 +225,23 @@ export default function PricingManager({
           mode="edit"
           paddyType={modal.paddyType}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete this paddy type?"
+          message={
+            <>
+              Delete <strong>&quot;{deleteTarget.type_name}&quot;</strong>? This cannot be undone.
+            </>
+          }
+          confirmLabel="Delete"
+          pendingLabel="Deleting…"
+          variant="danger"
+          pending={isPending}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
         />
       )}
     </div>
