@@ -45,7 +45,7 @@ from .models import (
     User,
 )
 from .otp import MAX_OTP_ATTEMPTS, OTP_EXPIRY_MINUTES, generate_otp_code
-from .permissions import HasPermission, RoleAccessPermission
+from .permissions import HasAnyPermission, HasPermission, RoleAccessPermission, _has_codename
 from .serializers import (
     AdminUserSerializer,
     AdminUserWriteSerializer,
@@ -395,17 +395,37 @@ class MeView(APIView):
 
 class AdminUserViewSet(viewsets.ModelViewSet):
     """
-    Admin CRUD over all user accounts (requires "manage_users"), plus two
-    extra actions for account-security intervention: forcibly unlocking a
-    locked-out account and revoking all of a user's active sessions. Every
-    mutation is recorded to the audit log via sysops.utils.log_audit.
+    Admin CRUD over all user accounts (requires "manage_users", or one of
+    the narrower per-role permissions below), plus two extra actions for
+    account-security intervention: forcibly unlocking a locked-out account
+    and revoking all of a user's active sessions. Every mutation is
+    recorded to the audit log via sysops.utils.log_audit.
     """
-    permission_classes = [HasPermission("manage_users")]
+    permission_classes = [
+        HasAnyPermission(
+            "manage_users",
+            "manage_farmers",
+            "manage_drivers",
+            "manage_warehouse_managers",
+            "manage_mill_owners",
+            "manage_purchasers",
+        )
+    ]
     queryset = (
         User.objects.all()
         .select_related("role", "farmer_profile", "pmb_officer_profile")
         .order_by("-date_joined")
     )
+
+    # Maps each narrower permission to the single role slug it grants
+    # visibility into — see get_queryset below.
+    ROLE_PERMISSION_MAP = {
+        "manage_farmers": "farmer",
+        "manage_drivers": "driver",
+        "manage_warehouse_managers": "warehouse_manager",
+        "manage_mill_owners": "mill_owner",
+        "manage_purchasers": "authorized_purchaser",
+    }
 
     def get_queryset(self):
         # Optional ?role=<slug> filter for the admin user list screen.
@@ -423,6 +443,18 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         requester_role = getattr(self.request.user.role, "slug", None)
         if requester_role != "admin":
             qs = qs.exclude(role__slug="admin")
+
+        # manage_users is the umbrella permission (full visibility, same
+        # as today); anyone without it only sees the roles their specific
+        # narrower permission(s) cover — e.g. holding only manage_farmers
+        # means seeing farmer accounts and nothing else.
+        if not _has_codename(self.request.user, "manage_users"):
+            visible_roles = [
+                role_slug
+                for codename, role_slug in self.ROLE_PERMISSION_MAP.items()
+                if _has_codename(self.request.user, codename)
+            ]
+            qs = qs.filter(role__slug__in=visible_roles)
         return qs
 
     def get_serializer_class(self):

@@ -54,7 +54,19 @@ import {
 // the Role edit form or the Preview Portal's quick-toggle checklist.
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
-  { label: "Users", href: "/residents", icon: Users, permission: "manage_users" },
+  {
+    label: "Users",
+    href: "/residents",
+    icon: Users,
+    permissions: [
+      "manage_users",
+      "manage_farmers",
+      "manage_drivers",
+      "manage_warehouse_managers",
+      "manage_mill_owners",
+      "manage_purchasers",
+    ],
+  },
   {
     label: "Maintenance",
     href: "/maintenance",

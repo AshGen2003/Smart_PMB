@@ -39,7 +39,19 @@ import {
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/officer", icon: LayoutDashboard, permission: "view_dashboard" },
-  { label: "Users", href: "/officer/residents", icon: Users, permission: "manage_users" },
+  {
+    label: "Users",
+    href: "/officer/residents",
+    icon: Users,
+    permissions: [
+      "manage_users",
+      "manage_farmers",
+      "manage_drivers",
+      "manage_warehouse_managers",
+      "manage_mill_owners",
+      "manage_purchasers",
+    ],
+  },
   { label: "Warehouses", href: "/officer/warehouses", icon: Warehouse, permission: "manage_warehouses" },
   { label: "Pricing", href: "/officer/pricing", icon: Coins, permission: "manage_pricing" },
   {

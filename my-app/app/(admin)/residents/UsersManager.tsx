@@ -54,6 +54,7 @@ export default function UsersManager({
   roles,
   districts,
   currentUserId,
+  isAdmin,
   canManageSystem,
   canImpersonate,
   canOverrideImpersonation,
@@ -62,6 +63,7 @@ export default function UsersManager({
   roles: RoleOption[];
   districts: DistrictOption[];
   currentUserId: string;
+  isAdmin: boolean;
   canManageSystem: boolean;
   canImpersonate: boolean;
   canOverrideImpersonation: boolean;
@@ -357,13 +359,20 @@ export default function UsersManager({
       </div>
 
       {modal?.mode === "create" && (
-        <UserFormModal mode="create" roles={roles} districts={districts} onClose={() => setModal(null)} />
+        <UserFormModal
+          mode="create"
+          roles={roles}
+          districts={districts}
+          isAdmin={isAdmin}
+          onClose={() => setModal(null)}
+        />
       )}
       {modal?.mode === "edit" && (
         <UserFormModal
           mode="edit"
           roles={roles}
           districts={districts}
+          isAdmin={isAdmin}
           user={modal.user}
           onClose={() => setModal(null)}
         />

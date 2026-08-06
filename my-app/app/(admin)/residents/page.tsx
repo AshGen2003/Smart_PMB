@@ -1,9 +1,13 @@
 /**
  * `/residents` — user account management (despite the route name, this
- * lists all platform accounts, not just farmers/residents). Requires the
- * `manage_users` permission.
+ * lists all platform accounts, not just farmers/residents). Requires
+ * `manage_users` (full access) or any of the narrower per-role
+ * permissions (manage_farmers, manage_drivers, manage_warehouse_managers,
+ * manage_mill_owners, manage_purchasers) — matching AdminUserViewSet's
+ * own HasAnyPermission gate, so someone granted only e.g. manage_farmers
+ * can still reach this page at all, just seeing a scoped-down list.
  */
-import { requirePermission } from "@/app/lib/dal";
+import { requireAnyPermission } from "@/app/lib/dal";
 import { apiFetch, apiFetchCached } from "@/app/lib/api";
 import UsersManager, { type AdminUserRow } from "./UsersManager";
 import type { DistrictOption, RoleOption } from "./UserFormModal";
@@ -16,7 +20,14 @@ import type { DistrictOption, RoleOption } from "./UserFormModal";
  * manage_system (needed to unlock/force-logout other accounts).
  */
 export default async function UsersPage() {
-  const currentUser = await requirePermission("manage_users");
+  const currentUser = await requireAnyPermission(
+    "manage_users",
+    "manage_farmers",
+    "manage_drivers",
+    "manage_warehouse_managers",
+    "manage_mill_owners",
+    "manage_purchasers"
+  );
 
   // Users are per-account data that changes via this very page (create/
   // edit/delete/unlock/force-logout) — always fetched fresh. Roles/districts
@@ -47,6 +58,7 @@ export default async function UsersPage() {
       roles={roles}
       districts={districts}
       currentUserId={currentUser.id}
+      isAdmin={currentUser.role === "admin"}
       canManageSystem={currentUser.permissions.includes("manage_system")}
       canImpersonate={currentUser.permissions.includes("impersonate_users")}
       canOverrideImpersonation={currentUser.permissions.includes("override_impersonation_otp")}

@@ -61,12 +61,14 @@ export default function UserFormModal({
   user,
   roles,
   districts,
+  isAdmin,
   onClose,
 }: {
   mode: "create" | "edit";
   user?: EditableUser;
   roles: RoleOption[];
   districts: DistrictOption[];
+  isAdmin: boolean;
   onClose: () => void;
 }) {
   const action = mode === "create" ? createUser : updateUser.bind(null, user!.id);
@@ -75,6 +77,19 @@ export default function UserFormModal({
   const [roleId, setRoleId] = useState(user?.roleId != null ? String(user.roleId) : "");
   const isOfficer = roles.find((r) => String(r.id) === roleId)?.slug === "pmb_officer";
   const isFarmer = roles.find((r) => String(r.id) === roleId)?.slug === "farmer";
+  // A non-admin (e.g. a PMB Officer) can only assign warehouse_manager/
+  // driver — see AdminUserWriteSerializer.validate's matching backend
+  // check. In edit mode, the account's current role stays offered too
+  // (even if it's e.g. "Farmer") so editing an existing account's other
+  // fields doesn't force an unwanted role change.
+  const roleOptions = isAdmin
+    ? roles
+    : roles.filter(
+        (r) =>
+          r.slug === "warehouse_manager" ||
+          r.slug === "driver" ||
+          (mode === "edit" && user?.roleId === r.id)
+      );
 
   // Auto-close the modal once a pending submission resolves without error.
   useEffect(() => {
@@ -182,7 +197,7 @@ export default function UserFormModal({
               value={roleId}
               onChange={setRoleId}
               placeholder="Select a role"
-              options={roles.map((r) => ({ value: String(r.id), label: r.name }))}
+              options={roleOptions.map((r) => ({ value: String(r.id), label: r.name }))}
             />
           </div>
 

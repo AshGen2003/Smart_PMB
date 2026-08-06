@@ -552,18 +552,31 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         role = attrs.get("role", getattr(self.instance, "role", None))
 
-        # AdminUserViewSet.get_queryset() already keeps a non-admin manager
-        # from ever seeing/editing/deleting an *existing* admin account —
-        # but create() has no existing row for that queryset filter to
-        # apply to, so promoting/creating straight to "admin" needs its
-        # own check here, or a PMB Officer holding manage_users could mint
-        # a brand-new admin account (or promote an existing user to one)
-        # despite never being able to see admins on the list afterward.
+        # AdminUserViewSet.get_queryset() already scopes which *existing*
+        # accounts a non-admin manager can see/edit/delete, based on
+        # whichever of the per-role permissions they hold. But that
+        # queryset filter has nothing to apply to on create, and doesn't
+        # stop a role being *changed* to something new either — so a PMB
+        # Officer holding e.g. manage_farmers could otherwise still create
+        # a brand-new farmer/mill-owner/purchaser/admin account, or
+        # promote an existing one into such a role, bypassing the proper
+        # onboarding path (self-registration, the licensing queue) those
+        # roles are meant to go through. Only warehouse_manager/driver
+        # accounts are simple enough (no separate onboarding flow, no
+        # linked profile beyond the User row itself) to allow a non-admin
+        # to create/reassign directly.
         request = self.context.get("request")
         requester = getattr(request, "user", None)
         requester_role = getattr(requester, "role", None)
-        if role and role.slug == "admin" and (not requester_role or requester_role.slug != "admin"):
-            raise serializers.ValidationError({"role": "Only an admin can create or promote an admin account."})
+        requester_role_slug = requester_role.slug if requester_role else None
+        if role and requester_role_slug != "admin":
+            is_new_assignment = self.instance is None or (
+                "role" in attrs and attrs["role"].id != self.instance.role_id
+            )
+            if is_new_assignment and role.slug not in ("warehouse_manager", "driver"):
+                raise serializers.ValidationError(
+                    {"role": "Only an admin can create or change a user to this role."}
+                )
 
         # Mirrors RegisterFarmerSerializer.validate_nic — self-registration
         # already guards this; admin/officer-created farmers should get the
