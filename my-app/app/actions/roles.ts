@@ -133,13 +133,20 @@ export async function deleteRole(roleId: number): Promise<{ error?: string }> {
  */
 export async function toggleRolePermission(
   roleId: number,
-  codename: string,
+  codename: string | string[],
   currentPermissions: string[],
   enabled: boolean
 ): Promise<{ error?: string }> {
+  // A sidebar item can be gated by more than one permission (e.g. "Users"
+  // is visible with manage_users OR any of the narrower manage_<role>
+  // permissions — see PreviewManager.tsx's ADMIN_NAV_ITEMS). Enabling
+  // grants just the first (the umbrella/primary one for that item);
+  // disabling strips every codename in the group, since the item would
+  // otherwise keep showing on the real sidebar via whichever one is left.
+  const codenames = Array.isArray(codename) ? codename : [codename];
   const nextPermissions = enabled
-    ? Array.from(new Set([...currentPermissions, codename]))
-    : currentPermissions.filter((p) => p !== codename);
+    ? Array.from(new Set([...currentPermissions, codenames[0]]))
+    : currentPermissions.filter((p) => !codenames.includes(p));
 
   const res = await apiFetch(`/api/admin/roles/${roleId}/`, {
     method: "PATCH",

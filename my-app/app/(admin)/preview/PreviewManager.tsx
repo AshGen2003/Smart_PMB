@@ -40,13 +40,33 @@ import type { RoleRow } from "../roles/RolesManager";
 // (rather than importing Sidebar's, which isn't exported) since this one
 // needs each entry's gating permission(s) as plain data to render toggles
 // against, not just to filter against the current user's own permissions.
-// Every item has a single `permission` except Approvals, which is gated by
-// either of two permissions (monitor_operations/record_purchases) — that
-// one has no single checkbox to toggle here, edit those two directly via
-// the full role editor on /roles instead.
+// Most items have a single `permission`. Two exceptions:
+// - Approvals is gated by either of two unrelated permissions
+//   (monitor_operations/record_purchases) — genuinely different
+//   capabilities, not meant to be bundled as one toggle, so it has no
+//   single checkbox here; edit those two directly via /roles instead.
+// - Users is gated by manage_users OR any of the narrower manage_<role>
+//   permissions (see Sidebar.tsx/OfficerSidebar.tsx's own "Users" item) —
+//   these ARE meant to be toggled as one group here (`toggleGroup`, not
+//   `permissions`): flipping it on grants manage_users (full access, the
+//   simple/quick-toggle case), flipping it off strips all six, since the
+//   real sidebar shows the item if ANY one of them is present — leaving
+//   even one behind after "turning it off" here would silently keep the
+//   tab visible on the real officer portal.
 const ADMIN_NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
-  { label: "Users", icon: Users, permission: "manage_users" },
+  {
+    label: "Users",
+    icon: Users,
+    toggleGroup: [
+      "manage_users",
+      "manage_farmers",
+      "manage_drivers",
+      "manage_warehouse_managers",
+      "manage_mill_owners",
+      "manage_purchasers",
+    ],
+  },
   { label: "Maintenance", icon: Wrench, permission: "view_audit_logs" },
   { label: "Warehouses", icon: Warehouse, permission: "manage_warehouses" },
   { label: "Pricing", icon: Coins, permission: "manage_pricing" },
@@ -108,7 +128,7 @@ export default function PreviewManager({ roles }: { roles: RoleRow[] }) {
       ? PARTNER_NAV_ITEMS
       : ADMIN_NAV_ITEMS;
 
-  function handleToggle(codename: string, checked: boolean) {
+  function handleToggle(codename: string | string[], checked: boolean) {
     if (!selected) return;
     setError(null);
     startTransition(async () => {
@@ -162,8 +182,15 @@ export default function PreviewManager({ roles }: { roles: RoleRow[] }) {
               </div>
               <nav className={sidebarStyles.nav}>
                 {items.map((item) => {
+                  // `permissions`: OR-gated but display-only here (genuinely
+                  // distinct capabilities — edit on /roles instead).
+                  // `toggleGroup`: OR-gated AND toggleable as one unit (see
+                  // ADMIN_NAV_ITEMS's comment on the "Users" item above).
                   const isOrGated = "permissions" in item;
-                  const checked = isOrGated
+                  const isToggleGroup = "toggleGroup" in item;
+                  const checked = isToggleGroup
+                    ? item.toggleGroup.some((p) => currentPermissions.includes(p))
+                    : isOrGated
                     ? item.permissions.some((p) => currentPermissions.includes(p))
                     : currentPermissions.includes(item.permission);
 
@@ -192,7 +219,12 @@ export default function PreviewManager({ roles }: { roles: RoleRow[] }) {
                             className={styles.switchInput}
                             checked={checked}
                             disabled={isPending}
-                            onChange={(e) => handleToggle(item.permission, e.target.checked)}
+                            onChange={(e) =>
+                              handleToggle(
+                                isToggleGroup ? [...item.toggleGroup] : item.permission,
+                                e.target.checked
+                              )
+                            }
                           />
                           <span className={styles.switchSlider} />
                         </span>
