@@ -29,8 +29,17 @@ export default async function UsersPage() {
   ]);
 
   const users = usersRes.ok ? ((await usersRes.json()) as AdminUserRow[]) : [];
-  const roles = rolesRes.ok ? ((await rolesRes.json()) as RoleOption[]) : [];
+  let roles = rolesRes.ok ? ((await rolesRes.json()) as RoleOption[]) : [];
   const districts = districtsRes.ok ? ((await districtsRes.json()) as DistrictOption[]) : [];
+
+  // A non-admin manager (e.g. a PMB Officer holding manage_users) never
+  // sees admin accounts at all (see AdminUserViewSet.get_queryset) and
+  // can never create/promote one (see AdminUserWriteSerializer.validate)
+  // — so "Admin" shouldn't even appear as a selectable role here, or
+  // picking it would just fail with a confusing error after the fact.
+  if (currentUser.role !== "admin") {
+    roles = roles.filter((r) => r.slug !== "admin");
+  }
 
   return (
     <UsersManager

@@ -413,6 +413,16 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         role = self.request.query_params.get("role")
         if role:
             qs = qs.filter(role__slug=role)
+        # A non-admin manager (e.g. a PMB Officer holding manage_users)
+        # never sees or acts on admin accounts at all. list/retrieve/
+        # update/destroy, plus the unlock/force-logout actions below, all
+        # route through this same queryset via get_object(), so excluding
+        # admin rows here protects every one of them from a single place —
+        # mirrors the same "never touch another admin account" rule
+        # _impersonation_target_error already enforces for impersonation.
+        requester_role = getattr(self.request.user.role, "slug", None)
+        if requester_role != "admin":
+            qs = qs.exclude(role__slug="admin")
         return qs
 
     def get_serializer_class(self):

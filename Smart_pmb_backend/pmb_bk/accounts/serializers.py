@@ -550,11 +550,25 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
     def validate(self, attrs):
+        role = attrs.get("role", getattr(self.instance, "role", None))
+
+        # AdminUserViewSet.get_queryset() already keeps a non-admin manager
+        # from ever seeing/editing/deleting an *existing* admin account —
+        # but create() has no existing row for that queryset filter to
+        # apply to, so promoting/creating straight to "admin" needs its
+        # own check here, or a PMB Officer holding manage_users could mint
+        # a brand-new admin account (or promote an existing user to one)
+        # despite never being able to see admins on the list afterward.
+        request = self.context.get("request")
+        requester = getattr(request, "user", None)
+        requester_role = getattr(requester, "role", None)
+        if role and role.slug == "admin" and (not requester_role or requester_role.slug != "admin"):
+            raise serializers.ValidationError({"role": "Only an admin can create or promote an admin account."})
+
         # Mirrors RegisterFarmerSerializer.validate_nic — self-registration
         # already guards this; admin/officer-created farmers should get the
         # same clean 400 instead of Farmer.nic's unique constraint leaking
         # through as a raw IntegrityError.
-        role = attrs.get("role", getattr(self.instance, "role", None))
         nic = attrs.get("nic")
         if role and role.slug == "farmer" and nic:
             existing = Farmer.objects.filter(nic=nic)
