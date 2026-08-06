@@ -1,33 +1,18 @@
-# Builds the data set behind the "Admin Report": a snapshot of users,
-# roles, recent security activity, audit trail, and backup history. Used
-# by both AdminReportView (JSON) and AdminReportPdfView (PDF, via pdf.py)
-# in views.py, so the two always show identical numbers.
+# Builds the data set behind the "Admin Report": a snapshot of recent
+# security activity, audit trail, and backup history. Used by both
+# AdminReportView (JSON) and AdminReportPdfView (PDF, via pdf.py) in
+# views.py, so the two always show identical numbers.
 from datetime import timedelta
 
-from django.db.models import Count
 from django.utils import timezone
-
-from accounts.models import Role, User
 
 from .models import AuditLog, AuthLog, BackupRecord
 
 
 def build_admin_report_data():
-    """Assemble the admin report's data dict: user/role stats, 30-day login security counts, and recent log/backup entries."""
+    """Assemble the admin report's data dict: 30-day login security counts and recent log/backup entries."""
     now = timezone.now()
     since_30d = now - timedelta(days=30)
-
-    roles = Role.objects.annotate(member_count=Count("users")).prefetch_related(
-        "permissions"
-    ).order_by("-member_count")
-    role_rows = [
-        {
-            "name": r.name,
-            "user_count": r.member_count,
-            "permission_count": r.permissions.count(),
-        }
-        for r in roles
-    ]
 
     auth_30d = AuthLog.objects.filter(created_at__gte=since_30d)
     security = {
@@ -84,11 +69,6 @@ def build_admin_report_data():
 
     return {
         "generated_at": now,
-        "users": {
-            "total": User.objects.count(),
-            "active": User.objects.filter(is_active=True).count(),
-        },
-        "roles": role_rows,
         "security": security,
         "login_activity_trend": login_activity_trend,
         "recent_audit": recent_audit,

@@ -11,7 +11,6 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
-from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.linecharts import HorizontalLineChart
 from reportlab.graphics.charts.legends import Legend
 from reportlab.graphics.shapes import Drawing
@@ -126,40 +125,6 @@ def _auth_rows(data):
     return rows or [["—", "—", "—", "—"]]
 
 
-def _roles_bar_chart(data):
-    """Grouped bar chart (users, permissions per role) matching the web report's "Users by Role" chart, or None if there are no roles to plot."""
-    roles = data["roles"]
-    if not roles:
-        return None
-
-    drawing = Drawing(460, 220)
-    chart = VerticalBarChart()
-    chart.x, chart.y = 50, 30
-    chart.width, chart.height = 330, 160
-    chart.data = [[r["user_count"] for r in roles], [r["permission_count"] for r in roles]]
-    chart.categoryAxis.categoryNames = [r["name"] for r in roles]
-    chart.categoryAxis.labels.angle = 30
-    chart.categoryAxis.labels.dy = -10
-    chart.categoryAxis.labels.fontSize = 6
-    chart.categoryAxis.labels.boxAnchor = "ne"
-    chart.valueAxis.valueMin = 0
-    chart.valueAxis.labels.fontSize = 7
-    chart.barSpacing = 2
-    chart.groupSpacing = 8
-    chart.bars[0].fillColor = CHART_INDIGO
-    chart.bars[1].fillColor = CHART_AMBER
-    drawing.add(chart)
-
-    legend = Legend()
-    legend.x, legend.y = 400, 170
-    legend.dx, legend.dy = 8, 8
-    legend.fontSize = 7
-    legend.alignment = "right"
-    legend.colorNamePairs = [(CHART_INDIGO, "Users"), (CHART_AMBER, "Permissions")]
-    drawing.add(legend)
-    return drawing
-
-
 def _login_trend_chart(data):
     """Line chart of daily successful/failed logins matching the web report's login-activity chart, or None if there's no trend data."""
     trend = data["login_activity_trend"]
@@ -218,27 +183,6 @@ def build_admin_report_pdf(data):
             f"Generated: {data['generated_at'].strftime('%Y-%m-%d %H:%M UTC')}",
             styles["Normal"],
         ),
-        Spacer(1, 10),
-        Paragraph("Users &amp; Roles", heading_style),
-        Paragraph(
-            f"Total users: {data['users']['total']}  |  Active: {data['users']['active']}",
-            styles["Normal"],
-        ),
-        Spacer(1, 6),
-        _table(
-            [["Role", "Users", "Permissions"]]
-            + [
-                [r["name"], str(r["user_count"]), str(r["permission_count"])]
-                for r in data["roles"]
-            ]
-        ),
-    ]
-
-    roles_chart = _roles_bar_chart(data)
-    if roles_chart is not None:
-        elements += [Spacer(1, 10), roles_chart]
-
-    elements += [
         Spacer(1, 10),
         Paragraph("Security Activity (last 30 days)", heading_style),
         Paragraph(
