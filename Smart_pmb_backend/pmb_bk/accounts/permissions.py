@@ -58,11 +58,28 @@ class HasAnyPermission(BasePermission):
         return any(_has_codename(user, c) for c in self.codenames)
 
 
+
+# Read-only access to the role catalogue: anyone who can manage even one
+# slice of users needs this to populate their create/edit form's role
+# picker — see RoleAccessPermission below.
+_ROLE_READ_CODENAMES = (
+    "manage_users",
+    "manage_roles",
+    "manage_farmers",
+    "manage_drivers",
+    "manage_warehouse_managers",
+    "manage_mill_owners",
+    "manage_purchasers",
+)
+
+
 class RoleAccessPermission(BasePermission):
     """
-    Read access (list/retrieve) to roles requires either manage_users or
-    manage_roles — a manage_users-only role still needs to read the role
-    catalogue to populate the user-edit form's role picker. Write access
+    Read access (list/retrieve) to roles requires manage_roles or any of
+    the manage_users/manage_<role> permissions in _ROLE_READ_CODENAMES —
+    holding any one of them means populating a user create/edit form
+    somewhere, which needs the role catalogue regardless of which slice
+    of users that permission actually covers. Write access
     (create/update/destroy) requires manage_roles specifically.
 
     "admin"-role accounts always pass, regardless of their actual
@@ -83,7 +100,5 @@ class RoleAccessPermission(BasePermission):
         if user.role_id and user.role.slug == "admin":
             return True
         if request.method in SAFE_METHODS:
-            return _has_codename(user, "manage_users") or _has_codename(
-                user, "manage_roles"
-            )
+            return any(_has_codename(user, c) for c in _ROLE_READ_CODENAMES)
         return _has_codename(user, "manage_roles")
