@@ -67,6 +67,7 @@ from .serializers import (
     FuelRecordSerializer,
     HarvestSerializer,
     InventorySerializer,
+    MaintenanceDecisionSerializer,
     MaintenanceRecordSerializer,
     NotificationSerializer,
     OfficerHarvestSerializer,
@@ -1378,13 +1379,52 @@ class FuelRecordViewSet(viewsets.ModelViewSet):
     serializer_class = FuelRecordSerializer
 
 
-class MaintenanceRecordViewSet(viewsets.ModelViewSet):
-    """Read-only from the officer side — see FuelRecordViewSet's docstring; same reasoning."""
+class MaintenanceRecordViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only from the officer side, plus approve/reject actions to review
+    a driver-logged maintenance cost — mirrors LicenseApplicationViewSet's
+    approve/reject exactly (accounts/views.py), just on a different model.
+    ReadOnlyModelViewSet (not ModelViewSet + a restricted http_method_names)
+    so there's no create/update/destroy to accidentally re-expose by
+    routing a POST through the approve/reject actions below.
+    """
 
-    http_method_names = ["get", "head", "options"]
     permission_classes = [HasPermission("manage_transport")]
-    queryset = MaintenanceRecord.objects.select_related("vehicle")
+    queryset = MaintenanceRecord.objects.select_related("vehicle", "reviewed_by")
     serializer_class = MaintenanceRecordSerializer
+
+    def get_queryset(self):
+        # Optional ?status=pending filter for a "needs review" default view.
+        qs = super().get_queryset()
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        record = self.get_object()
+        record.status = MaintenanceRecord.Status.APPROVED
+        record.reviewed_by = request.user
+        record.reviewed_at = timezone.now()
+        record.rejection_reason = ""
+        record.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
+        log_audit(request.user, "approve_maintenance_record", "farmers", str(record.vehicle))
+        return Response(MaintenanceRecordSerializer(record).data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        serializer = MaintenanceDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        record = self.get_object()
+        record.status = MaintenanceRecord.Status.REJECTED
+        record.reviewed_by = request.user
+        record.reviewed_at = timezone.now()
+        record.rejection_reason = serializer.validated_data["reason"]
+        record.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
+        log_audit(request.user, "reject_maintenance_record", "farmers", str(record.vehicle))
+        return Response(MaintenanceRecordSerializer(record).data)
 
 
 # ---------------------------------------------------------------------------
@@ -1546,11 +1586,31 @@ class DriverFuelRecordViewSet(viewsets.ModelViewSet):
 
 
 class DriverMaintenanceRecordViewSet(viewsets.ModelViewSet):
-    """The driver-side counterpart to MaintenanceRecordViewSet — full CRUD."""
+    """
+    The driver-side counterpart to MaintenanceRecordViewSet — full CRUD,
+    except a record that's already been reviewed (approved or rejected)
+    locks against further edits/deletes, so an officer's decision on a
+    specific cost can't be silently undermined afterward. A fresh record
+    always starts PENDING, so creation is unaffected.
+    """
 
     permission_classes = [IsAuthenticated, IsDriver]
     queryset = MaintenanceRecord.objects.select_related("vehicle")
     serializer_class = MaintenanceRecordSerializer
+
+    def _reject_if_reviewed(self, instance):
+        if instance.status != MaintenanceRecord.Status.PENDING:
+            raise ValidationError(
+                "This record has already been reviewed and can no longer be edited."
+            )
+
+    def perform_update(self, serializer):
+        self._reject_if_reviewed(serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._reject_if_reviewed(instance)
+        instance.delete()
 
 
 class TransportationDashboardView(APIView):

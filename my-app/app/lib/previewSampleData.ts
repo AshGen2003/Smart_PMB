@@ -330,7 +330,11 @@ export const PREVIEW_TRANSPORTATION = {
     { id: 1, vehicle: 1, vehicle_registration: "WP-DEMO-01", fuel_type: "diesel", quantity_litres: "60.00", cost: "24000.00", fuel_date: "2026-07-18" },
   ],
   maintenanceRecords: [
-    { id: 1, vehicle: 3, vehicle_registration: "WP-DEMO-03", service_date: "2026-07-15", description: "Sample data — routine service", cost: "12000.00", next_service_date: "2026-10-15" },
+    {
+      id: 1, vehicle: 3, vehicle_registration: "WP-DEMO-03", service_date: "2026-07-15",
+      description: "Sample data — routine service", cost: "12000.00", next_service_date: "2026-10-15",
+      status: "pending" as const, reviewed_by_name: null, rejection_reason: "",
+    },
   ],
   stats: {
     vehicles_total: PREVIEW_VEHICLES.length,

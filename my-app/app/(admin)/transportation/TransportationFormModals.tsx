@@ -20,6 +20,7 @@ import {
   type TransportFormState,
 } from "@/app/actions/transportation";
 import { LocationMap, LocationMapPlaceholder } from "@/app/components/LocationMap";
+import { loadGoogleMapsScript } from "@/app/lib/googleMaps";
 import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./Transportation.module.css";
 import { DELIVERY_STATUS_LABEL, type VehicleRow, type DriverOption, type RouteRow, type DeliveryRow } from "./TransportationManager";
@@ -174,29 +175,117 @@ export function RouteFormModal({
   const [state, formAction, pending] = useActionState(action, initialState);
   useAutoClose(pending, state.error, onClose);
 
+  const [origin, setOrigin] = useState(route?.origin ?? "");
+  const [destination, setDestination] = useState(route?.destination ?? "");
+  const [distanceKm, setDistanceKm] = useState(route?.distance_km ?? "");
+  const [estimatedTime, setEstimatedTime] = useState(route?.estimated_time ?? "");
+  const [calculating, setCalculating] = useState(false);
+  const [calcError, setCalcError] = useState<string | null>(null);
+
+  // Auto-calculates distance/travel time from origin+destination via
+  // Google's Distance Matrix service (same API key/loader LocationMap
+  // already uses) — debounced so it only fires once typing settles, and
+  // never blocks submission if it fails (invalid address, no API key,
+  // network error): the fields stay normal, editable inputs the whole
+  // time, so a manual value always still works.
+  useEffect(() => {
+    if (!origin.trim() || !destination.trim()) return;
+    const timer = setTimeout(() => {
+      // Clearing the previous error and flipping to "calculating" both
+      // happen here, inside the debounce callback, rather than
+      // synchronously at the top of the effect — avoids an extra
+      // cascading render on every keystroke for no visible benefit.
+      setCalcError(null);
+      setCalculating(true);
+      loadGoogleMapsScript()
+        .then(() => {
+          const service = new window.google!.maps.DistanceMatrixService();
+          service.getDistanceMatrix(
+            {
+              origins: [origin],
+              destinations: [destination],
+              travelMode: window.google!.maps.TravelMode.DRIVING,
+            },
+            (response, status) => {
+              setCalculating(false);
+              const element = response?.rows[0]?.elements[0];
+              if (status !== "OK" || !element || element.status !== "OK") {
+                setCalcError("Couldn't calculate distance for these locations — enter it manually.");
+                return;
+              }
+              setDistanceKm((element.distance.value / 1000).toFixed(1));
+              setEstimatedTime(element.duration.text);
+            }
+          );
+        })
+        .catch(() => {
+          setCalculating(false);
+          setCalcError("Couldn't load the map service — enter distance manually.");
+        });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [origin, destination]);
+
   return (
     <ModalShell title={mode === "create" ? "New route" : `Edit route`} onClose={onClose} error={state.error}>
       <form action={formAction}>
         <div className={styles.fieldRow}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="origin">Origin</label>
-            <input id="origin" name="origin" type="text" required defaultValue={route?.origin} className={styles.input} />
+            <input
+              id="origin"
+              name="origin"
+              type="text"
+              required
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value)}
+              className={styles.input}
+            />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="destination">Destination</label>
-            <input id="destination" name="destination" type="text" required defaultValue={route?.destination} className={styles.input} />
+            <input
+              id="destination"
+              name="destination"
+              type="text"
+              required
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              className={styles.input}
+            />
           </div>
         </div>
         <div className={styles.fieldRow}>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="distance_km">Distance (km)</label>
-            <input id="distance_km" name="distance_km" type="number" step="0.1" min={0} required defaultValue={route?.distance_km} className={styles.input} />
+            <label className={styles.label} htmlFor="distance_km">
+              Distance (km) {calculating && <Loader2 size={12} className={styles.spin} />}
+            </label>
+            <input
+              id="distance_km"
+              name="distance_km"
+              type="number"
+              step="0.1"
+              min={0}
+              required
+              value={distanceKm}
+              onChange={(e) => setDistanceKm(e.target.value)}
+              className={styles.input}
+            />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="estimated_time">Est. travel time <span className={styles.optional}>(optional)</span></label>
-            <input id="estimated_time" name="estimated_time" type="text" defaultValue={route?.estimated_time} className={styles.input} placeholder="e.g. 3h 20m" />
+            <input
+              id="estimated_time"
+              name="estimated_time"
+              type="text"
+              value={estimatedTime}
+              onChange={(e) => setEstimatedTime(e.target.value)}
+              className={styles.input}
+              placeholder="e.g. 3h 20m"
+            />
           </div>
         </div>
+        {calcError && <p className={styles.calcNote}>{calcError}</p>}
         <FormFooter pending={pending} onClose={onClose} />
       </form>
     </ModalShell>
@@ -373,6 +462,63 @@ export function DeliveryTrackModal({
         {location && (
           <span>Last updated {new Date(location.recorded_at).toLocaleTimeString()}</span>
         )}
+      </div>
+    </ModalShell>
+  );
+}
+
+// --- Maintenance review ----------------------------------------------------
+
+/**
+ * Reject-with-reason modal for a driver-logged maintenance record — the
+ * reason is required (unlike the license-application reject flow, where
+ * it's optional), so Reject stays disabled until something's typed.
+ */
+export function MaintenanceRejectModal({
+  vehicleLabel,
+  pending,
+  error,
+  onConfirm,
+  onClose,
+}: {
+  vehicleLabel: string;
+  pending: boolean;
+  error?: string | null;
+  onConfirm: (reason: string) => void;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  return (
+    <ModalShell title="Reject this maintenance cost?" onClose={onClose} error={error ?? undefined}>
+      <p className={styles.readOnlyNote} style={{ marginBottom: "0.75rem" }}>
+        Reject the maintenance cost logged for <strong>{vehicleLabel}</strong>. The driver will
+        see the reason you give below.
+      </p>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="maintenanceRejectReason">Reason</label>
+        <textarea
+          id="maintenanceRejectReason"
+          className={styles.input}
+          rows={4}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="e.g. Cost seems inflated compared to similar services."
+        />
+      </div>
+      <div className={styles.modalActions}>
+        <button type="button" className={styles.secondaryBtn} onClick={onClose} disabled={pending}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className={styles.dangerBtn}
+          onClick={() => onConfirm(reason.trim())}
+          disabled={pending || !reason.trim()}
+        >
+          {pending && <Loader2 size={16} className={styles.spin} />}
+          {pending ? "Rejecting…" : "Reject"}
+        </button>
       </div>
     </ModalShell>
   );

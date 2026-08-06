@@ -128,3 +128,32 @@ export async function updateDeliveryStatus(id: number, newStatus: string) {
   return {};
 }
 
+// --- Maintenance record review ------------------------------------------
+
+/** Approves a driver-logged maintenance record's cost. */
+export async function approveMaintenanceRecord(id: number) {
+  const res = await apiFetch(`/api/admin/maintenance-records/${id}/approve/`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+  revalidatePath("/transportation");
+  return {};
+}
+
+/** Rejects a driver-logged maintenance record's cost — a reason is required. */
+export async function rejectMaintenanceRecord(id: number, reason: string) {
+  const res = await apiFetch(`/api/admin/maintenance-records/${id}/reject/`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+  revalidatePath("/transportation");
+  return {};
+}
+

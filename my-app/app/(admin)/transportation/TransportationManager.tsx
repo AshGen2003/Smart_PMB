@@ -18,18 +18,21 @@
 
 import { useState, useTransition } from "react";
 import clsx from "clsx";
-import { Fuel, MapPin, Pencil, Plus, Route as RouteIcon, Trash2, Truck, Wrench } from "lucide-react";
+import { Check, Fuel, MapPin, Pencil, Plus, Route as RouteIcon, Trash2, Truck, Wrench, X as XIcon } from "lucide-react";
 import {
   deleteVehicle,
   deleteRoute,
   deleteDelivery,
   updateDeliveryStatus,
+  approveMaintenanceRecord,
+  rejectMaintenanceRecord,
 } from "@/app/actions/transportation";
 import {
   VehicleFormModal,
   RouteFormModal,
   DeliveryFormModal,
   DeliveryTrackModal,
+  MaintenanceRejectModal,
   type EditableDelivery,
 } from "./TransportationFormModals";
 import StyledSelect from "@/app/components/StyledSelect";
@@ -97,6 +100,9 @@ export type MaintenanceRecordRow = {
   description: string;
   cost: string;
   next_service_date: string | null;
+  status: "pending" | "approved" | "rejected";
+  reviewed_by_name: string | null;
+  rejection_reason: string;
 };
 
 type Stats = {
@@ -183,6 +189,31 @@ export default function TransportationManager({
       const result = await fn();
       if (result.error) setError(result.error);
       setDeleteTarget(null);
+    });
+  }
+
+  const [approveMaintenanceTarget, setApproveMaintenanceTarget] = useState<MaintenanceRecordRow | null>(null);
+  const [rejectMaintenanceTarget, setRejectMaintenanceTarget] = useState<MaintenanceRecordRow | null>(null);
+
+  function confirmApproveMaintenance() {
+    if (!approveMaintenanceTarget) return;
+    const target = approveMaintenanceTarget;
+    setError(null);
+    startTransition(async () => {
+      const result = await approveMaintenanceRecord(target.id);
+      if (result.error) setError(result.error);
+      setApproveMaintenanceTarget(null);
+    });
+  }
+
+  function confirmRejectMaintenance(reason: string) {
+    if (!rejectMaintenanceTarget) return;
+    const target = rejectMaintenanceTarget;
+    setError(null);
+    startTransition(async () => {
+      const result = await rejectMaintenanceRecord(target.id, reason);
+      if (result.error) setError(result.error);
+      else setRejectMaintenanceTarget(null);
     });
   }
 
@@ -500,7 +531,8 @@ export default function TransportationManager({
         {tab === "maintenance" && (
           <>
             <p className={styles.readOnlyNote}>
-              Maintenance records are logged by drivers from their own Vehicle Log — view only here.
+              Maintenance records are logged by drivers from their own Vehicle Log —
+              {canWrite ? " review the cost below." : " view only here."}
             </p>
             {maintenanceRecords.length === 0 ? (
               <div className={styles.emptyState}><Wrench size={28} /> No maintenance records yet.</div>
@@ -509,7 +541,7 @@ export default function TransportationManager({
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Vehicle</th><th>Description</th><th>Service date</th><th>Cost (Rs.)</th><th>Next service</th>
+                      <th>Vehicle</th><th>Description</th><th>Service date</th><th>Cost (Rs.)</th><th>Next service</th><th>Status</th>{canWrite && <th></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -520,6 +552,44 @@ export default function TransportationManager({
                         <td>{m.service_date}</td>
                         <td>{Number(m.cost).toLocaleString()}</td>
                         <td>{m.next_service_date || "—"}</td>
+                        <td>
+                          <span
+                            className={clsx(
+                              styles.badge,
+                              m.status === "approved" && styles.assignmentAccepted,
+                              m.status === "rejected" && styles.assignmentRejected
+                            )}
+                            title={m.status === "rejected" && m.rejection_reason ? m.rejection_reason : undefined}
+                          >
+                            {m.status}
+                          </span>
+                        </td>
+                        {canWrite && (
+                          <td>
+                            {m.status === "pending" && (
+                              <div className={styles.rowActions}>
+                                <button
+                                  type="button"
+                                  className={styles.iconBtn}
+                                  aria-label="Approve"
+                                  title="Approve"
+                                  onClick={() => setApproveMaintenanceTarget(m)}
+                                >
+                                  <Check size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.iconBtn}
+                                  aria-label="Reject"
+                                  title="Reject"
+                                  onClick={() => setRejectMaintenanceTarget(m)}
+                                >
+                                  <XIcon size={16} />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -561,6 +631,34 @@ export default function TransportationManager({
           pending={isPending}
           onConfirm={confirmDelete}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {approveMaintenanceTarget && (
+        <ConfirmModal
+          title="Approve this maintenance cost?"
+          message={
+            <>
+              Approve Rs. {Number(approveMaintenanceTarget.cost).toLocaleString()} for{" "}
+              <strong>{approveMaintenanceTarget.vehicle_registration ?? "this vehicle"}</strong>?
+            </>
+          }
+          confirmLabel="Approve"
+          pendingLabel="Approving…"
+          variant="warning"
+          pending={isPending}
+          onConfirm={confirmApproveMaintenance}
+          onClose={() => setApproveMaintenanceTarget(null)}
+        />
+      )}
+
+      {rejectMaintenanceTarget && (
+        <MaintenanceRejectModal
+          vehicleLabel={rejectMaintenanceTarget.vehicle_registration ?? "this vehicle"}
+          pending={isPending}
+          error={error}
+          onConfirm={confirmRejectMaintenance}
+          onClose={() => setRejectMaintenanceTarget(null)}
         />
       )}
     </div>

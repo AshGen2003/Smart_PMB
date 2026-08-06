@@ -404,13 +404,35 @@ class FuelRecordSerializer(serializers.ModelSerializer):
 
 
 class MaintenanceRecordSerializer(serializers.ModelSerializer):
-    """Read/write representation of a MaintenanceRecord, with the vehicle's registration resolved for display. See FuelRecordSerializer's docstring for why `vehicle_registration` must stay read_only."""
+    """
+    Read/write representation of a MaintenanceRecord, with the vehicle's
+    registration resolved for display. See FuelRecordSerializer's
+    docstring for why `vehicle_registration` must stay read_only.
+
+    Shared by both the driver's full-CRUD viewset and the officer's
+    read-only-plus-approve/reject one (see MaintenanceRecordViewSet in
+    views.py) -- status/reviewed_at/rejection_reason MUST stay read_only
+    here, or a driver's own PATCH could set their own approval status.
+    They're only ever set server-side, by the approve/reject actions.
+    """
 
     vehicle_registration = serializers.CharField(source="vehicle.registration_no", read_only=True, default=None)
+    reviewed_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = MaintenanceRecord
         fields = [
             "id", "vehicle", "vehicle_registration", "service_date",
-            "description", "cost", "next_service_date",
+            "description", "cost", "next_service_date", "status",
+            "reviewed_by_name", "reviewed_at", "rejection_reason",
         ]
+        read_only_fields = ["status", "reviewed_at", "rejection_reason"]
+
+    def get_reviewed_by_name(self, obj):
+        return obj.reviewed_by.full_name if obj.reviewed_by else None
+
+
+class MaintenanceDecisionSerializer(serializers.Serializer):
+    """Validates the required rejection reason submitted with MaintenanceRecordViewSet's reject action."""
+
+    reason = serializers.CharField(max_length=500)

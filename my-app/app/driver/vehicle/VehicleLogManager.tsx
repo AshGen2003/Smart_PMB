@@ -39,6 +39,9 @@ export type MaintenanceRecordRow = {
   description: string;
   cost: string;
   next_service_date: string | null;
+  status: "pending" | "approved" | "rejected";
+  reviewed_by_name: string | null;
+  rejection_reason: string;
 };
 
 type Tab = "fuel" | "maintenance";
@@ -174,11 +177,13 @@ export default function VehicleLogManager({
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Vehicle</th><th>Description</th><th>Service date</th><th>Cost (Rs.)</th><th>Next service</th><th></th>
+                      <th>Vehicle</th><th>Description</th><th>Service date</th><th>Cost (Rs.)</th><th>Next service</th><th>Status</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {maintenanceRecords.map((m) => (
+                    {maintenanceRecords.map((m) => {
+                      const locked = m.status !== "pending";
+                      return (
                       <tr key={m.id}>
                         <td>{m.vehicle_registration ?? "—"}</td>
                         <td>{m.description || "—"}</td>
@@ -186,15 +191,37 @@ export default function VehicleLogManager({
                         <td>{Number(m.cost).toLocaleString()}</td>
                         <td>{m.next_service_date || "—"}</td>
                         <td>
+                          <span
+                            className={clsx(
+                              styles.badge,
+                              m.status === "approved" && styles.badgeApproved,
+                              m.status === "rejected" && styles.badgeRejected
+                            )}
+                          >
+                            {m.status}
+                          </span>
+                          {m.status === "rejected" && m.rejection_reason && (
+                            <p className={styles.rejectionReason}>{m.rejection_reason}</p>
+                          )}
+                        </td>
+                        <td>
                           <div className={styles.rowActions}>
-                            <button type="button" className={styles.iconBtn} aria-label="Edit maintenance record" onClick={() => setMaintenanceModal({ mode: "edit", row: m })}>
+                            <button
+                              type="button"
+                              className={styles.iconBtn}
+                              aria-label="Edit maintenance record"
+                              title={locked ? "Already reviewed — can't be edited" : "Edit"}
+                              disabled={locked}
+                              onClick={() => setMaintenanceModal({ mode: "edit", row: m })}
+                            >
                               <Pencil size={14} />
                             </button>
                             <button
                               type="button"
                               className={clsx(styles.iconBtn, styles.deleteIconBtn)}
                               aria-label="Delete maintenance record"
-                              disabled={isPending}
+                              title={locked ? "Already reviewed — can't be deleted" : "Delete"}
+                              disabled={isPending || locked}
                               onClick={() => handleDelete(`maintenance record #${m.id}`, () => deleteMaintenanceRecord(m.id))}
                             >
                               <Trash2 size={14} />
@@ -202,7 +229,8 @@ export default function VehicleLogManager({
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

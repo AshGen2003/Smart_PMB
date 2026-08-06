@@ -6,41 +6,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { hasGoogleMapsApiKey, loadGoogleMapsScript } from "@/app/lib/googleMaps";
 import styles from "./LocationMap.module.css";
-
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-
-declare global {
-  interface Window {
-    google?: typeof google;
-  }
-}
-
-// Google's script tag is loaded lazily on first mount. A module-level
-// promise means every LocationMap instance on the page shares one
-// script/load instead of racing to inject their own <script> tags.
-let loaderPromise: Promise<void> | null = null;
-
-function loadGoogleMapsScript(): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
-  if (window.google?.maps?.Map) return Promise.resolve();
-  if (loaderPromise) return loaderPromise;
-
-  loaderPromise = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    // No `loading=async`/`importLibrary` here — that flow needs Google's
-    // official bootstrap shim run before this script loads. A plain script
-    // tag like this loads the full "maps" library synchronously, so
-    // `google.maps.Map`/`google.maps.Marker` are real constructors as soon
-    // as onload fires.
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}`;
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Google Maps"));
-    document.head.appendChild(script);
-  });
-  return loaderPromise;
-}
 
 export function LocationMap({
   latitude,
@@ -52,14 +19,15 @@ export function LocationMap({
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  // Known synchronously at first render (a build-time env var, never
+  // changes) — initialized directly rather than set from inside the
+  // effect below, so the effect only ever calls setLoadError from an
+  // async callback, never synchronously on every run.
+  const [loadError, setLoadError] = useState(!hasGoogleMapsApiKey());
 
   useEffect(() => {
     let cancelled = false;
-    if (!API_KEY) {
-      setLoadError(true);
-      return;
-    }
+    if (!hasGoogleMapsApiKey()) return;
     loadGoogleMapsScript()
       .then(() => {
         if (cancelled || !mapDivRef.current || mapRef.current) return;

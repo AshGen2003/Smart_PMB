@@ -536,11 +536,25 @@ class FuelRecord(models.Model):
 
 
 class MaintenanceRecord(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="maintenance_records")
     service_date = models.DateField()
     description = models.CharField(max_length=255, blank=True)
     cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     next_service_date = models.DateField(null=True, blank=True)
+    # A driver logs a maintenance record (see DriverMaintenanceRecordViewSet)
+    # and a PMB officer reviews the cost (see MaintenanceRecordViewSet's
+    # approve/reject actions) -- mirrors LicenseApplication's review shape.
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.CharField(max_length=500, blank=True)
 
     class Meta:
         ordering = ["-service_date", "-id"]
