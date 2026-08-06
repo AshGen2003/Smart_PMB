@@ -35,11 +35,12 @@ export async function createUser(
     nic: String(formData.get("nic") ?? "").trim(),
     phone_number: String(formData.get("phoneNumber") ?? "").trim(),
     role: Number(formData.get("role")),
-    // Only meaningful when the selected role is "pmb_officer" — Django
-    // ignores them for every other role (see accounts/serializers.py's
-    // AdminUserWriteSerializer.create).
+    // designation is pmb_officer-only, land_size is farmer-only; district
+    // is shared by both — Django ignores whichever doesn't apply to the
+    // selected role (see accounts/serializers.py's AdminUserWriteSerializer.create).
     designation: String(formData.get("designation") ?? "").trim(),
     district: formData.get("district") ? Number(formData.get("district")) : null,
+    land_size: formData.get("landSize") ? Number(formData.get("landSize")) : null,
   };
 
   const res = await apiFetch("/api/admin/users/", {
@@ -83,6 +84,7 @@ export async function updateUser(
     email_confirmed: formData.get("emailConfirmed") === "on",
     designation: String(formData.get("designation") ?? "").trim(),
     district: formData.get("district") ? Number(formData.get("district")) : null,
+    land_size: formData.get("landSize") ? Number(formData.get("landSize")) : null,
   };
 
   const res = await apiFetch(`/api/admin/users/${userId}/`, {

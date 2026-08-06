@@ -34,10 +34,12 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
+  Users,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/officer", icon: LayoutDashboard, permission: "view_dashboard" },
+  { label: "Users", href: "/officer/residents", icon: Users, permission: "manage_users" },
   { label: "Warehouses", href: "/officer/warehouses", icon: Warehouse, permission: "manage_warehouses" },
   { label: "Pricing", href: "/officer/pricing", icon: Coins, permission: "manage_pricing" },
   {

@@ -41,6 +41,7 @@ export type EditableUser = {
   email_confirmed: boolean;
   designation: string | null;
   district: number | null;
+  land_size: string | null;
 };
 
 const initialState: UserFormState = {};
@@ -50,8 +51,9 @@ const initialState: UserFormState = {};
  * updateUser (with the id bound in) based on `mode`, and closes itself
  * once the save succeeds. The role picker is controlled (rather than a
  * plain uncontrolled <select>) so designation/district can be shown only
- * when the selected role is "pmb_officer" — those fields populate a
- * PmbOfficer profile server-side (see accounts/serializers.py's
+ * when the selected role is "pmb_officer" (populating a PmbOfficer
+ * profile server-side) or district/land size only for "farmer"
+ * (populating a Farmer profile) — see accounts/serializers.py's
  * AdminUserWriteSerializer), meaningless for every other role.
  */
 export default function UserFormModal({
@@ -72,6 +74,7 @@ export default function UserFormModal({
   const wasSubmitting = useRef(false);
   const [roleId, setRoleId] = useState(user?.roleId != null ? String(user.roleId) : "");
   const isOfficer = roles.find((r) => String(r.id) === roleId)?.slug === "pmb_officer";
+  const isFarmer = roles.find((r) => String(r.id) === roleId)?.slug === "farmer";
 
   // Auto-close the modal once a pending submission resolves without error.
   useEffect(() => {
@@ -208,6 +211,38 @@ export default function UserFormModal({
                   defaultValue={user?.district != null ? String(user.district) : ""}
                   placeholder="Select district"
                   options={districts.map((d) => ({ value: String(d.id), label: d.name }))}
+                />
+              </div>
+            </div>
+          )}
+
+          {isFarmer && (
+            <div className={styles.fieldRow}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="district">
+                  District <span className={styles.optional}>(optional)</span>
+                </label>
+                <StyledSelect
+                  id="district"
+                  name="district"
+                  defaultValue={user?.district != null ? String(user.district) : ""}
+                  placeholder="Select district"
+                  options={districts.map((d) => ({ value: String(d.id), label: d.name }))}
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="landSize">
+                  Land size (acres) <span className={styles.optional}>(optional)</span>
+                </label>
+                <input
+                  id="landSize"
+                  name="landSize"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  defaultValue={user?.land_size ?? ""}
+                  className={styles.input}
+                  placeholder="e.g. 2.5"
                 />
               </div>
             </div>

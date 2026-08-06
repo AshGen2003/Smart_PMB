@@ -37,6 +37,7 @@ export type AdminUserRow = {
   employee_no: string | null;
   designation: string | null;
   district: number | null;
+  land_size: string | null;
 };
 
 /**
@@ -328,6 +329,7 @@ export default function UsersManager({
                               email_confirmed: u.email_confirmed,
                               designation: u.designation,
                               district: u.district,
+                              land_size: u.land_size,
                             },
                           })
                         }

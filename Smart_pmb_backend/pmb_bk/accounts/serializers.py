@@ -458,13 +458,14 @@ class AdminUserSerializer(serializers.ModelSerializer):
     employee_no = serializers.SerializerMethodField()
     designation = serializers.SerializerMethodField()
     district = serializers.SerializerMethodField()
+    land_size = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "id", "email", "full_name", "nic", "phone_number", "role",
             "is_active", "email_confirmed", "date_joined", "last_login",
-            "last_activity", "is_locked", "employee_no", "designation", "district",
+            "last_activity", "is_locked", "employee_no", "designation", "district", "land_size",
         ]
         read_only_fields = ["id", "date_joined", "last_login", "last_activity"]
 
@@ -497,8 +498,15 @@ class AdminUserSerializer(serializers.ModelSerializer):
         return officer.designation if officer else None
 
     def get_district(self, obj):
+        farmer = getattr(obj, "farmer_profile", None)
+        if farmer and farmer.district_id:
+            return farmer.district_id
         officer = getattr(obj, "pmb_officer_profile", None)
         return officer.district_id if officer and officer.district_id else None
+
+    def get_land_size(self, obj):
+        farmer = getattr(obj, "farmer_profile", None)
+        return farmer.land_size if farmer else None
 
 
 def generate_temp_password() -> str:
@@ -523,40 +531,86 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
     # Officer-only fields below — meaningful only when the assigned role is
     # "pmb_officer" (see create()/update()); ignored for every other role.
     # employee_no isn't here since it's server-generated, same as a
-    # Farmer's/Mill's registration_no, never admin-typed.
+    # Farmer's/Mill's registration_no, never admin-typed. "district" is
+    # shared with the farmer branch below (not officer-specific despite
+    # living in this comment block) — same FK concept either way.
     designation = serializers.CharField(max_length=100, required=False, allow_blank=True)
     district = serializers.IntegerField(required=False, allow_null=True)
+    # Farmer-only — meaningful only when the assigned role is "farmer".
+    land_size = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True
+    )
 
     class Meta:
         model = User
         fields = [
             "id", "email", "full_name", "nic", "phone_number", "role",
-            "is_active", "email_confirmed", "password", "designation", "district",
+            "is_active", "email_confirmed", "password", "designation", "district", "land_size",
         ]
         read_only_fields = ["id"]
+
+    def validate(self, attrs):
+        # Mirrors RegisterFarmerSerializer.validate_nic — self-registration
+        # already guards this; admin/officer-created farmers should get the
+        # same clean 400 instead of Farmer.nic's unique constraint leaking
+        # through as a raw IntegrityError.
+        role = attrs.get("role", getattr(self.instance, "role", None))
+        nic = attrs.get("nic")
+        if role and role.slug == "farmer" and nic:
+            existing = Farmer.objects.filter(nic=nic)
+            if self.instance is not None:
+                existing = existing.exclude(user_id=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError({"nic": "An account with this NIC already exists."})
+        return attrs
 
     def create(self, validated_data):
         password = validated_data.pop("password", "") or generate_temp_password()
         designation = validated_data.pop("designation", "")
         district_id = validated_data.pop("district", None)
+        land_size = validated_data.pop("land_size", None)
+        district = None
+        province = None
+        if district_id:
+            district = District.objects.select_related("province").filter(pk=district_id).first()
+            province = district.province if district else None
+
         user = User(**validated_data)
         user.set_password(password)  # hash before saving
         user.must_change_password = True
-        user.save()
+        # Wraps the User save itself, not just the profile create below —
+        # a dangling User row with role=farmer/pmb_officer and no matching
+        # profile is a worse state than the create simply failing outright
+        # (most of the app assumes e.g. user.farmer_profile exists for a
+        # farmer-role account), so if the profile create fails, the User
+        # save must roll back with it, not stay committed on its own.
+        with transaction.atomic():
+            user.save()
+
+            if user.role.slug == "pmb_officer":
+                PmbOfficer.objects.create(
+                    user=user,
+                    employee_no=f"EMP-{timezone.now().year}-{random.randint(100000, 999999)}",
+                    nic=validated_data.get("nic", ""),
+                    designation=designation,
+                    district_id=district_id,
+                    contact_number=validated_data.get("phone_number", ""),
+                )
+            elif user.role.slug == "farmer":
+                Farmer.objects.create(
+                    user=user,
+                    registration_no=f"FRM-{timezone.now().year}-{random.randint(100000, 999999)}",
+                    name=user.full_name,
+                    nic=validated_data.get("nic", ""),
+                    district=district,
+                    province=province,
+                    land_size=land_size,
+                    contact_number=validated_data.get("phone_number", ""),
+                )
+
         # Not persisted — stashed only so the view can email it once, right
         # after this call returns; never touches the database in plaintext.
         user._plain_password = password
-
-        if user.role.slug == "pmb_officer":
-            PmbOfficer.objects.create(
-                user=user,
-                employee_no=f"EMP-{timezone.now().year}-{random.randint(100000, 999999)}",
-                nic=validated_data.get("nic", ""),
-                designation=designation,
-                district_id=district_id,
-                contact_number=validated_data.get("phone_number", ""),
-            )
-
         return user
 
     def update(self, instance, validated_data):
@@ -569,23 +623,37 @@ class AdminUserWriteSerializer(serializers.ModelSerializer):
         validated_data.pop("password", None)
         designation = validated_data.pop("designation", None)
         district_id = validated_data.pop("district", None)
+        land_size = validated_data.pop("land_size", None)
         # nic/phone_number are read back from the Farmer/PmbOfficer profile
         # when one exists (see AdminUserSerializer.get_nic/get_phone_number)
         # — write through to it here too, or an admin editing those fields
         # from this form would silently appear to do nothing on the list.
-        farmer = getattr(instance, "farmer_profile", None)
-        if farmer:
+        #
+        # "role" is in validated_data whenever it's part of this PATCH —
+        # get_or_create here (both branches below) so an account whose role
+        # is only just now being changed to farmer/pmb_officer gets a
+        # profile too, not just one that already had the role from creation.
+        new_role = validated_data.get("role", instance.role)
+        if new_role.slug == "farmer":
+            farmer, _ = Farmer.objects.get_or_create(
+                user=instance,
+                defaults={
+                    "registration_no": f"FRM-{timezone.now().year}-{random.randint(100000, 999999)}",
+                    "name": validated_data.get("full_name", instance.full_name),
+                },
+            )
             if "nic" in validated_data:
                 farmer.nic = validated_data["nic"] or farmer.nic
             if "phone_number" in validated_data:
                 farmer.contact_number = validated_data["phone_number"]
-            farmer.save(update_fields=["nic", "contact_number"])
+            if district_id is not None:
+                district = District.objects.select_related("province").filter(pk=district_id).first()
+                farmer.district = district
+                farmer.province = district.province if district else None
+            if land_size is not None:
+                farmer.land_size = land_size
+            farmer.save(update_fields=["nic", "contact_number", "district", "province", "land_size"])
 
-        # "role" is in validated_data whenever it's part of this PATCH —
-        # get_or_create here so an account whose role is only just now being
-        # changed to pmb_officer gets a profile too, not just one that
-        # already had the role from creation.
-        new_role = validated_data.get("role", instance.role)
         if new_role.slug == "pmb_officer":
             officer, _ = PmbOfficer.objects.get_or_create(
                 user=instance,
