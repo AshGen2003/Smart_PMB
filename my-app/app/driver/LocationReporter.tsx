@@ -35,10 +35,12 @@ export function LocationReporter({
   deliveryId,
   isInTransit,
   initialLocation,
+  destination,
 }: {
   deliveryId: number;
   isInTransit: boolean;
   initialLocation: LatLng | null;
+  destination?: string | null;
 }) {
   const [location, setLocation] = useState<LatLng | null>(initialLocation);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export function LocationReporter({
   return (
     <>
       {location ? (
-        <LocationMap latitude={location.latitude} longitude={location.longitude} />
+        <LocationMap latitude={location.latitude} longitude={location.longitude} destination={destination ?? undefined} />
       ) : (
         <LocationMapPlaceholder message="Waiting for your first location update…" />
       )}

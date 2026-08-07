@@ -441,7 +441,11 @@ export function DeliveryTrackModal({
   return (
     <ModalShell title={`Track: ${delivery.vehicle_registration ?? "Delivery"}`} onClose={onClose}>
       {location ? (
-        <LocationMap latitude={location.latitude} longitude={location.longitude} />
+        <LocationMap
+          latitude={location.latitude}
+          longitude={location.longitude}
+          destination={delivery.route_destination ?? undefined}
+        />
       ) : (
         <LocationMapPlaceholder message="No location reported yet — the driver hasn't started this trip." />
       )}

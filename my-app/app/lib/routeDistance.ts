@@ -65,6 +65,55 @@ export async function calculateRouteDistance(
   }
 }
 
+export type RouteDirectionsResult =
+  | { path: { lat: number; lng: number }[]; error?: undefined }
+  | { path?: undefined; error: string };
+
+/**
+ * Driving route (as a lat/lng path to draw on a map) from a live GPS
+ * position to a free-text destination — used by LocationMap to show a
+ * driver the direction to their delivery, not just their current pin.
+ */
+export async function getRouteDirections(
+  originLat: number,
+  originLng: number,
+  destination: string
+): Promise<RouteDirectionsResult> {
+  const apiKey = process.env.ORS_API_KEY;
+  if (!apiKey) return { error: "Directions lookup isn't configured." };
+
+  try {
+    const destCoord = await geocode(destination, apiKey);
+    if (!destCoord) return { error: "Couldn't find the destination location." };
+
+    const res = await fetch(`${ORS_BASE}/v2/directions/driving-car/geojson`, {
+      method: "POST",
+      headers: {
+        Authorization: apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        coordinates: [[originLng, originLat], destCoord],
+      }),
+    });
+    if (!res.ok) {
+      console.warn("ORS directions lookup failed:", res.status, await res.text().catch(() => ""));
+      return { error: "Directions lookup failed." };
+    }
+
+    const data = await res.json();
+    const coords: [number, number][] | undefined = data?.features?.[0]?.geometry?.coordinates;
+    if (!coords || coords.length === 0) {
+      return { error: "Couldn't calculate a route to this destination." };
+    }
+
+    return { path: coords.map(([lng, lat]) => ({ lat, lng })) };
+  } catch (e) {
+    console.warn("ORS directions lookup error:", e);
+    return { error: "Directions lookup failed." };
+  }
+}
+
 /** Geocodes free text to an ORS [lon, lat] pair via its Pelias-based search endpoint. */
 async function geocode(text: string, apiKey: string): Promise<[number, number] | null> {
   const url = new URL(`${ORS_BASE}/geocode/search`);

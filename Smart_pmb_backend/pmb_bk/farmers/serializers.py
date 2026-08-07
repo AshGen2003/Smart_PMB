@@ -328,6 +328,10 @@ class DeliverySerializer(serializers.ModelSerializer):
     vehicle_registration = serializers.CharField(source="vehicle.registration_no", default=None)
     driver_name = serializers.CharField(source="driver.full_name", default=None)
     route_label = serializers.SerializerMethodField()
+    # Raw destination text (not the combined route_label) — needed on the
+    # frontend to look up driving directions from the driver's live
+    # position to this point (see LocationMap's `destination` prop).
+    route_destination = serializers.CharField(source="route.destination", default=None)
     warehouse_name = serializers.CharField(source="warehouse.name", default=None)
     approved_by_name = serializers.CharField(source="approved_by.full_name", default=None)
     latest_location = serializers.SerializerMethodField()
@@ -336,7 +340,7 @@ class DeliverySerializer(serializers.ModelSerializer):
         model = Delivery
         fields = [
             "id", "vehicle", "vehicle_registration", "driver", "driver_name",
-            "route", "route_label", "warehouse", "warehouse_name",
+            "route", "route_label", "route_destination", "warehouse", "warehouse_name",
             "approved_by", "approved_by_name", "scheduled_date", "status",
             "assignment_status", "latest_location",
         ]

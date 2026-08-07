@@ -72,6 +72,7 @@ export type DeliveryRow = {
   driver_name: string | null;
   route: number;
   route_label: string | null;
+  route_destination: string | null;
   warehouse: number | null;
   warehouse_name: string | null;
   approved_by: string | null;

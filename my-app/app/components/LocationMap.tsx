@@ -7,18 +7,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import { hasGoogleMapsApiKey, loadGoogleMapsScript } from "@/app/lib/googleMaps";
+import { getRouteDirections } from "@/app/lib/routeDistance";
 import styles from "./LocationMap.module.css";
 
 export function LocationMap({
   latitude,
   longitude,
+  destination,
 }: {
   latitude: number;
   longitude: number;
+  /** Free-text delivery destination — when given, draws the driving route to it (via OpenRouteService). */
+  destination?: string;
 }) {
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
+  const polylineRef = useRef<google.maps.Polyline | null>(null);
   // Known synchronously at first render (a build-time env var, never
   // changes) — initialized directly rather than set from inside the
   // effect below, so the effect only ever calls setLoadError from an
@@ -42,6 +47,23 @@ export function LocationMap({
           position: { lat: latitude, lng: longitude },
           map: mapRef.current,
         });
+
+        // Draws the intended driving route to the destination once, from
+        // the position at mount time — recalculating on every location
+        // ping would burn through the (free-tier) directions quota for a
+        // road path that doesn't change as the vehicle drives it.
+        if (destination) {
+          getRouteDirections(latitude, longitude, destination).then((result) => {
+            if (cancelled || !mapRef.current || !result.path) return;
+            polylineRef.current = new window.google!.maps.Polyline({
+              path: result.path,
+              map: mapRef.current,
+              strokeColor: "#2563eb",
+              strokeWeight: 4,
+              strokeOpacity: 0.8,
+            });
+          });
+        }
       })
       .catch((e) => {
         console.error("LocationMap load error:", e);
@@ -50,7 +72,8 @@ export function LocationMap({
     return () => {
       cancelled = true;
     };
-    // Map is only created once — the effect below handles position updates.
+    // Map + route are only created once at mount — the effect below
+    // handles marker position updates as new pings come in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

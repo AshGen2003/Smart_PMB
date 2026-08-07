@@ -15,6 +15,7 @@ type DeliveryTask = {
   vehicle_registration: string | null;
   driver_name: string | null;
   route_label: string | null;
+  route_destination: string | null;
   warehouse_name: string | null;
   scheduled_date: string;
   status: "scheduled" | "in_transit" | "delivered" | "delayed" | "cancelled";
@@ -39,6 +40,7 @@ const SAMPLE_DRIVER_DASHBOARD: DriverDashboardData = {
       vehicle_registration: "WP-DEMO-01",
       driver_name: "Sample Driver",
       route_label: "Anuradhapura Central Store → Colombo Rice Mill",
+      route_destination: "Colombo Rice Mill",
       warehouse_name: "Anuradhapura Central Store",
       scheduled_date: "2026-07-25",
       status: "scheduled",
@@ -51,6 +53,7 @@ const SAMPLE_DRIVER_DASHBOARD: DriverDashboardData = {
     vehicle_registration: "WP-DEMO-02",
     driver_name: "Sample Driver",
     route_label: "Polonnaruwa Storage Facility → Kandy Rice Mill",
+    route_destination: "Kandy Rice Mill",
     warehouse_name: "Polonnaruwa Storage Facility",
     scheduled_date: "2026-07-22",
     status: "in_transit",
@@ -63,6 +66,7 @@ const SAMPLE_DRIVER_DASHBOARD: DriverDashboardData = {
       vehicle_registration: "WP-DEMO-01",
       driver_name: "Sample Driver",
       route_label: "Kurunegala Regional Store → Colombo Central Store",
+      route_destination: "Colombo Central Store",
       warehouse_name: "Kurunegala Regional Store",
       scheduled_date: "2026-07-18",
       status: "delivered",
@@ -159,6 +163,7 @@ export default async function DriverDashboardPage() {
                 deliveryId={data.active_task.id}
                 isInTransit={data.active_task.status === "in_transit"}
                 initialLocation={data.active_task.latest_location}
+                destination={data.active_task.route_destination}
               />
             )}
             {readOnly && data.active_task.latest_location && (
@@ -166,6 +171,7 @@ export default async function DriverDashboardPage() {
                 deliveryId={data.active_task.id}
                 isInTransit={false}
                 initialLocation={data.active_task.latest_location}
+                destination={data.active_task.route_destination}
               />
             )}
           </div>
