@@ -121,6 +121,9 @@ export async function payForSystemChangeRequest(requestId: number): Promise<{ er
   }
 
   const { url } = await res.json();
+  if (!url) {
+    return { error: "Couldn't get a payment link — try again or contact an admin." };
+  }
   redirect(url);
 }
 

@@ -462,6 +462,18 @@ class SystemChangeRequestViewSet(viewsets.ModelViewSet):
 
         stripe.api_key = settings.STRIPE_SECRET_KEY
         session = stripe.checkout.Session.retrieve(change_request.stripe_checkout_session_id)
+        # A Checkout Session's `.url` is only populated while it's still
+        # "open" — Stripe clears it once the session is completed (paid) or
+        # expires (~24h). This request's local `status` can lag behind that
+        # for a few seconds until the payment webhook lands, so don't just
+        # hand back a null url and let the frontend redirect() to nowhere.
+        if session.status != "open":
+            detail = (
+                "This request may already be paid — refresh the page."
+                if session.status == "complete"
+                else "This payment session has expired. Contact an admin to issue a new one."
+            )
+            return Response({"detail": detail}, status=400)
         return Response({"url": session.url})
 
     @action(detail=True, methods=["post"], url_path="progress")
