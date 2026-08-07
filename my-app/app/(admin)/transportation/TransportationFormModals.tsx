@@ -20,7 +20,7 @@ import {
   type TransportFormState,
 } from "@/app/actions/transportation";
 import { LocationMap, LocationMapPlaceholder } from "@/app/components/LocationMap";
-import { loadGoogleMapsScript } from "@/app/lib/googleMaps";
+import { calculateRouteDistance } from "@/app/lib/routeDistance";
 import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./Transportation.module.css";
 import { DELIVERY_STATUS_LABEL, type VehicleRow, type DriverOption, type RouteRow, type DeliveryRow } from "./TransportationManager";
@@ -183,11 +183,11 @@ export function RouteFormModal({
   const [calcError, setCalcError] = useState<string | null>(null);
 
   // Auto-calculates distance/travel time from origin+destination via
-  // Google's Distance Matrix service (same API key/loader LocationMap
-  // already uses) — debounced so it only fires once typing settles, and
-  // never blocks submission if it fails (invalid address, no API key,
-  // network error): the fields stay normal, editable inputs the whole
-  // time, so a manual value always still works.
+  // OpenRouteService (calculateRouteDistance, a Server Action so the API
+  // key stays server-side) — debounced so it only fires once typing
+  // settles, and never blocks submission if it fails (unrecognized
+  // address, missing key, network error): the fields stay normal, editable
+  // inputs the whole time, so a manual value always still works.
   useEffect(() => {
     if (!origin.trim() || !destination.trim()) return;
     const timer = setTimeout(() => {
@@ -197,31 +197,19 @@ export function RouteFormModal({
       // cascading render on every keystroke for no visible benefit.
       setCalcError(null);
       setCalculating(true);
-      loadGoogleMapsScript()
-        .then(() => {
-          const service = new window.google!.maps.DistanceMatrixService();
-          service.getDistanceMatrix(
-            {
-              origins: [origin],
-              destinations: [destination],
-              travelMode: window.google!.maps.TravelMode.DRIVING,
-            },
-            (response, status) => {
-              setCalculating(false);
-              const element = response?.rows[0]?.elements[0];
-              if (status !== "OK" || !element || element.status !== "OK") {
-                setCalcError("Couldn't calculate distance for these locations — enter it manually.");
-                return;
-              }
-              setDistanceKm((element.distance.value / 1000).toFixed(1));
-              setEstimatedTime(element.duration.text);
-            }
-          );
-        })
-        .catch(() => {
-          setCalculating(false);
-          setCalcError("Couldn't load the map service — enter distance manually.");
-        });
+      calculateRouteDistance(origin, destination).then((result) => {
+        setCalculating(false);
+        if (!result.distanceKm || !result.estimatedTime) {
+          // Logged rather than shown to the user — the specific reason
+          // (unconfigured key, unrecognized address, ORS request failure)
+          // is only useful for debugging.
+          console.warn("Distance lookup failed:", result.error);
+          setCalcError("Couldn't calculate distance for these locations — enter it manually.");
+          return;
+        }
+        setDistanceKm(result.distanceKm);
+        setEstimatedTime(result.estimatedTime);
+      });
     }, 800);
     return () => clearTimeout(timer);
   }, [origin, destination]);
