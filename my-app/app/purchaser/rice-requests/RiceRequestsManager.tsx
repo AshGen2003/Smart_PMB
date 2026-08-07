@@ -2,7 +2,7 @@
  * Client Component driving the Authorized Purchaser's own rice requests: a
  * request-rice form plus a table of their full history, with a withdraw
  * action on pending rows. Mirrors the table/action pattern in
- * partner/licenses/LicensesManager.tsx (the mill-owner equivalent).
+ * mill-owner/licenses/LicensesManager.tsx (the mill-owner equivalent).
  */
 "use client";
 
@@ -13,7 +13,7 @@ import { Package } from "lucide-react";
 import { withdrawRiceRequest } from "@/app/actions/purchases";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import RequestRiceForm, { type PaddyTypeOption } from "./RequestRiceForm";
-import styles from "../PartnerDashboard.module.css";
+import styles from "../PurchaserDashboard.module.css";
 
 export type RiceRequestRow = {
   id: number;

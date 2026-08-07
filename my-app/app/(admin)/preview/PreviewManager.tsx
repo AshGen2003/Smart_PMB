@@ -22,6 +22,7 @@ import {
   Warehouse,
   Coins,
   ClipboardCheck,
+  ClipboardList,
   Eye,
   MessageSquare,
   Truck,
@@ -29,6 +30,8 @@ import {
   Settings,
   User,
   BadgeCheck,
+  FileCheck,
+  Package,
 } from "lucide-react";
 import { enterPreview } from "@/app/actions/preview";
 import { toggleRolePermission } from "@/app/actions/roles";
@@ -102,10 +105,20 @@ const DRIVER_NAV_ITEMS = [
   { label: "Profile", icon: User, permission: "view_profile" },
 ] as const;
 
-// Mirrors PartnerSidebar.tsx's NAV_ITEMS (authorized_purchaser/mill_owner —
-// identical shape to farmer's).
-const PARTNER_NAV_ITEMS = [
+// Mirrors MillOwnerSidebar.tsx's NAV_ITEMS.
+const MILL_OWNER_NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
+  { label: "Licenses", icon: FileCheck, permission: "view_dashboard" },
+  { label: "Milling Reports", icon: ClipboardList, permission: "view_dashboard" },
+  { label: "Messages", icon: MessageSquare, permission: "view_messages" },
+  { label: "Settings", icon: Settings, permission: "view_settings" },
+  { label: "Profile", icon: User, permission: "view_profile" },
+] as const;
+
+// Mirrors PurchaserSidebar.tsx's NAV_ITEMS.
+const PURCHASER_NAV_ITEMS = [
+  { label: "Dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
+  { label: "Rice Requests", icon: Package, permission: "view_dashboard" },
   { label: "Messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", icon: Settings, permission: "view_settings" },
   { label: "Profile", icon: User, permission: "view_profile" },
@@ -124,8 +137,10 @@ export default function PreviewManager({ roles }: { roles: RoleRow[] }) {
       ? FARMER_NAV_ITEMS
       : selected?.slug === "driver"
       ? DRIVER_NAV_ITEMS
-      : selected?.slug === "authorized_purchaser" || selected?.slug === "mill_owner"
-      ? PARTNER_NAV_ITEMS
+      : selected?.slug === "mill_owner"
+      ? MILL_OWNER_NAV_ITEMS
+      : selected?.slug === "authorized_purchaser"
+      ? PURCHASER_NAV_ITEMS
       : ADMIN_NAV_ITEMS;
 
   function handleToggle(codename: string | string[], checked: boolean) {

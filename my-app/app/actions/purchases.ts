@@ -37,8 +37,8 @@ export async function submitRiceRequest(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/partner/rice-requests");
-  revalidatePath("/partner");
+  revalidatePath("/purchaser/rice-requests");
+  revalidatePath("/purchaser");
   return {};
 }
 
@@ -53,8 +53,8 @@ export async function withdrawRiceRequest(requestId: number): Promise<{ error?: 
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/partner/rice-requests");
-  revalidatePath("/partner");
+  revalidatePath("/purchaser/rice-requests");
+  revalidatePath("/purchaser");
   return {};
 }
 

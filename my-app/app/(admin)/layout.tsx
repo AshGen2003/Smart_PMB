@@ -30,11 +30,11 @@ export default async function AdminLayout({
   // redirects to /login if there is no valid session.
   const user = await requireUser();
 
-  // Farmers/drivers/partners have their own portal/shell (see
-  // app/farmer/layout.tsx, app/driver/layout.tsx, app/partner/layout.tsx) —
-  // bounce them out of the admin area if they land here directly (including
-  // via Portal Preview, since `user.role` reflects the previewed role while
-  // previewing).
+  // Farmers/drivers/mill owners/purchasers have their own portal/shell (see
+  // app/farmer/layout.tsx, app/driver/layout.tsx, app/mill-owner/layout.tsx,
+  // app/purchaser/layout.tsx) — bounce them out of the admin area if they
+  // land here directly (including via Portal Preview, since `user.role`
+  // reflects the previewed role while previewing).
   if (user.role === "farmer") {
     redirect("/farmer");
   }
@@ -47,8 +47,11 @@ export default async function AdminLayout({
   if (user.role === "pmb_officer") {
     redirect("/officer");
   }
-  if (user.role === "authorized_purchaser" || user.role === "mill_owner") {
-    redirect("/partner");
+  if (user.role === "mill_owner") {
+    redirect("/mill-owner");
+  }
+  if (user.role === "authorized_purchaser") {
+    redirect("/purchaser");
   }
 
   // An admin-set (or admin-reset) temporary password must be changed before

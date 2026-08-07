@@ -1,7 +1,7 @@
 /**
- * `/partner/settings` — self-service settings page for the logged-in
- * authorized purchaser / mill owner: account details and appearance
- * (theme). No admin-only shortcuts section here, since partners never
+ * `/mill-owner/settings` — self-service settings page for the logged-in
+ * mill owner: account details, mill business details, and appearance
+ * (theme). No admin-only shortcuts section here, since mill owners never
  * have manage_users.
  */
 import { requirePermission } from "@/app/lib/dal";
@@ -15,16 +15,15 @@ import {
   SupportSettings,
 } from "@/app/components/SettingsSections";
 import MillDetailsForm, { type DistrictOption, type MillDetails } from "./MillDetailsForm";
-import styles from "../PartnerDashboard.module.css";
+import styles from "../MillOwnerDashboard.module.css";
 
 /** Server Component: loads the current user and renders the shared settings sections. */
-export default async function PartnerSettingsPage() {
+export default async function MillOwnerSettingsPage() {
   const user = await requirePermission("view_settings");
 
-  const shouldFetchMill = !user.previewing && user.role === "mill_owner";
   const [millRes, districtsRes] = await Promise.all([
-    shouldFetchMill ? apiFetch("/api/mill-owner/profile/") : Promise.resolve(null),
-    shouldFetchMill ? apiFetch("/api/districts/") : Promise.resolve(null),
+    !user.previewing ? apiFetch("/api/mill-owner/profile/") : Promise.resolve(null),
+    !user.previewing ? apiFetch("/api/districts/") : Promise.resolve(null),
   ]);
   const mill: MillDetails | null = millRes?.ok ? await millRes.json() : null;
   const districts: DistrictOption[] = districtsRes?.ok ? await districtsRes.json() : [];
@@ -53,7 +52,7 @@ export default async function PartnerSettingsPage() {
         notifyViaSms={user.notifyViaSms}
       />
       <HelpCenterSettings role="partner" />
-      <SupportSettings messagesHref="/partner/messages" />
+      <SupportSettings messagesHref="/mill-owner/messages" />
     </div>
   );
 }

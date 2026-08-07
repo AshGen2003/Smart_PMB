@@ -1,18 +1,18 @@
 /**
- * Top-level shell for every page under `app/partner/`: partner sidebar +
- * header, with `children` rendered as the page content. Mounted once by
- * `partner/layout.tsx` — reached once a LicenseApplication has been
- * approved, or there's no application at all (admin-created account, or an
- * admin using Portal Preview — see partner/layout.tsx). When previewing,
- * IdleRefreshGuard is skipped in favor of the persistent PreviewBanner
- * (this is the real admin's own session underneath, not an actual
- * purchaser/mill-owner's), matching FarmerShell/DriverShell.
+ * Top-level shell for every page under `app/mill-owner/`: mill owner
+ * sidebar + header, with `children` rendered as the page content. Mounted
+ * once by `mill-owner/layout.tsx` — reached once a LicenseApplication has
+ * been approved, or there's no application at all (admin-created account,
+ * or an admin using Portal Preview — see mill-owner/layout.tsx). When
+ * previewing, IdleRefreshGuard is skipped in favor of the persistent
+ * PreviewBanner (this is the real admin's own session underneath, not an
+ * actual mill owner's), matching FarmerShell/DriverShell.
  */
 "use client";
 
 import React from "react";
 import { LayoutProvider, useLayout } from "./LayoutProvider";
-import PartnerSidebar from "./PartnerSidebar";
+import MillOwnerSidebar from "./MillOwnerSidebar";
 import Header from "./Header";
 import IdleRefreshGuard from "./IdleRefreshGuard";
 import PreviewBanner from "./PreviewBanner";
@@ -20,12 +20,9 @@ import ImpersonationBanner from "./ImpersonationBanner";
 import styles from "./DashboardShell.module.css";
 import clsx from "clsx";
 
-interface PartnerShellProps {
+interface MillOwnerShellProps {
   children: React.ReactNode;
-  userName: string;
-  role: "authorized_purchaser" | "mill_owner";
   permissions: string[];
-  profilePictureUrl?: string | null;
   notifyMessages?: boolean;
   previewing?: { slug: string; name: string };
   impersonating?: { email: string };
@@ -33,18 +30,17 @@ interface PartnerShellProps {
 
 /**
  * Reads sidebar open/collapsed state from LayoutProvider and arranges the
- * partner sidebar, header, and page content. `userName`/`profilePictureUrl`
- * aren't needed here — profile lives in the sidebar as a plain nav link
- * (see PartnerSidebar.tsx) rather than a header widget.
+ * mill owner sidebar, header, and page content. `userName`/
+ * `profilePictureUrl` aren't needed here — profile lives in the sidebar as
+ * a plain nav link (see MillOwnerSidebar.tsx) rather than a header widget.
  */
 function LayoutWrapper({
   children,
-  role,
   permissions,
   notifyMessages,
   previewing,
   impersonating,
-}: Omit<PartnerShellProps, "userName" | "profilePictureUrl">) {
+}: MillOwnerShellProps) {
   const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
 
   return (
@@ -57,14 +53,14 @@ function LayoutWrapper({
           isMobileSidebarOpen && styles.mobileOpen
         )}
       >
-        <PartnerSidebar role={role} permissions={permissions} />
+        <MillOwnerSidebar permissions={permissions} />
       </div>
       <div className={styles.mainWrapper}>
         {previewing && <PreviewBanner roleName={previewing.name} />}
         {impersonating && <ImpersonationBanner adminEmail={impersonating.email} />}
         <div className={styles.headerArea}>
           <Header
-            messagesHref="/partner/messages"
+            messagesHref="/mill-owner/messages"
             restrictedCompose
             notifyMessages={notifyMessages}
             previewing={!!previewing}
@@ -77,18 +73,16 @@ function LayoutWrapper({
 }
 
 /** Wraps LayoutWrapper in a LayoutProvider so sidebar open/collapsed state is available via context. */
-export default function PartnerShell({
+export default function MillOwnerShell({
   children,
-  role,
   permissions,
   notifyMessages,
   previewing,
   impersonating,
-}: PartnerShellProps) {
+}: MillOwnerShellProps) {
   return (
     <LayoutProvider>
       <LayoutWrapper
-        role={role}
         permissions={permissions}
         notifyMessages={notifyMessages}
         previewing={previewing}

@@ -30,8 +30,8 @@ export async function applyForLicense(): Promise<{ error?: string }> {
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/partner/licenses");
-  revalidatePath("/partner");
+  revalidatePath("/mill-owner/licenses");
+  revalidatePath("/mill-owner");
   return {};
 }
 
@@ -46,8 +46,8 @@ export async function withdrawLicense(licenseId: number): Promise<{ error?: stri
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/partner/licenses");
-  revalidatePath("/partner");
+  revalidatePath("/mill-owner/licenses");
+  revalidatePath("/mill-owner");
   return {};
 }
 
@@ -77,8 +77,8 @@ export async function submitMillingReport(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/partner/milling-reports");
-  revalidatePath("/partner");
+  revalidatePath("/mill-owner/milling-reports");
+  revalidatePath("/mill-owner");
   return {};
 }
 
@@ -109,7 +109,7 @@ export async function updateMillProfile(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/partner/profile");
-  revalidatePath("/partner/settings");
+  revalidatePath("/mill-owner/profile");
+  revalidatePath("/mill-owner/settings");
   return {};
 }

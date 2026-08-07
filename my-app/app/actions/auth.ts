@@ -15,6 +15,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { verifyAccessToken } from "@/app/lib/jwt";
+import { homeFor } from "@/app/lib/dal";
 import {
   ACCESS_COOKIE,
   REFRESH_COOKIE,
@@ -82,23 +83,10 @@ export async function login(
   // Bust the root layout's cached render so the header/nav (which shows
   // login state) reflects the newly authenticated user on next navigation.
   revalidatePath("/", "layout");
-  // Farmers, drivers, warehouse managers, PMB officers, and partners
-  // (authorized purchasers/mill owners) land on their own portal; every
-  // other role (admin, etc.) lands on the shared admin dashboard. Mirrors
-  // homeFor() in lib/dal.ts.
-  const home =
-    payload?.role === "farmer"
-      ? "/farmer"
-      : payload?.role === "driver"
-      ? "/driver"
-      : payload?.role === "warehouse_manager"
-      ? "/warehouse-manager"
-      : payload?.role === "pmb_officer"
-      ? "/officer"
-      : payload?.role === "authorized_purchaser" || payload?.role === "mill_owner"
-      ? "/partner"
-      : "/dashboard";
-  redirect(home);
+  // Farmers, drivers, warehouse managers, PMB officers, mill owners, and
+  // authorized purchasers each land on their own portal; every other role
+  // (admin, etc.) lands on the shared admin dashboard.
+  redirect(homeFor({ role: payload?.role ?? "" }));
 }
 
 // SignupState mirrors FormState — kept as a separate type since farmer

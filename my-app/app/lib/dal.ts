@@ -293,12 +293,13 @@ export async function requireUser(): Promise<AppUser> {
 // Where to send a user who is logged in but not allowed on the page they
 // requested — their own dashboard, rather than a generic error page. Also
 // used directly by /change-password to know where to go once done.
-export function homeFor(user: AppUser): string {
+export function homeFor(user: { role: string }): string {
   if (user.role === "farmer") return "/farmer";
   if (user.role === "driver") return "/driver";
   if (user.role === "warehouse_manager") return "/warehouse-manager";
   if (user.role === "pmb_officer") return "/officer";
-  if (user.role === "authorized_purchaser" || user.role === "mill_owner") return "/partner";
+  if (user.role === "mill_owner") return "/mill-owner";
+  if (user.role === "authorized_purchaser") return "/purchaser";
   return "/dashboard";
 }
 
@@ -314,19 +315,6 @@ export async function requireRole(role: string): Promise<AppUser> {
   const user = await requireUser();
   if (user.role !== role) {
     // Send them to their own home, not the page they were denied.
-    redirect(homeFor(user));
-  }
-  return user;
-}
-
-/**
- * Like requireRole, but passes if the user's role is any one of several —
- * used by the partner/ route group, which serves both authorized_purchaser
- * and mill_owner accounts under one shell.
- */
-export async function requireAnyRole(...roles: string[]): Promise<AppUser> {
-  const user = await requireUser();
-  if (!roles.includes(user.role)) {
     redirect(homeFor(user));
   }
   return user;

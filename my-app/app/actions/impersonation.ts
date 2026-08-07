@@ -22,7 +22,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requirePermission } from "@/app/lib/dal";
+import { requirePermission, homeFor } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import { verifyAccessToken } from "@/app/lib/jwt";
 import {
@@ -60,19 +60,7 @@ async function completeImpersonation(access: string, refresh: string) {
   await setTokenCookies(access, refresh);
   revalidatePath("/", "layout");
 
-  // Same role -> home-route mapping as actions/auth.ts's login().
-  const home =
-    payload?.role === "farmer"
-      ? "/farmer"
-      : payload?.role === "driver"
-      ? "/driver"
-      : payload?.role === "warehouse_manager"
-      ? "/warehouse-manager"
-      : payload?.role === "pmb_officer"
-      ? "/officer"
-      : payload?.role === "authorized_purchaser" || payload?.role === "mill_owner"
-      ? "/partner"
-      : "/dashboard";
+  const home = homeFor({ role: payload?.role ?? "" });
   // The query flag is a one-shot signal for ImpersonationBanner.tsx to pop
   // a confirmation toast on landing, then strip itself from the URL — the
   // persistent banner covers "this is still going on," this covers "this

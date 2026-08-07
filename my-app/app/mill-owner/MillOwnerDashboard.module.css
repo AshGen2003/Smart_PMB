@@ -78,10 +78,10 @@
   color: var(--success);
 }
 
-/* KPI cards + tables, shared by the mill-owner and authorized-purchaser
-   dashboard variants below the license card. Same tokens/shape as
-   (admin)/dashboard/Dashboard.module.css so the partner portal reads as
-   part of the same design system as the admin/officer dashboard. */
+/* KPI cards + tables, used by the mill-owner dashboard, licenses, and
+   milling-reports pages. Same tokens/shape as (admin)/dashboard/
+   Dashboard.module.css so the mill owner portal reads as part of the same
+   design system as the admin/officer dashboard. */
 .kpiGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

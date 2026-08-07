@@ -1,13 +1,13 @@
 /**
- * Authorized-purchaser-specific section of the partner dashboard: stock/
- * request KPIs plus a stock-by-type table and recent-requests table. Data
- * comes from GET /api/purchaser/dashboard/ (purchases/views.py's
- * PurchaserDashboardView). Rendered by partner/page.tsx below the license
- * (account-approval) card, only for role === "authorized_purchaser".
+ * Purchaser dashboard's business-data section: stock/request KPIs plus a
+ * stock-by-type table and recent-requests table. Data comes from GET
+ * /api/purchaser/dashboard/ (purchases/views.py's PurchaserDashboardView).
+ * Rendered by purchaser/page.tsx below the license (account-approval)
+ * card.
  */
 import { Boxes, Layers, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
-import styles from "./PartnerDashboard.module.css";
+import styles from "./PurchaserDashboard.module.css";
 
 type PurchaserDashboardData = {
   kpis: {

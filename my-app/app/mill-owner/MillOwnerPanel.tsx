@@ -1,13 +1,13 @@
 /**
- * Mill-owner-specific section of the partner dashboard: license/milling
- * KPIs plus recent-licenses and recent-milling-reports tables. Data comes
- * from GET /api/mill-owner/dashboard/ (mills/views.py's
- * MillOwnerDashboardView). Rendered by partner/page.tsx below the license
- * (account-approval) card, only for role === "mill_owner".
+ * Mill-owner dashboard's business-data section: license/milling KPIs plus
+ * recent-licenses and recent-milling-reports tables. Data comes from GET
+ * /api/mill-owner/dashboard/ (mills/views.py's MillOwnerDashboardView).
+ * Rendered by mill-owner/page.tsx below the license (account-approval)
+ * card.
  */
 import { FileCheck, Sprout, Factory } from "lucide-react";
 import { format } from "date-fns";
-import styles from "./PartnerDashboard.module.css";
+import styles from "./MillOwnerDashboard.module.css";
 
 type MillOwnerDashboardData = {
   kpis: {

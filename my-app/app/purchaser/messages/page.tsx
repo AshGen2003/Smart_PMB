@@ -1,14 +1,14 @@
 /**
- * `/partner/messages` — the partner-portal counterpart to `(admin)/messages`:
- * the full paginated history of requests a partner has sent to the
- * admin/officer team and the replies they've received.
+ * `/purchaser/messages` — the purchaser portal's counterpart to
+ * `(admin)/messages`: the full paginated history of requests a purchaser
+ * has sent to the admin/officer team and the replies they've received.
  */
 import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import MessagesHistoryView, { type MessageRow } from "@/app/components/MessagesHistoryView";
 
 /** Server Component: gates access and fetches the first page of message history for a fast initial paint. */
-export default async function PartnerMessagesPage() {
+export default async function PurchaserMessagesPage() {
   const user = await requirePermission("view_messages");
 
   // Portal Preview never fetches real data — the previewed role's inbox has

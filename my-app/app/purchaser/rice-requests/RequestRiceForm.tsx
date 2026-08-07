@@ -2,7 +2,7 @@
  * Inline (non-modal) form for an Authorized Purchaser to request a
  * quantity of a given rice/paddy type. Submits via the submitRiceRequest
  * Server Action using useActionState. Mirrors the shape of
- * partner/milling-reports/MillingReportForm.tsx.
+ * mill-owner/milling-reports/MillingReportForm.tsx.
  */
 "use client";
 

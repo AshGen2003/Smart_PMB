@@ -1,9 +1,9 @@
 /**
- * Collapsible left navigation for the partner portal (authorized
- * purchasers and mill owners). Structurally identical to FarmerSidebar/
- * DriverSidebar — filtered by `permissions`, every item has a view_*
- * permission gating it, granted to every role by default (see accounts/
- * migrations/0015). Log out lives in the shared Header, not here.
+ * Collapsible left navigation for the mill owner portal. Structurally
+ * identical to FarmerSidebar/DriverSidebar — filtered by `permissions`,
+ * every item has a view_* permission gating it, granted to every role by
+ * default (see accounts/migrations/0015). Log out lives in the shared
+ * Header, not here.
  */
 "use client";
 
@@ -23,48 +23,26 @@ import {
   User,
   FileCheck,
   ClipboardList,
-  Package,
 } from "lucide-react";
 
-const BASE_NAV_ITEMS = [
-  { label: "Dashboard", href: "/partner", icon: LayoutDashboard, permission: "view_dashboard" },
-];
-
-// Mill owners get their own ongoing License history (renewable, expiry-
-// tracked — see mills/models.py's License) and periodic milling reports.
-// Authorized purchasers instead get their rice requests against warehouse
-// stock (see purchases/models.py's RiceRequest). Both sets are gated by the
+// A mill owner's ongoing License history (renewable, expiry-tracked — see
+// mills/models.py's License) and periodic milling reports. Gated by the
 // same view_dashboard permission as the rest of the shell — there's no
 // separate permission per business feature, same as Messages/Settings.
-const MILL_OWNER_NAV_ITEMS = [
-  { label: "Licenses", href: "/partner/licenses", icon: FileCheck, permission: "view_dashboard" },
-  { label: "Milling Reports", href: "/partner/milling-reports", icon: ClipboardList, permission: "view_dashboard" },
+const NAV_ITEMS = [
+  { label: "Dashboard", href: "/mill-owner", icon: LayoutDashboard, permission: "view_dashboard" },
+  { label: "Licenses", href: "/mill-owner/licenses", icon: FileCheck, permission: "view_dashboard" },
+  { label: "Milling Reports", href: "/mill-owner/milling-reports", icon: ClipboardList, permission: "view_dashboard" },
+  { label: "Messages", href: "/mill-owner/messages", icon: MessageSquare, permission: "view_messages" },
+  { label: "Settings", href: "/mill-owner/settings", icon: Settings, permission: "view_settings" },
 ];
 
-const PURCHASER_NAV_ITEMS = [
-  { label: "Rice Requests", href: "/partner/rice-requests", icon: Package, permission: "view_dashboard" },
-];
-
-const TAIL_NAV_ITEMS = [
-  { label: "Messages", href: "/partner/messages", icon: MessageSquare, permission: "view_messages" },
-  { label: "Settings", href: "/partner/settings", icon: Settings, permission: "view_settings" },
-];
-
-/** Renders the logo, collapse toggle, and the nav links this partner's role/permissions allow, highlighting the active route. */
-export default function PartnerSidebar({
-  role,
-  permissions,
-}: {
-  role: "authorized_purchaser" | "mill_owner";
-  permissions: string[];
-}) {
+/** Renders the logo, collapse toggle, and the nav links this mill owner's permissions allow, highlighting the active route. */
+export default function MillOwnerSidebar({ permissions }: { permissions: string[] }) {
   const pathname = usePathname();
   const { isSidebarOpen, toggleSidebar, closeMobileSidebar } = useLayout();
 
-  const roleItems = role === "mill_owner" ? MILL_OWNER_NAV_ITEMS : PURCHASER_NAV_ITEMS;
-  const items = [...BASE_NAV_ITEMS, ...roleItems, ...TAIL_NAV_ITEMS].filter((item) =>
-    permissions.includes(item.permission)
-  );
+  const items = NAV_ITEMS.filter((item) => permissions.includes(item.permission));
 
   return (
     <aside
@@ -114,12 +92,12 @@ export default function PartnerSidebar({
 
         {permissions.includes("view_profile") && (
           <Link
-            href="/partner/profile"
+            href="/mill-owner/profile"
             className={clsx(
               styles.navItem,
               styles.navSpacer,
               !isSidebarOpen && styles.navItemCollapsed,
-              pathname === "/partner/profile" && styles.navItemActive
+              pathname === "/mill-owner/profile" && styles.navItemActive
             )}
             onClick={closeMobileSidebar}
           >

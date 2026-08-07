@@ -1,14 +1,15 @@
 /**
- * Holding screen shown by partner/layout.tsx instead of the real PartnerShell
- * whenever a licensing application isn't approved yet — the account exists
- * and can log in, but there's nothing to navigate to until an officer/admin
- * reviews it (see accounts.LicenseApplication / LicenseApplicationViewSet).
+ * Holding screen shown by mill-owner/layout.tsx and purchaser/layout.tsx
+ * instead of the real shell whenever a licensing application isn't
+ * approved yet — the account exists and can log in, but there's nothing to
+ * navigate to until an officer/admin reviews it (see
+ * accounts.LicenseApplication / LicenseApplicationViewSet).
  */
 import Image from "next/image";
 import clsx from "clsx";
 import { logout } from "@/app/actions/auth";
-import AuthShell from "../(auth)/AuthShell";
-import styles from "../(auth)/AuthForm.module.css";
+import AuthShell from "@/app/(auth)/AuthShell";
+import styles from "@/app/(auth)/AuthForm.module.css";
 
 export default function PendingLicenseScreen({
   status,
