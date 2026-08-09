@@ -6,9 +6,10 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { format } from "date-fns";
-import { AlertTriangle, ArrowRightLeft, Minus, Pencil, Plus } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, Check, Loader2, Minus, Pencil, Plus } from "lucide-react";
+import { resolveWarehouseAlert } from "@/app/actions/warehouseManager";
 import StockAdjustModal, { type PaddyTypeOption } from "./StockAdjustModal";
 import TransferRequestModal, {
   type TransferWarehouseOption,
@@ -148,10 +149,7 @@ export default function WarehouseManagerDashboardView({
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>Capacity alerts</h2>
           {alerts.map((a) => (
-            <div key={a.id} className={styles.alertRow}>
-              <AlertTriangle size={16} />
-              <span>{a.message}</span>
-            </div>
+            <CapacityAlertRow key={a.id} alert={a} />
           ))}
         </div>
       )}
@@ -275,6 +273,39 @@ export default function WarehouseManagerDashboardView({
           onClose={() => setEditingInfo(false)}
         />
       )}
+    </div>
+  );
+}
+
+/** One capacity-alert row with its own resolve button — own pending/error state so resolving one alert doesn't disable the others. */
+function CapacityAlertRow({ alert }: { alert: AlertRow }) {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleResolve() {
+    setError(null);
+    startTransition(async () => {
+      const result = await resolveWarehouseAlert(alert.id);
+      if (result.error) setError(result.error);
+    });
+  }
+
+  return (
+    <div className={styles.alertRow}>
+      <AlertTriangle size={16} />
+      <div className={styles.alertRowBody}>
+        <span>{alert.message}</span>
+        {error && <span className={styles.alertRowError}>{error}</span>}
+      </div>
+      <button
+        type="button"
+        className={styles.alertResolveBtn}
+        disabled={isPending}
+        onClick={handleResolve}
+      >
+        {isPending ? <Loader2 size={13} className={styles.spin} /> : <Check size={13} />}
+        Resolve
+      </button>
     </div>
   );
 }

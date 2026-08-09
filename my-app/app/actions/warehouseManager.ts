@@ -45,6 +45,28 @@ export async function adjustMyWarehouseStock(
 }
 
 /**
+ * Resolves one of the logged-in manager's own warehouse capacity alerts
+ * (reactive or predictive) — scoped server-side the same way as every
+ * other action here, plus an alert_type check restricting this to just the
+ * two warehouse-capacity alert types (see farmers/views.py's
+ * WarehouseManagerResolveAlertView); nothing else is self-resolvable this
+ * way.
+ */
+export async function resolveWarehouseAlert(alertId: number): Promise<WarehouseManagerFormState> {
+  const res = await apiFetch(`/api/warehouse-manager/alerts/${alertId}/resolve/`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data, "Couldn't resolve this alert.") };
+  }
+
+  revalidatePath("/warehouse-manager");
+  return {};
+}
+
+/**
  * Requests a transfer of stock (one paddy type + optional grade) from
  * another warehouse into the logged-in manager's own warehouse. The
  * source is client-chosen (`from_warehouse`); the destination is always

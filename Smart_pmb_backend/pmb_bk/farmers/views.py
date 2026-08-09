@@ -419,12 +419,14 @@ class WarehouseManagerDashboardView(APIView):
             "paddy_type", "updated_by"
         )
         transactions = TransactionLog.objects.filter(warehouse=warehouse).order_by("-created_at")[:20]
-        # Read-only: alert_type encodes the warehouse id the same way
+        # alert_type encodes the warehouse id the same way
         # _raise_high_capacity_alert/farmers.forecasting's predictive
-        # version already do — acknowledging/resolving stays an
-        # officer/admin-only action (SystemAlertViewSet, "manage_system"),
-        # since SystemAlert covers alert types well beyond warehouse
-        # capacity and isn't scoped to be safely self-served here.
+        # version already do — resolving one of these two capacity types
+        # for their own warehouse is self-served via
+        # WarehouseManagerResolveAlertView below; anything else still stays
+        # officer/admin-only (SystemAlertViewSet, "manage_system"), since
+        # SystemAlert covers alert types well beyond warehouse capacity and
+        # isn't scoped to be safely self-served in general.
         alerts = SystemAlert.objects.filter(
             alert_type__in=[
                 f"high_capacity_warehouse_{warehouse.id}",
@@ -462,6 +464,44 @@ class WarehouseManagerDashboardView(APIView):
         serializer.save()
         log_audit(request.user, "update_warehouse_info", "farmers", warehouse.name)
         return Response(self._dashboard_payload(warehouse))
+
+
+class WarehouseManagerResolveAlertView(APIView):
+    """
+    POST /api/warehouse-manager/alerts/<pk>/resolve/ — lets a
+    warehouse_manager clear a capacity SystemAlert (reactive or predictive)
+    raised for the single warehouse they manage. Scoped two ways: by
+    identity (Warehouse.managed_by=request.user, same as
+    WarehouseManagerDashboardView) and by alert_type (must be one of this
+    warehouse's own high_capacity_/predicted_capacity_ alerts) — a manager
+    can resolve their own warehouse's capacity warnings and nothing else,
+    unlike the "manage_system"-gated SystemAlertViewSet.resolve admins use
+    for every other alert type.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk=None):
+        warehouse = Warehouse.objects.filter(managed_by=request.user).first()
+        if not warehouse:
+            return Response(
+                {"detail": "You are not currently assigned to manage a warehouse."}, status=404
+            )
+
+        alert = get_object_or_404(
+            SystemAlert,
+            pk=pk,
+            alert_type__in=[
+                f"high_capacity_warehouse_{warehouse.id}",
+                f"predicted_capacity_warehouse_{warehouse.id}",
+            ],
+        )
+        alert.status = SystemAlert.Status.RESOLVED
+        alert.handled_by = request.user
+        alert.resolved_at = timezone.now()
+        alert.save(update_fields=["status", "handled_by", "resolved_at"])
+        log_audit(request.user, "resolve_warehouse_capacity_alert", "farmers", alert.alert_type)
+        return Response(status=204)
 
 
 class WarehouseManagerAdjustStockView(APIView):

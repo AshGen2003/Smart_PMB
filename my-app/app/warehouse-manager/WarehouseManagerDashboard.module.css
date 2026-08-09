@@ -113,6 +113,42 @@
   margin-bottom: 0;
 }
 
+.alertRowBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+}
+
+.alertRowError {
+  color: var(--danger);
+  font-size: 0.78rem;
+}
+
+.alertResolveBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: none;
+  color: var(--accent);
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.alertResolveBtn:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.alertResolveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .stockBars {
   display: flex;
   flex-direction: column;

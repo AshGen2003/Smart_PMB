@@ -21,6 +21,7 @@ urlpatterns = [
     path("driver/deliveries/<int:pk>/location/", views.DeliveryLocationPingView.as_view()),
     path("warehouse-manager/dashboard/", views.WarehouseManagerDashboardView.as_view()),
     path("warehouse-manager/adjust-stock/", views.WarehouseManagerAdjustStockView.as_view()),
+    path("warehouse-manager/alerts/<int:pk>/resolve/", views.WarehouseManagerResolveAlertView.as_view()),
     path("warehouse-manager/transactions/", views.WarehouseManagerTransactionsView.as_view()),
     path("warehouse-manager/transfer-options/", views.WarehouseManagerTransferOptionsView.as_view()),
     path("public/trace/<str:lot_code>/", views.PublicHarvestTraceView.as_view()),
