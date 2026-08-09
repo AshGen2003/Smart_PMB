@@ -48,7 +48,14 @@ from .serializers import (
     SystemChangeRequestRejectSerializer,
     SystemChangeRequestSerializer,
 )
-from .utils import CONFIG_DEFS, get_all_configs, get_config_value, log_audit, set_config_value
+from .utils import (
+    CONFIG_DEFS,
+    get_all_configs,
+    get_config_value,
+    log_audit,
+    raise_stripe_payment_failed_alert,
+    set_config_value,
+)
 
 LOG_LIMIT = 200  # cap on how many log/backup rows the admin UI list views return
 
@@ -110,6 +117,18 @@ class SystemAlertViewSet(
         if self.action in ("list", "retrieve"):
             return [HasPermission("view_audit_logs")()]
         return [HasPermission("manage_system")()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.action == "list":
+            # The reactive "warehouse just crossed 90% capacity" alert is
+            # kept for farmers.views.WarehouseDashboardView (its own
+            # real-time warning to the warehouse manager) but deliberately
+            # excluded here — it was cluttering the admin Alerts tab
+            # alongside the once-daily predictive capacity alert
+            # (predicted_capacity_warehouse_*), which stays visible here.
+            qs = qs.exclude(alert_type__startswith="high_capacity_warehouse_")
+        return qs
 
     def _set_status(self, request, pk, new_status):
         # Shared implementation behind the acknowledge/resolve actions:
@@ -413,6 +432,11 @@ class SystemChangeRequestViewSet(viewsets.ModelViewSet):
             success_url=f"{settings.FRONTEND_URL}/officer/system-requests/mine?payment=success",
             cancel_url=f"{settings.FRONTEND_URL}/officer/system-requests/mine?payment=cancelled",
             metadata={"system_change_request_id": str(change_request.id)},
+            # Session-level metadata isn't copied onto the PaymentIntent
+            # Stripe creates behind the scenes — set it here too so a
+            # payment_intent.payment_failed webhook (StripeWebhookView
+            # below) can trace a failed attempt back to this request.
+            payment_intent_data={"metadata": {"system_change_request_id": str(change_request.id)}},
         )
 
         change_request.fee_amount = fee_amount
@@ -636,6 +660,25 @@ class StripeWebhookView(APIView):
                     change_request.reviewed_by or change_request.requested_by,
                     f'Payment received for "{change_request.title}" — your token has been issued. '
                     "Check My Requests for details.",
+                )
+
+        elif event["type"] == "payment_intent.payment_failed":
+            payment_intent = event["data"]["object"]
+            change_request_id = (payment_intent.get("metadata") or {}).get(
+                "system_change_request_id"
+            )
+            change_request = (
+                SystemChangeRequest.objects.filter(id=change_request_id).first()
+                if change_request_id
+                else None
+            )
+            if change_request:
+                failure_message = (
+                    (payment_intent.get("last_payment_error") or {}).get("message")
+                    or "Unknown error."
+                )
+                raise_stripe_payment_failed_alert(
+                    change_request, payment_intent.get("id"), failure_message
                 )
 
         return HttpResponse(status=200)

@@ -85,6 +85,30 @@ def raise_repeated_login_failure_alert(user):
     )
 
 
+def raise_stripe_payment_failed_alert(change_request, payment_intent_id, failure_message):
+    """
+    Raises a SystemAlert when the PaymentIntent behind a system-change
+    request's Checkout Session fails (e.g. card declined) — Checkout leaves
+    the session open and lets the officer retry, so nothing else in the app
+    would otherwise surface this to an admin. `alert_type` encodes the
+    PaymentIntent id (not the request id), since a retried attempt gets a
+    new PaymentIntent and is worth its own alert — deduped without a status
+    filter (unlike the ongoing-condition alerts above) purely to stay
+    idempotent against Stripe's webhook redelivery, not to suppress repeats.
+    """
+    alert_type = f"stripe_payment_failed_{payment_intent_id}"
+    if SystemAlert.objects.filter(alert_type=alert_type).exists():
+        return
+    SystemAlert.objects.create(
+        alert_type=alert_type,
+        level=SystemAlert.Level.CRITICAL,
+        message=(
+            f'Payment failed for "{change_request.title}" (requested by '
+            f"{change_request.requested_by.email}): {failure_message}"
+        ),
+    )
+
+
 def get_config_value(key):
     """
     Look up one setting's current value: reads the SystemConfig row if an
