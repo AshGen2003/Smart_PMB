@@ -17,23 +17,13 @@ class IsFarmer(BasePermission):
         )
 
 
-class IsDriver(BasePermission):
-    """Allows access only to authenticated users whose Role slug is "driver"."""
-
-    def has_permission(self, request, view):
-        return bool(
-            request.user
-            and request.user.is_authenticated
-            and request.user.role.slug == "driver"
-        )
-
-
 class CanViewVehicles(BasePermission):
     """
     Read access to the vehicle fleet for either manage_transport holders
-    (officers, via VehicleViewSet) or drivers (who need the fleet list to
-    log fuel/maintenance against a vehicle on their own portal) — write
-    access stays manage_transport-only, checked separately in the view.
+    (officers, via VehicleViewSet) or access_driver_portal holders (drivers,
+    who need the fleet list to log fuel/maintenance against a vehicle on
+    their own portal) — write access stays manage_transport-only, checked
+    separately in the view.
     """
 
     def has_permission(self, request, view):
@@ -42,6 +32,6 @@ class CanViewVehicles(BasePermission):
             return False
         if user.is_superuser:
             return True
-        if user.role.slug == "driver":
+        if _has_codename(user, "access_driver_portal"):
             return True
         return _has_codename(user, "manage_transport")

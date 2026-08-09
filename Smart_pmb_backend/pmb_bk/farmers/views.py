@@ -55,7 +55,7 @@ from .models import (
     Warehouse,
     WarehouseTransferRequest,
 )
-from .permissions import CanViewVehicles, IsDriver, IsFarmer
+from .permissions import CanViewVehicles, IsFarmer
 from .serializers import (
     DeliveryLocationPingSerializer,
     DeliverySerializer,
@@ -1415,7 +1415,7 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     reassigning) a driver notifies them and resets `assignment_status` to
     "pending" so they see it as a new task to accept/reject — the driver's
     own acceptance/status-progression endpoints live on DriverDeliveryViewSet
-    below, gated by IsDriver instead of manage_transport.
+    below, gated by access_driver_portal instead of manage_transport.
     """
 
     permission_classes = [HasPermission("manage_transport")]
@@ -1519,14 +1519,17 @@ class MaintenanceRecordViewSet(viewsets.ReadOnlyModelViewSet):
 # ---------------------------------------------------------------------------
 # Driver portal: a driver's own dashboard, task accept/reject, delivery
 # status progression, live-location reporting, and their own fuel/
-# maintenance entry — all scoped to `driver=request.user`, gated by
-# IsDriver rather than any manage_transport-style codename permission
-# (drivers have no RBAC permissions of their own, same pattern as farmers).
+# maintenance entry — all scoped to `driver=request.user`, gated by the
+# "access_driver_portal" codename (see accounts/migrations/0032), granted
+# only to the "driver" role by default. Unlike farmer/mill_owner/purchaser
+# (still slug-only, see IsFarmer/IsMillOwner), this is real RBAC: revocable
+# or grantable to any role from /roles, same mechanism admin/officer
+# endpoints use.
 # ---------------------------------------------------------------------------
 class DriverDashboardView(APIView):
     """Aggregates a logged-in driver's pending/active/recent delivery tasks."""
 
-    permission_classes = [IsAuthenticated, IsDriver]
+    permission_classes = [HasPermission("access_driver_portal")]
 
     def get(self, request):
         deliveries = Delivery.objects.filter(driver=request.user).select_related(
@@ -1568,7 +1571,7 @@ class DriverVehicleInfoView(APIView):
     vehicles/routes/deliveries stays officer-only (`manage_transport`).
     """
 
-    permission_classes = [IsAuthenticated, IsDriver]
+    permission_classes = [HasPermission("access_driver_portal")]
 
     def get(self, request):
         deliveries = Delivery.objects.filter(driver=request.user).select_related(
@@ -1593,7 +1596,7 @@ class DriverVehicleInfoView(APIView):
 class DeliveryRespondView(APIView):
     """POST {"accept": true/false} — the driver accepts or rejects a task assigned to them."""
 
-    permission_classes = [IsAuthenticated, IsDriver]
+    permission_classes = [HasPermission("access_driver_portal")]
 
     def post(self, request, pk):
         delivery = get_object_or_404(
@@ -1630,7 +1633,7 @@ class DriverDeliveryStatusView(APIView):
     override), and only works on a task this driver has accepted.
     """
 
-    permission_classes = [IsAuthenticated, IsDriver]
+    permission_classes = [HasPermission("access_driver_portal")]
 
     def post(self, request, pk):
         delivery = get_object_or_404(
@@ -1650,7 +1653,7 @@ class DriverDeliveryStatusView(APIView):
 class DeliveryLocationPingView(APIView):
     """POST {"latitude", "longitude"} — the driver's browser reports its position while a task is in transit."""
 
-    permission_classes = [IsAuthenticated, IsDriver]
+    permission_classes = [HasPermission("access_driver_portal")]
 
     def post(self, request, pk):
         delivery = get_object_or_404(
@@ -1669,7 +1672,7 @@ class DeliveryLocationPingView(APIView):
 class DriverFuelRecordViewSet(viewsets.ModelViewSet):
     """The driver-side counterpart to FuelRecordViewSet — full CRUD, since fuel entries are now driver-owned."""
 
-    permission_classes = [IsAuthenticated, IsDriver]
+    permission_classes = [HasPermission("access_driver_portal")]
     queryset = FuelRecord.objects.select_related("vehicle")
     serializer_class = FuelRecordSerializer
 
@@ -1683,7 +1686,7 @@ class DriverMaintenanceRecordViewSet(viewsets.ModelViewSet):
     always starts PENDING, so creation is unaffected.
     """
 
-    permission_classes = [IsAuthenticated, IsDriver]
+    permission_classes = [HasPermission("access_driver_portal")]
     queryset = MaintenanceRecord.objects.select_related("vehicle")
     serializer_class = MaintenanceRecordSerializer
 
