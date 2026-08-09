@@ -2,8 +2,9 @@
 # user lookup eagerly loads `role` and `role.permissions`.
 #
 # Nearly every permission class in this app reads `request.user.role` (e.g.
-# IsFarmer, IsMillOwner) or `request.user.role.permissions...` (e.g.
-# HasPermission), on literally every authenticated request. The stock
+# RoleAccessPermission's admin-slug safety net) or
+# `request.user.role.permissions...` (e.g. HasPermission), on literally
+# every authenticated request. The stock
 # JWTAuthentication.get_user() does a plain `User.objects.get(id=...)` with
 # no select_related, so each of those attribute accesses silently issues
 # its own extra query — with the DB hosted remotely (Supabase), each one

@@ -55,7 +55,7 @@ from .models import (
     Warehouse,
     WarehouseTransferRequest,
 )
-from .permissions import CanViewVehicles, IsFarmer
+from .permissions import CanViewVehicles
 from .serializers import (
     DeliveryLocationPingSerializer,
     DeliverySerializer,
@@ -137,7 +137,7 @@ class DistrictListView(generics.ListAPIView):
 class FarmerDashboardView(APIView):
     """Aggregates a logged-in farmer's own profile, recent harvests/payments/notifications, and KPI summary."""
 
-    permission_classes = [IsAuthenticated, IsFarmer]
+    permission_classes = [HasPermission("access_farmer_portal")]
 
     def get(self, request):
         farmer = get_object_or_404(
@@ -185,7 +185,7 @@ class FarmerDashboardView(APIView):
 class FarmerBankDetailsView(APIView):
     """Lets the logged-in farmer view (GET) and edit (PATCH) their own payout bank details."""
 
-    permission_classes = [IsAuthenticated, IsFarmer]
+    permission_classes = [HasPermission("access_farmer_portal")]
 
     def get(self, request):
         farmer = get_object_or_404(Farmer, user=request.user)
@@ -203,7 +203,7 @@ class FarmerBankDetailsView(APIView):
 class NotificationMarkReadView(APIView):
     """Marks one of the logged-in farmer's own notifications as read."""
 
-    permission_classes = [IsAuthenticated, IsFarmer]
+    permission_classes = [HasPermission("access_farmer_portal")]
 
     def post(self, request, pk):
         # farmer__user=request.user scopes the lookup so a farmer can only
@@ -226,7 +226,7 @@ class FarmerHarvestViewSet(viewsets.ModelViewSet):
     fields (grade/price/etc.) are exclusively set via OfficerHarvestViewSet.
     """
 
-    permission_classes = [IsAuthenticated, IsFarmer]
+    permission_classes = [HasPermission("access_farmer_portal")]
     http_method_names = ["get", "post", "delete", "head", "options"]
     serializer_class = HarvestSerializer
 
@@ -442,13 +442,14 @@ class WarehouseManagerDashboardView(APIView):
     open capacity SystemAlerts for it. PATCH lets the manager update just
     their warehouse's `contact_number`/`status` (see
     WarehouseManagerSelfUpdateSerializer — everything structural stays
-    officer/admin-only). No "manage_warehouses" permission is required for
-    either — access is scoped by identity (only this user's own warehouse
-    is ever returned/editable), same pattern as DriverDashboardView's
+    officer/admin-only). Requires "access_warehouse_manager_portal" (not
+    "manage_warehouses" — that's the officer/admin-side permission); data
+    is additionally scoped by identity (only this user's own warehouse is
+    ever returned/editable), same pattern as DriverDashboardView's
     `driver=request.user` filter.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasPermission("access_warehouse_manager_portal")]
 
     def _get_own_warehouse(self, request):
         return Warehouse.objects.select_related("district", "province").filter(
@@ -523,7 +524,7 @@ class WarehouseManagerResolveAlertView(APIView):
     admins use for every other alert type.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasPermission("access_warehouse_manager_portal")]
 
     def post(self, request, pk=None):
         warehouse = Warehouse.objects.filter(managed_by=request.user).first()
@@ -559,7 +560,7 @@ class WarehouseManagerAdjustStockView(APIView):
     pattern as WarehouseManagerDashboardView.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasPermission("access_warehouse_manager_portal")]
 
     def post(self, request):
         warehouse = Warehouse.objects.filter(managed_by=request.user).first()
@@ -587,7 +588,7 @@ class WarehouseManagerTransactionsView(APIView):
     warehouse-manager views.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasPermission("access_warehouse_manager_portal")]
 
     def get(self, request):
         warehouse = Warehouse.objects.filter(managed_by=request.user).first()
@@ -610,7 +611,7 @@ class WarehouseManagerTransferOptionsView(APIView):
     matching "not from your own warehouse" check).
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasPermission("access_warehouse_manager_portal")]
 
     def get(self, request):
         own_warehouse = Warehouse.objects.filter(managed_by=request.user).first()
@@ -651,7 +652,7 @@ class WarehouseManagerTransferRequestViewSet(viewsets.ModelViewSet):
     view in this file enforces).
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasPermission("access_warehouse_manager_portal")]
     http_method_names = ["get", "post", "head", "options"]
 
     def get_queryset(self):
@@ -1521,10 +1522,11 @@ class MaintenanceRecordViewSet(viewsets.ReadOnlyModelViewSet):
 # status progression, live-location reporting, and their own fuel/
 # maintenance entry — all scoped to `driver=request.user`, gated by the
 # "access_driver_portal" codename (see accounts/migrations/0032), granted
-# only to the "driver" role by default. Unlike farmer/mill_owner/purchaser
-# (still slug-only, see IsFarmer/IsMillOwner), this is real RBAC: revocable
-# or grantable to any role from /roles, same mechanism admin/officer
-# endpoints use.
+# only to the "driver" role by default — real RBAC, revocable or grantable
+# to any role from /roles, same mechanism admin/officer endpoints use.
+# Every other operational portal (farmer, mill_owner, authorized_purchaser,
+# warehouse_manager) follows the same access_<role>_portal pattern now
+# (see accounts/migrations/0033) — this was just the first one converted.
 # ---------------------------------------------------------------------------
 class DriverDashboardView(APIView):
     """Aggregates a logged-in driver's pending/active/recent delivery tasks."""

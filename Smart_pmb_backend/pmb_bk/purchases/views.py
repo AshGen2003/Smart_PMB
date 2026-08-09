@@ -1,7 +1,8 @@
 # API views for the purchases app: an Authorized Purchaser's own dashboard/
 # rice requests, and the PMB officer-facing rice request review queue.
-# Mirrors the shape of mills/views.py (MillOwnerDashboardView / IsMillOwner /
-# OfficerLicenseViewSet.approve/reject) for the authorized-purchaser actor.
+# Mirrors the shape of mills/views.py (MillOwnerDashboardView /
+# access_mill_owner_portal / OfficerLicenseViewSet.approve/reject) for the
+# authorized-purchaser actor.
 from django.db import transaction
 from django.db.models import F, Sum
 from django.shortcuts import get_object_or_404
@@ -17,7 +18,6 @@ from farmers.views import _log_transaction
 from sysops.utils import log_audit, raise_low_stock_alert
 
 from .models import AuthorizedPurchaser, PurchaserStock, RiceRequest
-from .permissions import IsAuthorizedPurchaser
 from .serializers import (
     AuthorizedPurchaserSerializer,
     OfficerRiceRequestSerializer,
@@ -30,7 +30,7 @@ from .serializers import (
 class PurchaserDashboardView(APIView):
     """Aggregates a logged-in Authorized Purchaser's own profile, stock-on-hand, and recent rice requests."""
 
-    permission_classes = [IsAuthorizedPurchaser]
+    permission_classes = [HasPermission("access_purchaser_portal")]
 
     def get(self, request):
         stock = PurchaserStock.objects.filter(purchaser=request.user).select_related("paddy_type")
@@ -65,7 +65,7 @@ class RiceRequestViewSet(viewsets.ModelViewSet):
     via OfficerRiceRequestViewSet).
     """
 
-    permission_classes = [IsAuthorizedPurchaser]
+    permission_classes = [HasPermission("access_purchaser_portal")]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def get_queryset(self):

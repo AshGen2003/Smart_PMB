@@ -1,7 +1,8 @@
 # API views for the mills app: a mill owner's own dashboard/profile/
 # licenses/milling reports, and the PMB officer-facing license review queue.
-# Mirrors the shape of farmers/views.py (FarmerDashboardView / IsFarmer /
-# OfficerHarvestViewSet.approve/reject) for the mill-owner actor.
+# Mirrors the shape of farmers/views.py (FarmerDashboardView /
+# access_farmer_portal / OfficerHarvestViewSet.approve/reject) for the
+# mill-owner actor.
 import random
 
 from django.db.models import Sum
@@ -16,7 +17,6 @@ from accounts.permissions import HasAnyPermission, HasPermission
 from sysops.utils import log_audit
 
 from .models import Inspection, License, Mill, MillingReport
-from .permissions import IsMillOwner
 from .serializers import (
     InspectionSerializer,
     InspectionWriteSerializer,
@@ -35,7 +35,7 @@ LICENSE_VALIDITY_DAYS = 365
 class MillOwnerDashboardView(APIView):
     """Aggregates a logged-in mill owner's own profile, license status, and recent milling reports."""
 
-    permission_classes = [IsMillOwner]
+    permission_classes = [HasPermission("access_mill_owner_portal")]
 
     def get(self, request):
         mill = get_object_or_404(
@@ -71,7 +71,7 @@ class MillOwnerDashboardView(APIView):
 class MillOwnerProfileView(APIView):
     """Lets the logged-in mill owner view (GET) and edit (PATCH) their own mill's business details."""
 
-    permission_classes = [IsMillOwner]
+    permission_classes = [HasPermission("access_mill_owner_portal")]
 
     def get(self, request):
         mill = get_object_or_404(Mill.objects.select_related("district", "province"), user=request.user)
@@ -108,7 +108,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
     via OfficerLicenseViewSet).
     """
 
-    permission_classes = [IsMillOwner]
+    permission_classes = [HasPermission("access_mill_owner_portal")]
     http_method_names = ["get", "post", "delete", "head", "options"]
     serializer_class = LicenseSerializer
 
@@ -130,7 +130,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
 class MillingReportViewSet(viewsets.ModelViewSet):
     """Self-service create/list for a mill owner's own milling reports (no update/delete — a submitted report is final)."""
 
-    permission_classes = [IsMillOwner]
+    permission_classes = [HasPermission("access_mill_owner_portal")]
     http_method_names = ["get", "post", "head", "options"]
 
     def get_queryset(self):
