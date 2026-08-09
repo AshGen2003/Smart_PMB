@@ -313,7 +313,7 @@ class SystemChangeRequestViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == "create":
             return [HasPermission("request_system_changes")()]
-        if self.action in ("list", "retrieve", "checkout_url", "destroy"):
+        if self.action in ("list", "retrieve", "checkout_url", "cancel_expired_payment", "destroy"):
             # Queryset scoping in get_queryset does the real access control
             # here — any authenticated user may call these, but an
             # officer-scoped queryset means they only ever reach their own
@@ -475,6 +475,53 @@ class SystemChangeRequestViewSet(viewsets.ModelViewSet):
             )
             return Response({"detail": detail}, status=400)
         return Response({"url": session.url})
+
+    @action(detail=True, methods=["post"], url_path="cancel-expired-payment")
+    def cancel_expired_payment(self, request, pk=None):
+        """
+        Lets the requesting officer or an admin clear out a request whose
+        Stripe Checkout Session has genuinely expired (~24h after
+        creation, per Stripe) — moves it to REJECTED with an
+        auto-generated reason, same terminal state as an admin's manual
+        reject() above, but reachable by the officer too since no new
+        review decision is being made here, just cleanup of a payment
+        window that lapsed. Re-checks Stripe directly and only proceeds
+        if the session is actually "expired" — never cancels a request
+        that might still be payable or was already paid, even if this
+        races the payment webhook.
+        """
+        change_request = self.get_object()
+        if change_request.status != SystemChangeRequest.Status.PAYMENT_PENDING:
+            return Response({"detail": "Only a pending payment can be cancelled."}, status=400)
+        if not change_request.stripe_checkout_session_id:
+            return Response({"detail": "No checkout session exists for this request."}, status=400)
+
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        session = stripe.checkout.Session.retrieve(change_request.stripe_checkout_session_id)
+        if session.status != "expired":
+            return Response(
+                {"detail": "This payment session hasn't expired yet — use Pay Now instead."},
+                status=400,
+            )
+
+        change_request.status = SystemChangeRequest.Status.REJECTED
+        change_request.rejection_reason = "Payment session expired."
+        change_request.stripe_checkout_session_id = ""
+        change_request.save(update_fields=["status", "rejection_reason", "stripe_checkout_session_id"])
+
+        log_audit(request.user, "cancel_expired_system_change_payment", "sysops", change_request.title)
+        # Skip the notification when the officer cancelled their own
+        # request — they obviously already know, same as the self-service
+        # withdraw actions elsewhere (e.g. purchases.withdrawRiceRequest)
+        # never notify the actor about their own action.
+        if request.user_id != change_request.requested_by_id:
+            _notify_requester(
+                change_request,
+                request.user,
+                f'Your request "{change_request.title}" was cancelled — its payment window expired. '
+                "Submit a new request if you'd still like this change.",
+            )
+        return Response(SystemChangeRequestSerializer(change_request).data)
 
     @action(detail=True, methods=["post"], url_path="progress")
     def post_progress(self, request, pk=None):

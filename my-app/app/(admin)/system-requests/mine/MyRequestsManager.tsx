@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import clsx from "clsx";
 import { CreditCard, Eye, Loader2, Plus, Receipt, Trash2, X } from "lucide-react";
 import {
+  cancelExpiredPayment,
   createSystemChangeRequest,
   deleteSystemChangeRequest,
   payForSystemChangeRequest,
@@ -67,6 +68,43 @@ function PayNowButton({ requestId }: { requestId: number }) {
   );
 }
 
+// Only actually cancels if Stripe confirms the session has expired — see
+// cancelExpiredPayment's docstring. Shown alongside Pay Now for anyone
+// whose payment window may have lapsed rather than trying to guess that
+// client-side; clicking it too early just surfaces the backend's "hasn't
+// expired yet" error instead of doing anything.
+function CancelExpiredPaymentButton({
+  requestId,
+  onCancelled,
+}: {
+  requestId: number;
+  onCancelled: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div>
+      {error && <div className={styles.banner}>{error}</div>}
+      <button
+        type="button"
+        className={styles.secondaryBtn}
+        disabled={isPending}
+        onClick={() =>
+          startTransition(async () => {
+            const result = await cancelExpiredPayment(requestId);
+            if (result.error) setError(result.error);
+            else onCancelled();
+          })
+        }
+      >
+        {isPending ? <Loader2 size={16} className={styles.spin} /> : <X size={16} />}
+        Cancel expired payment
+      </button>
+    </div>
+  );
+}
+
 export default function MyRequestsManager({
   requests,
   paymentBanner,
@@ -79,6 +117,7 @@ export default function MyRequestsManager({
   const [deleteTarget, setDeleteTarget] = useState<SystemRequestRow | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+  const [cancelSuccess, setCancelSuccess] = useState<string | null>(null);
   const [isDeleting, startDelete] = useTransition();
   const [state, formAction, pending] = useActionState(createSystemChangeRequest, initialState);
   const wasSubmitting = useRef(false);
@@ -134,6 +173,7 @@ export default function MyRequestsManager({
         <div className={styles.banner}>Payment was cancelled — you can try again below.</div>
       )}
       {deleteSuccess && <div className={styles.successBanner}>{deleteSuccess}</div>}
+      {cancelSuccess && <div className={styles.successBanner}>{cancelSuccess}</div>}
 
       <div className={styles.card}>
         {requests.length > 0 ? (
@@ -268,6 +308,15 @@ export default function MyRequestsManager({
               {detailTarget.status === "payment_pending" && (
                 <div className={styles.field}>
                   <PayNowButton requestId={detailTarget.id} />
+                  <CancelExpiredPaymentButton
+                    requestId={detailTarget.id}
+                    onCancelled={() => {
+                      const title = detailTarget.title;
+                      setDetailTarget(null);
+                      setDeleteSuccess(null);
+                      setCancelSuccess(`"${title}" was cancelled — its payment window expired.`);
+                    }}
+                  />
                 </div>
               )}
 

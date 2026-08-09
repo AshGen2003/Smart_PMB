@@ -128,6 +128,30 @@ export async function payForSystemChangeRequest(requestId: number): Promise<{ er
 }
 
 /**
+ * Officer (their own request) or admin (any request): cancels a
+ * payment-pending request whose Stripe Checkout Session has genuinely
+ * expired. The backend re-checks Stripe directly and rejects this with an
+ * error if the session isn't actually expired yet, so this is safe to
+ * expose as a plain button — see sysops/views.py's
+ * SystemChangeRequestViewSet.cancel_expired_payment.
+ */
+export async function cancelExpiredPayment(requestId: number): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/system-requests/${requestId}/cancel-expired-payment/`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/system-requests");
+  revalidatePath("/system-requests/mine");
+  revalidatePath("/officer/system-requests/mine");
+  return {};
+}
+
+/**
  * Deletes a request — either the requesting officer withdrawing their own,
  * or an admin clearing one out. The backend only allows this while
  * fee_amount is still unset (status PENDING or REJECTED — see

@@ -13,9 +13,10 @@
 import React, { useMemo, useState, useTransition } from "react";
 import { format } from "date-fns";
 import clsx from "clsx";
-import { Check, CreditCard, Eye, Loader2, Receipt, Trash2, X } from "lucide-react";
+import { Ban, Check, CreditCard, Eye, Loader2, Receipt, Trash2, X } from "lucide-react";
 import {
   acceptSystemChangeRequest,
+  cancelExpiredPayment,
   deleteSystemChangeRequest,
   rejectSystemChangeRequest,
   postProgressUpdate,
@@ -35,15 +36,24 @@ const STATUS_BADGE: Record<SystemRequestRow["status"], string> = {
 };
 
 // A request only ever reaches "payment_pending" (or later) once an admin
-// has accepted it and set a fee — accept() is only callable from PENDING,
-// and rejection is also only possible from PENDING, so fee_amount being
-// set and status being one of these three is the full, exhaustive set of
-// "this has a real payment behind it" states (see sysops/models.py's
-// SystemChangeRequest.Status for the full lifecycle).
+// has accepted it and set a fee — accept() is only callable from PENDING
+// (see sysops/models.py's SystemChangeRequest.Status for the full
+// lifecycle). A request can also land back on REJECTED with a fee still
+// on record via cancel_expired_payment (an expired Stripe session getting
+// cleaned up) — handled as its own case below, distinct from a still-open
+// "awaiting payment".
 const PAID_STATUSES: SystemRequestRow["status"][] = ["token_issued", "in_progress", "completed"];
 
 function paymentStatusLabel(status: SystemRequestRow["status"]) {
-  return PAID_STATUSES.includes(status) ? "Paid" : "Awaiting payment";
+  if (PAID_STATUSES.includes(status)) return "Paid";
+  if (status === "rejected") return "Cancelled";
+  return "Awaiting payment";
+}
+
+function paymentStatusBadgeClass(status: SystemRequestRow["status"]) {
+  if (PAID_STATUSES.includes(status)) return styles.badgeSuccess;
+  if (status === "rejected") return styles.badgeDanger;
+  return styles.badgeWarning;
 }
 
 // A request can only be deleted while it has no fee on record (PENDING or
@@ -65,6 +75,7 @@ export default function SystemRequestsManager({ requests }: { requests: SystemRe
   const [progressNote, setProgressNote] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<SystemRequestRow | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+  const [cancelPaymentTarget, setCancelPaymentTarget] = useState<SystemRequestRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -132,6 +143,21 @@ export default function SystemRequestsManager({ requests }: { requests: SystemRe
     });
   }
 
+  function submitCancelPayment() {
+    if (!cancelPaymentTarget) return;
+    const target = cancelPaymentTarget;
+    setError(null);
+    startTransition(async () => {
+      const result = await cancelExpiredPayment(target.id);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setCancelPaymentTarget(null);
+      setDeleteSuccess(`"${target.title}" was cancelled — its payment window expired.`);
+    });
+  }
+
   const canPostProgress = detailTarget?.status === "token_issued" || detailTarget?.status === "in_progress";
 
   return (
@@ -179,7 +205,7 @@ export default function SystemRequestsManager({ requests }: { requests: SystemRe
         </button>
       </div>
 
-      {error && !acceptTarget && !rejectTarget && !detailTarget && !deleteTarget && (
+      {error && !acceptTarget && !rejectTarget && !detailTarget && !deleteTarget && !cancelPaymentTarget && (
         <div className={styles.banner}>{error}</div>
       )}
       {deleteSuccess && <div className={styles.successBanner}>{deleteSuccess}</div>}
@@ -294,6 +320,7 @@ export default function SystemRequestsManager({ requests }: { requests: SystemRe
                   <th>Payment status</th>
                   <th>Token</th>
                   <th>Token issued</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -305,18 +332,29 @@ export default function SystemRequestsManager({ requests }: { requests: SystemRe
                       {r.currency.toUpperCase()} {Number(r.fee_amount).toLocaleString()}
                     </td>
                     <td>
-                      <span
-                        className={clsx(
-                          styles.badge,
-                          PAID_STATUSES.includes(r.status) ? styles.badgeSuccess : styles.badgeWarning
-                        )}
-                      >
+                      <span className={clsx(styles.badge, paymentStatusBadgeClass(r.status))}>
                         {paymentStatusLabel(r.status)}
                       </span>
                     </td>
                     <td>{r.token ? <span className={styles.token}>{r.token}</span> : "—"}</td>
                     <td>
                       {r.token_issued_at ? format(new Date(r.token_issued_at), "MMM d, yyyy · h:mm a") : "—"}
+                    </td>
+                    <td>
+                      {r.status === "payment_pending" && (
+                        <button
+                          type="button"
+                          className={clsx(styles.iconBtn, styles.iconBtnDanger)}
+                          title="Cancel expired payment"
+                          disabled={isPending}
+                          onClick={() => {
+                            setError(null);
+                            setCancelPaymentTarget(r);
+                          }}
+                        >
+                          <Ban size={14} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -561,6 +599,55 @@ export default function SystemRequestsManager({ requests }: { requests: SystemRe
                 <button type="button" className={styles.primaryBtn} disabled={isPending} onClick={confirmDelete}>
                   {isPending && <Loader2 size={16} className={styles.spin} />}
                   Delete request
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelPaymentTarget && (
+        <div className={styles.overlay} onClick={() => !isPending && setCancelPaymentTarget(null)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div className={styles.modalHeaderTitle}>
+                <Ban size={20} />
+                Cancel expired payment
+              </div>
+              <button
+                type="button"
+                className={styles.modalCloseBtn}
+                onClick={() => setCancelPaymentTarget(null)}
+                disabled={isPending}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              {error && <div className={styles.modalBanner}>{error}</div>}
+              <p>
+                Cancel <strong>{cancelPaymentTarget.title}</strong> (requested by{" "}
+                {cancelPaymentTarget.requested_by_name ?? "—"})? This only goes through if Stripe
+                confirms the payment session has actually expired — the officer will need to submit a
+                new request if they still want this change.
+              </p>
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={() => setCancelPaymentTarget(null)}
+                  disabled={isPending}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className={styles.primaryBtn}
+                  disabled={isPending}
+                  onClick={submitCancelPayment}
+                >
+                  {isPending && <Loader2 size={16} className={styles.spin} />}
+                  Cancel this request
                 </button>
               </div>
             </div>
