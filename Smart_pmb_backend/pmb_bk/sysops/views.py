@@ -687,10 +687,11 @@ class StripeWebhookView(APIView):
 class RunCapacityForecastsView(APIView):
     """
     POST /api/internal/run-capacity-forecasts/ — runs the
-    check_capacity_forecasts management command (predictive warehouse-
-    capacity SystemAlerts; see farmers/forecasting.py) on demand, meant to
-    be called once a day by .github/workflows/capacity-forecast-schedule.yml
-    since this codebase has no in-process task scheduler.
+    check_capacity_forecasts management command (predictive over-capacity
+    and low-stock warehouse SystemAlerts; see farmers/forecasting.py and
+    sysops/utils.py's raise_low_stock_alert) on demand, meant to be called
+    once a day by .github/workflows/capacity-forecast-schedule.yml since
+    this codebase has no in-process task scheduler.
 
     Same "unauthenticated caller, secret-verified" shape as
     StripeWebhookView above — this is hit by a GitHub Actions cron job, not
