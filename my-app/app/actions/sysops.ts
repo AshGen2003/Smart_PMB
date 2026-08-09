@@ -63,6 +63,23 @@ export async function runBackup(): Promise<ActionState> {
 }
 
 /**
+ * Deletes every ErrorLog row on the Django side — the maintenance page's
+ * Errors tab has no per-row dismissal, so this is the only way to reset it
+ * once an admin has seen/triaged what's there.
+ */
+export async function clearErrorLogs(): Promise<ActionState> {
+  const res = await apiFetch("/api/admin/error-logs/clear/", { method: "POST" });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data, "Couldn't clear the error log.") };
+  }
+
+  revalidatePath("/maintenance");
+  return {};
+}
+
+/**
  * Patches one or more global system configuration values (e.g. feature
  * flags, thresholds) — a plain key/value record rather than a FormData
  * payload, since the calling UI is expected to build the update object

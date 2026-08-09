@@ -73,13 +73,25 @@ class ErrorLogViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """
     Read-only, most-recent-first list of ErrorLog entries — unhandled
     exceptions raised anywhere across the API, captured automatically by
-    sysops/exception_handler.py rather than hand-picked per view. Requires
-    "view_audit_logs", same as the other log listings.
+    sysops/exception_handler.py rather than hand-picked per view. Listing
+    requires "view_audit_logs"; clearing the log requires "manage_system",
+    same split as the other log/backup views below.
     """
 
-    permission_classes = [HasPermission("view_audit_logs")]
     serializer_class = ErrorLogSerializer
     queryset = ErrorLog.objects.select_related("user")[:LOG_LIMIT]
+
+    def get_permissions(self):
+        if self.action == "list":
+            return [HasPermission("view_audit_logs")()]
+        return [HasPermission("manage_system")()]
+
+    @action(detail=False, methods=["post"])
+    def clear(self, request):
+        """Deletes every ErrorLog row — a manual "I've seen these" reset, not a filtered/partial clear."""
+        deleted_count, _ = ErrorLog.objects.all().delete()
+        log_audit(request.user, "clear_error_logs", "sysops", f"{deleted_count} entries")
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class SystemAlertViewSet(

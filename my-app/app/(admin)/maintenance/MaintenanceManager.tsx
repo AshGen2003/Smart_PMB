@@ -20,11 +20,13 @@ import {
   ScrollText,
   Search,
   Settings2,
+  Trash2,
   User,
   X,
 } from "lucide-react";
 import {
   acknowledgeAlert,
+  clearErrorLogs,
   resolveAlert,
   runBackup,
   updateSystemConfig,
@@ -152,6 +154,9 @@ export default function MaintenanceManager({
   // (already fully loaded, capped-at-200) auditLogs list this tab already
   // renders, so opening it needs no extra request.
   const [userTrailActor, setUserTrailActor] = useState<string | null>(null);
+  // Confirm-before-delete gate for "Clear errors" — wipes every ErrorLog
+  // row, so it isn't wired directly to the button's onClick.
+  const [clearErrorsConfirm, setClearErrorsConfirm] = useState(false);
 
   const userTrailEntries = useMemo(
     () => (userTrailActor ? auditLogs.filter((l) => l.actor === userTrailActor) : []),
@@ -289,6 +294,20 @@ export default function MaintenanceManager({
     });
   }
 
+  function confirmClearErrors() {
+    setError(null);
+    setSuccess(null);
+    startTransition(async () => {
+      const result = await clearErrorLogs();
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setClearErrorsConfirm(false);
+      setSuccess("Error log cleared.");
+    });
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
@@ -339,7 +358,7 @@ export default function MaintenanceManager({
         </div>
       )}
 
-      {error && <div className={styles.banner}>{error}</div>}
+      {error && !clearErrorsConfirm && <div className={styles.banner}>{error}</div>}
       {success && <div className={styles.successBanner}>{success}</div>}
 
       {tab === "alerts" && (
@@ -553,6 +572,19 @@ export default function MaintenanceManager({
 
       {tab === "errors" && (
         <div className={styles.container}>
+          {canManage && errorLogs.length > 0 && (
+            <div className={styles.toolbarRow}>
+              <button
+                type="button"
+                className={styles.dangerBtn}
+                disabled={isPending}
+                onClick={() => setClearErrorsConfirm(true)}
+              >
+                <Trash2 size={16} />
+                Clear errors
+              </button>
+            </div>
+          )}
           {filteredErrorLogs.length > 0 ? (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
@@ -687,6 +719,54 @@ export default function MaintenanceManager({
               runAction(() => updateSystemConfig(updates), "Settings saved.")
             }
           />
+        </div>
+      )}
+
+      {clearErrorsConfirm && (
+        <div className={styles.overlay} onClick={() => !isPending && setClearErrorsConfirm(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div className={styles.modalHeaderTitle}>
+                <Trash2 size={20} />
+                Clear errors
+              </div>
+              <button
+                type="button"
+                className={styles.modalCloseBtn}
+                onClick={() => setClearErrorsConfirm(false)}
+                disabled={isPending}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              {error && <div className={styles.modalBanner}>{error}</div>}
+              <p>
+                Clear all {errorLogs.length} recorded error{errorLogs.length === 1 ? "" : "s"}? This
+                only wipes the log — it doesn&apos;t fix anything that&apos;s still broken, and new
+                errors will keep appearing here as they happen. This cannot be undone.
+              </p>
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={() => setClearErrorsConfirm(false)}
+                  disabled={isPending}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={styles.dangerBtn}
+                  disabled={isPending}
+                  onClick={confirmClearErrors}
+                >
+                  {isPending && <Loader2 size={16} className={styles.spin} />}
+                  Clear errors
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
