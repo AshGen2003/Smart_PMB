@@ -143,6 +143,27 @@ export async function adjustWarehouseStock(
 }
 
 /**
+ * Resolves one warehouse-capacity SystemAlert (reactive over-capacity,
+ * predictive, or low-stock) via WarehouseViewSet.resolve_alert — any
+ * warehouse, not just one this account happens to manage, since a PMB
+ * officer needs oversight across all of them (see the Alerts tab on
+ * /warehouses).
+ */
+export async function resolveWarehouseCapacityAlert(alertId: number): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/admin/warehouses/alerts/${alertId}/resolve/`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data, "Couldn't resolve this alert.") };
+  }
+
+  revalidatePath("/warehouses");
+  return {};
+}
+
+/**
  * Assigns this warehouse's manager via WarehouseViewSet.appoint_manager —
  * either an existing warehouse_manager account (`user_id` present in
  * `formData`) or a brand new one (`full_name`/`email` present instead).

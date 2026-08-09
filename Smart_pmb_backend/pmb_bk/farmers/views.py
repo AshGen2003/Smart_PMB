@@ -9,7 +9,7 @@ from datetime import timedelta
 import qrcode
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Avg, Count, F, Sum
+from django.db.models import Avg, Count, F, Q, Sum
 from django.db.models.functions import TruncWeek
 from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
@@ -31,7 +31,7 @@ from accounts.serializers import generate_temp_password
 from accounts.sms import send_sms
 from sysops.models import SystemAlert
 from sysops.serializers import SystemAlertSerializer
-from sysops.utils import log_audit
+from sysops.utils import log_audit, raise_low_stock_alert
 
 from .pdf import build_officer_report_pdf
 from .reports import build_officer_report_data
@@ -316,6 +316,47 @@ class WarehouseViewSet(viewsets.ModelViewSet):
             return Response({"detail": error}, status=400)
         return Response(WarehouseSerializer(warehouse).data)
 
+    # Every alert_type prefix a warehouse-capacity SystemAlert can have —
+    # shared between the two actions below so the officer's Alerts tab and
+    # its resolve action always agree on what counts as "a warehouse alert".
+    _CAPACITY_ALERT_PREFIXES = (
+        "high_capacity_warehouse_",
+        "predicted_capacity_warehouse_",
+        "low_stock_warehouse_",
+    )
+
+    @action(detail=False, methods=["get"], url_path="alerts")
+    def alerts(self, request):
+        """
+        Every warehouse-capacity SystemAlert (reactive over-capacity,
+        once-daily predictive, and low-stock) across every warehouse — the
+        PMB officer's single place to see all of it, since
+        SystemAlertViewSet's admin Alerts tab hides the reactive
+        over-capacity one to cut clutter there (see sysops/views.py).
+        """
+        alert_filter = Q()
+        for prefix in self._CAPACITY_ALERT_PREFIXES:
+            alert_filter |= Q(alert_type__startswith=prefix)
+        alerts = (
+            SystemAlert.objects.filter(alert_filter)
+            .select_related("handled_by")
+            .order_by("-created_at")
+        )
+        return Response(SystemAlertSerializer(alerts, many=True).data)
+
+    @action(detail=False, methods=["post"], url_path=r"alerts/(?P<alert_id>\d+)/resolve")
+    def resolve_alert(self, request, alert_id=None):
+        """Resolves one warehouse-capacity alert, scoped to manage_warehouses (not manage_system) since this is warehouse triage, not general system administration."""
+        alert = get_object_or_404(SystemAlert, pk=alert_id)
+        if not alert.alert_type.startswith(self._CAPACITY_ALERT_PREFIXES):
+            return Response({"detail": "Not a warehouse capacity alert."}, status=400)
+        alert.status = SystemAlert.Status.RESOLVED
+        alert.handled_by = request.user
+        alert.resolved_at = timezone.now()
+        alert.save(update_fields=["status", "handled_by", "resolved_at"])
+        log_audit(request.user, "resolve_warehouse_capacity_alert", "farmers", alert.alert_type)
+        return Response(status=204)
+
     @action(
         detail=True, methods=["post"], url_path="appoint-manager",
         permission_classes=[HasPermission("appoint_warehouse_managers")],
@@ -420,17 +461,19 @@ class WarehouseManagerDashboardView(APIView):
         )
         transactions = TransactionLog.objects.filter(warehouse=warehouse).order_by("-created_at")[:20]
         # alert_type encodes the warehouse id the same way
-        # _raise_high_capacity_alert/farmers.forecasting's predictive
-        # version already do — resolving one of these two capacity types
-        # for their own warehouse is self-served via
+        # _raise_high_capacity_alert/raise_low_stock_alert/farmers.forecasting's
+        # predictive version all do — resolving one of these three capacity
+        # types for their own warehouse is self-served via
         # WarehouseManagerResolveAlertView below; anything else still stays
-        # officer/admin-only (SystemAlertViewSet, "manage_system"), since
+        # officer/admin-only (SystemAlertViewSet, "manage_system", or
+        # WarehouseViewSet.resolve_alert for "manage_warehouses"), since
         # SystemAlert covers alert types well beyond warehouse capacity and
         # isn't scoped to be safely self-served in general.
         alerts = SystemAlert.objects.filter(
             alert_type__in=[
                 f"high_capacity_warehouse_{warehouse.id}",
                 f"predicted_capacity_warehouse_{warehouse.id}",
+                f"low_stock_warehouse_{warehouse.id}",
             ],
             status=SystemAlert.Status.OPEN,
         ).order_by("-created_at")
@@ -469,14 +512,15 @@ class WarehouseManagerDashboardView(APIView):
 class WarehouseManagerResolveAlertView(APIView):
     """
     POST /api/warehouse-manager/alerts/<pk>/resolve/ — lets a
-    warehouse_manager clear a capacity SystemAlert (reactive or predictive)
-    raised for the single warehouse they manage. Scoped two ways: by
-    identity (Warehouse.managed_by=request.user, same as
+    warehouse_manager clear a capacity SystemAlert (reactive, predictive, or
+    low-stock) raised for the single warehouse they manage. Scoped two ways:
+    by identity (Warehouse.managed_by=request.user, same as
     WarehouseManagerDashboardView) and by alert_type (must be one of this
-    warehouse's own high_capacity_/predicted_capacity_ alerts) — a manager
-    can resolve their own warehouse's capacity warnings and nothing else,
-    unlike the "manage_system"-gated SystemAlertViewSet.resolve admins use
-    for every other alert type.
+    warehouse's own capacity alerts) — a manager can resolve their own
+    warehouse's capacity warnings and nothing else, unlike the
+    "manage_warehouses"-gated WarehouseViewSet.resolve_alert an officer uses
+    for any warehouse, or the "manage_system"-gated SystemAlertViewSet.resolve
+    admins use for every other alert type.
     """
 
     permission_classes = [IsAuthenticated]
@@ -494,6 +538,7 @@ class WarehouseManagerResolveAlertView(APIView):
             alert_type__in=[
                 f"high_capacity_warehouse_{warehouse.id}",
                 f"predicted_capacity_warehouse_{warehouse.id}",
+                f"low_stock_warehouse_{warehouse.id}",
             ],
         )
         alert.status = SystemAlert.Status.RESOLVED
@@ -700,6 +745,7 @@ class WarehouseTransferRequestViewSet(viewsets.ReadOnlyModelViewSet):
                 transfer_request=transfer,
                 updated_by=request.user,
             )
+            transfer.from_warehouse.refresh_from_db(fields=["current_stock"])
             transfer.to_warehouse.refresh_from_db(fields=["current_stock"])
             transfer.status = WarehouseTransferRequest.Status.APPROVED
             transfer.reviewed_by = request.user
@@ -707,6 +753,7 @@ class WarehouseTransferRequestViewSet(viewsets.ReadOnlyModelViewSet):
             transfer.save(update_fields=["status", "reviewed_by", "resolved_date"])
 
         _raise_high_capacity_alert(transfer.to_warehouse, transfer.to_warehouse.current_stock)
+        raise_low_stock_alert(transfer.from_warehouse, transfer.from_warehouse.current_stock)
         log_audit(
             request.user, "approve_warehouse_transfer", "farmers",
             f"WarehouseTransferRequest #{transfer.id}",
@@ -956,6 +1003,8 @@ def _adjust_warehouse_stock(warehouse, data, user, log_action):
 
     if quantity > 0:
         _raise_high_capacity_alert(warehouse, warehouse.current_stock)
+    else:
+        raise_low_stock_alert(warehouse, warehouse.current_stock)
 
     log_audit(
         user, log_action, "farmers",

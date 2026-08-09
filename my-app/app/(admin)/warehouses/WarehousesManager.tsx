@@ -6,9 +6,20 @@
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
+import { format } from "date-fns";
 import clsx from "clsx";
-import { ClipboardList, Pencil, Plus, Search, Trash2, Warehouse as WarehouseIcon } from "lucide-react";
-import { deleteWarehouse } from "@/app/actions/warehouses";
+import {
+  AlertTriangle,
+  Check,
+  ClipboardList,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Warehouse as WarehouseIcon,
+} from "lucide-react";
+import { deleteWarehouse, resolveWarehouseCapacityAlert } from "@/app/actions/warehouses";
 import WarehouseFormModal, {
   type DistrictOption,
   type EditableWarehouse,
@@ -44,6 +55,18 @@ export type WarehouseRow = {
 
 export type OfficerOption = { id: string; name: string; role: "pmb_officer" | "warehouse_manager" };
 
+/** One warehouse-capacity SystemAlert, as returned by GET /api/admin/warehouses/alerts/. */
+export type AlertRow = {
+  id: number;
+  alert_type: string;
+  level: "info" | "warning" | "critical";
+  message: string;
+  status: "open" | "acknowledged" | "resolved";
+  handled_by_email: string | null;
+  created_at: string;
+  resolved_at: string | null;
+};
+
 const STATUS_LABEL: Record<WarehouseRow["status"], string> = {
   active: "Active",
   inactive: "Inactive",
@@ -66,6 +89,7 @@ export default function WarehousesManager({
   inventory,
   transactions,
   paddyTypes,
+  alerts,
   permissions,
   canWrite = true,
 }: {
@@ -75,11 +99,13 @@ export default function WarehousesManager({
   inventory: InventoryLine[];
   transactions: TransactionLogEntry[];
   paddyTypes: PaddyTypeOption[];
+  alerts: AlertRow[];
   permissions: string[];
   // False for viewers who can only see warehouses (Portal Preview, or a
   // future read-only role) — hides the create/edit/delete affordances.
   canWrite?: boolean;
 }) {
+  const [tab, setTab] = useState<"warehouses" | "alerts">("warehouses");
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState<
     { mode: "create" } | { mode: "edit"; warehouse: EditableWarehouse } | null
@@ -98,6 +124,11 @@ export default function WarehousesManager({
         (w.district_name ?? "").toLowerCase().includes(q)
     );
   }, [warehouses, query]);
+
+  const openAlertCount = useMemo(
+    () => alerts.filter((a) => a.status === "open").length,
+    [alerts]
+  );
 
   const [deleteTarget, setDeleteTarget] = useState<WarehouseRow | null>(null);
 
@@ -145,8 +176,29 @@ export default function WarehousesManager({
         </div>
       </div>
 
+      <div className={styles.tabsRow}>
+        <button
+          type="button"
+          className={clsx(styles.tab, tab === "warehouses" && styles.tabActive)}
+          onClick={() => setTab("warehouses")}
+        >
+          <WarehouseIcon size={15} />
+          All warehouses
+        </button>
+        <button
+          type="button"
+          className={clsx(styles.tab, tab === "alerts" && styles.tabActive)}
+          onClick={() => setTab("alerts")}
+        >
+          <AlertTriangle size={15} />
+          Alerts
+          {openAlertCount > 0 && <span className={styles.tabCount}>{openAlertCount}</span>}
+        </button>
+      </div>
+
       {deleteError && <div className={styles.banner}>{deleteError}</div>}
 
+      {tab === "warehouses" && (
       <div className={styles.container}>
         <h2 className={styles.sectionLabel}>All warehouses</h2>
 
@@ -244,6 +296,22 @@ export default function WarehousesManager({
           <p className={styles.emptyState}>No warehouses match your search.</p>
         )}
       </div>
+      )}
+
+      {tab === "alerts" && (
+        <div className={styles.container}>
+          <h2 className={styles.sectionLabel}>Warehouse alerts</h2>
+          {alerts.length > 0 ? (
+            <div className={styles.alertList}>
+              {alerts.map((a) => (
+                <AlertItem key={a.id} alert={a} />
+              ))}
+            </div>
+          ) : (
+            <p className={styles.emptyState}>No warehouse alerts recorded yet.</p>
+          )}
+        </div>
+      )}
 
       {modal?.mode === "create" && (
         <WarehouseFormModal
@@ -291,6 +359,61 @@ export default function WarehousesManager({
           onConfirm={confirmDelete}
           onClose={() => setDeleteTarget(null)}
         />
+      )}
+    </div>
+  );
+}
+
+const ALERT_STATUS_LABEL: Record<AlertRow["status"], string> = {
+  open: "Open",
+  acknowledged: "Acknowledged",
+  resolved: "Resolved",
+};
+
+const ALERT_STATUS_BADGE_CLASS: Record<AlertRow["status"], string> = {
+  open: "badge-critical",
+  acknowledged: "badge-warning",
+  resolved: "badge-success",
+};
+
+/** One warehouse-alert row with its own resolve button — own pending/error state so resolving one alert doesn't disable the others. */
+function AlertItem({ alert }: { alert: AlertRow }) {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleResolve() {
+    setError(null);
+    startTransition(async () => {
+      const result = await resolveWarehouseCapacityAlert(alert.id);
+      if (result.error) setError(result.error);
+    });
+  }
+
+  return (
+    <div className={styles.alertItem}>
+      <AlertTriangle size={16} />
+      <div className={styles.alertItemBody}>
+        <div className={styles.alertItemTopRow}>
+          <span className={clsx(styles.badge, styles[ALERT_STATUS_BADGE_CLASS[alert.status]])}>
+            {ALERT_STATUS_LABEL[alert.status]}
+          </span>
+        </div>
+        <span className={styles.alertItemMessage}>{alert.message}</span>
+        <span className={styles.alertItemMeta}>
+          {format(new Date(alert.created_at), "MMM d, yyyy h:mm a")}
+        </span>
+        {error && <span className={styles.alertItemError}>{error}</span>}
+      </div>
+      {alert.status !== "resolved" && (
+        <button
+          type="button"
+          className={styles.resolveBtn}
+          disabled={isPending}
+          onClick={handleResolve}
+        >
+          {isPending ? <Loader2 size={13} className={styles.spin} /> : <Check size={13} />}
+          Resolve
+        </button>
       )}
     </div>
   );

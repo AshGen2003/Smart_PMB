@@ -14,7 +14,7 @@ from accounts.permissions import HasAnyPermission, HasPermission
 from farmers.models import TransactionLog, Warehouse
 from farmers.serializers import TransactionVerificationSerializer, TransactionVerificationWriteSerializer
 from farmers.views import _log_transaction
-from sysops.utils import log_audit
+from sysops.utils import log_audit, raise_low_stock_alert
 
 from .models import AuthorizedPurchaser, PurchaserStock, RiceRequest
 from .permissions import IsAuthorizedPurchaser
@@ -182,6 +182,9 @@ class OfficerRiceRequestViewSet(viewsets.ReadOnlyModelViewSet):
             rice_request.fulfilled_from_warehouse = warehouse
             rice_request.reviewed_by = request.user
             rice_request.save(update_fields=["status", "fulfilled_from_warehouse", "reviewed_by"])
+            warehouse.refresh_from_db(fields=["current_stock"])
+
+        raise_low_stock_alert(warehouse, warehouse.current_stock)
 
         log_audit(request.user, "fulfill_rice_request", "purchases", f"RiceRequest #{rice_request.id}")
         return Response(OfficerRiceRequestSerializer(rice_request).data)

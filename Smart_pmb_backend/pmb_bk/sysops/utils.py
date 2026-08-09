@@ -85,6 +85,38 @@ def raise_repeated_login_failure_alert(user):
     )
 
 
+LOW_STOCK_ALERT_THRESHOLD = 0.10  # fraction of capacity
+
+
+def raise_low_stock_alert(warehouse, new_stock):
+    """
+    Raises a SystemAlert once a warehouse's stock drops below 10% of its
+    capacity — the low-stock counterpart to farmers.views._raise_high_capacity_alert,
+    called from wherever a warehouse's stock actually decreases (manual
+    removal, transfer-out, rice-request fulfillment) rather than wherever it
+    increases. `alert_type` encodes the warehouse id so this only fires once
+    per warehouse while an alert is still open — resolving it lets a future
+    drop raise a fresh one if the condition persists.
+    """
+    if not warehouse.capacity or new_stock / warehouse.capacity >= LOW_STOCK_ALERT_THRESHOLD:
+        return
+    alert_type = f"low_stock_warehouse_{warehouse.id}"
+    already_open = SystemAlert.objects.filter(
+        alert_type=alert_type, status=SystemAlert.Status.OPEN
+    ).exists()
+    if already_open:
+        return
+    SystemAlert.objects.create(
+        alert_type=alert_type,
+        level=SystemAlert.Level.WARNING,
+        message=(
+            f"{warehouse.name} is down to {new_stock:.0f}/{warehouse.capacity:.0f} kg "
+            f"({new_stock / warehouse.capacity:.0%} capacity) — consider arranging a "
+            "harvest collection or a transfer in."
+        ),
+    )
+
+
 def raise_stripe_payment_failed_alert(change_request, payment_intent_id, failure_message):
     """
     Raises a SystemAlert when the PaymentIntent behind a system-change

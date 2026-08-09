@@ -15,7 +15,11 @@ import {
   PREVIEW_PADDY_TYPE_OPTIONS,
   PREVIEW_WAREHOUSES,
 } from "@/app/lib/previewSampleData";
-import WarehousesManager, { type OfficerOption, type WarehouseRow } from "./WarehousesManager";
+import WarehousesManager, {
+  type AlertRow,
+  type OfficerOption,
+  type WarehouseRow,
+} from "./WarehousesManager";
 import type { DistrictOption } from "./WarehouseFormModal";
 import type { InventoryLine, TransactionLogEntry } from "./WarehouseDetailModal";
 import type { PaddyTypeOption } from "./WarehouseStockAdjustModal";
@@ -39,6 +43,7 @@ export default async function WarehousesPage() {
         inventory={[]}
         transactions={[]}
         paddyTypes={PREVIEW_PADDY_TYPE_OPTIONS}
+        alerts={[]}
         permissions={user.permissions}
         canWrite={false}
       />
@@ -49,7 +54,7 @@ export default async function WarehousesPage() {
   // /transportation; districts/paddy-types are largely static reference
   // data — see apiFetchCached's docstring. revalidateTag("warehouses")
   // in actions/warehouses.ts keeps the warehouse list fresh on mutation.
-  const [warehousesRes, districtsRes, officersRes, inventoryRes, transactionsRes, paddyTypesRes] =
+  const [warehousesRes, districtsRes, officersRes, inventoryRes, transactionsRes, paddyTypesRes, alertsRes] =
     await Promise.all([
       apiFetchCached("/api/admin/warehouses/", 300, ["warehouses"]),
       apiFetchCached("/api/districts/", 3600, ["districts"]),
@@ -57,6 +62,7 @@ export default async function WarehousesPage() {
       apiFetch("/api/admin/inventory/"),
       apiFetch("/api/admin/transaction-log/"),
       apiFetchCached("/api/admin/paddy-types/", 300, ["paddy-types"]),
+      apiFetch("/api/admin/warehouses/alerts/"),
     ]);
 
   const warehouses = warehousesRes.ok ? ((await warehousesRes.json()) as WarehouseRow[]) : [];
@@ -65,6 +71,7 @@ export default async function WarehousesPage() {
   const inventory = inventoryRes.ok ? ((await inventoryRes.json()) as InventoryLine[]) : [];
   const transactions = transactionsRes.ok ? ((await transactionsRes.json()) as TransactionLogEntry[]) : [];
   const paddyTypes = paddyTypesRes.ok ? ((await paddyTypesRes.json()) as PaddyTypeOption[]) : [];
+  const alerts = alertsRes.ok ? ((await alertsRes.json()) as AlertRow[]) : [];
 
   return (
     <WarehousesManager
@@ -74,6 +81,7 @@ export default async function WarehousesPage() {
       inventory={inventory}
       transactions={transactions}
       paddyTypes={paddyTypes}
+      alerts={alerts}
       permissions={user.permissions}
       canWrite={canWrite}
     />
