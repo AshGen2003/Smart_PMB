@@ -50,6 +50,7 @@ from .serializers import (
 )
 from .utils import (
     CONFIG_DEFS,
+    WAREHOUSE_ALERT_TYPE_PREFIXES,
     get_all_configs,
     get_config_value,
     log_audit,
@@ -121,13 +122,16 @@ class SystemAlertViewSet(
     def get_queryset(self):
         qs = super().get_queryset()
         if self.action == "list":
-            # The reactive "warehouse just crossed 90% capacity" alert is
-            # kept for farmers.views.WarehouseDashboardView (its own
-            # real-time warning to the warehouse manager) but deliberately
-            # excluded here — it was cluttering the admin Alerts tab
-            # alongside the once-daily predictive capacity alert
-            # (predicted_capacity_warehouse_*), which stays visible here.
-            qs = qs.exclude(alert_type__startswith="high_capacity_warehouse_")
+            # This tab is for system-health alerts (repeated login
+            # failures, failed Stripe payments) — every warehouse-capacity
+            # alert type is PMB business/operational data, not a system
+            # concern, so all of them are excluded here regardless of
+            # level. They're still fully reachable via the PMB officer's
+            # own Warehouses > Alerts tab (farmers.views.WarehouseViewSet.alerts)
+            # and the warehouse manager's own dashboard — this only trims
+            # what shows up in the admin console.
+            for prefix in WAREHOUSE_ALERT_TYPE_PREFIXES:
+                qs = qs.exclude(alert_type__startswith=prefix)
         return qs
 
     def _set_status(self, request, pk, new_status):

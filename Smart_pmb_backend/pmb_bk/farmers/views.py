@@ -31,7 +31,7 @@ from accounts.serializers import generate_temp_password
 from accounts.sms import send_sms
 from sysops.models import SystemAlert
 from sysops.serializers import SystemAlertSerializer
-from sysops.utils import log_audit, raise_low_stock_alert
+from sysops.utils import WAREHOUSE_ALERT_TYPE_PREFIXES, log_audit, raise_low_stock_alert
 
 from .pdf import build_officer_report_pdf
 from .reports import build_officer_report_data
@@ -316,26 +316,20 @@ class WarehouseViewSet(viewsets.ModelViewSet):
             return Response({"detail": error}, status=400)
         return Response(WarehouseSerializer(warehouse).data)
 
-    # Every alert_type prefix a warehouse-capacity SystemAlert can have —
-    # shared between the two actions below so the officer's Alerts tab and
-    # its resolve action always agree on what counts as "a warehouse alert".
-    _CAPACITY_ALERT_PREFIXES = (
-        "high_capacity_warehouse_",
-        "predicted_capacity_warehouse_",
-        "low_stock_warehouse_",
-    )
-
     @action(detail=False, methods=["get"], url_path="alerts")
     def alerts(self, request):
         """
         Every warehouse-capacity SystemAlert (reactive over-capacity,
         once-daily predictive, and low-stock) across every warehouse — the
         PMB officer's single place to see all of it, since
-        SystemAlertViewSet's admin Alerts tab hides the reactive
-        over-capacity one to cut clutter there (see sysops/views.py).
+        SystemAlertViewSet's admin Alerts tab excludes every warehouse
+        business/operational alert type to keep that tab system-health-only
+        (see sysops/views.py and sysops/utils.py's
+        WAREHOUSE_ALERT_TYPE_PREFIXES, the single shared source of truth
+        both places filter against).
         """
         alert_filter = Q()
-        for prefix in self._CAPACITY_ALERT_PREFIXES:
+        for prefix in WAREHOUSE_ALERT_TYPE_PREFIXES:
             alert_filter |= Q(alert_type__startswith=prefix)
         alerts = (
             SystemAlert.objects.filter(alert_filter)
@@ -348,7 +342,7 @@ class WarehouseViewSet(viewsets.ModelViewSet):
     def resolve_alert(self, request, alert_id=None):
         """Resolves one warehouse-capacity alert, scoped to manage_warehouses (not manage_system) since this is warehouse triage, not general system administration."""
         alert = get_object_or_404(SystemAlert, pk=alert_id)
-        if not alert.alert_type.startswith(self._CAPACITY_ALERT_PREFIXES):
+        if not alert.alert_type.startswith(WAREHOUSE_ALERT_TYPE_PREFIXES):
             return Response({"detail": "Not a warehouse capacity alert."}, status=400)
         alert.status = SystemAlert.Status.RESOLVED
         alert.handled_by = request.user

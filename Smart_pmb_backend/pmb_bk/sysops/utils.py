@@ -85,6 +85,21 @@ def raise_repeated_login_failure_alert(user):
     )
 
 
+# Every alert_type prefix a warehouse-capacity SystemAlert can have (see
+# raise_low_stock_alert below and farmers.views._raise_high_capacity_alert /
+# farmers.forecasting._raise_predictive_capacity_alert) — these are PMB
+# operational/business alerts, not system-health ones, so
+# sysops.views.SystemAlertViewSet's admin Alerts tab excludes all of them
+# (they're reachable instead via farmers.views.WarehouseViewSet.alerts, the
+# PMB officer's dedicated Warehouses > Alerts tab, and the warehouse
+# manager's own dashboard). Shared here so the admin-tab exclusion and the
+# officer-tab inclusion/resolve scoping can't drift apart.
+WAREHOUSE_ALERT_TYPE_PREFIXES = (
+    "high_capacity_warehouse_",
+    "predicted_capacity_warehouse_",
+    "low_stock_warehouse_",
+)
+
 LOW_STOCK_ALERT_THRESHOLD = 0.10  # fraction of capacity
 
 
