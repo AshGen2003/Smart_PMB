@@ -88,54 +88,56 @@ export default function DeliverySlotsManager({
 
       <div className={styles.container}>
         {slots.length > 0 ? (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>{t.farmerDeliverySlots.tableWarehouse}</th>
-                <th>{t.farmerDeliverySlots.tablePaddyType}</th>
-                <th>{t.farmerDeliverySlots.tableQuantity}</th>
-                <th>{t.farmerDeliverySlots.tableDate}</th>
-                <th>{t.farmerDeliverySlots.tableReference}</th>
-                <th>{t.farmerDeliverySlots.tableStatus}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {slots.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.warehouse_name ?? "—"}</td>
-                  <td>{s.paddy_type_name ?? "—"}</td>
-                  <td>{Number(s.estimated_quantity_kg).toLocaleString()}</td>
-                  <td>{format(new Date(s.scheduled_date), "MMM d, yyyy")}</td>
-                  <td>{s.booking_reference}</td>
-                  <td>
-                    <span className={clsx(styles.badge, styles[STATUS_BADGE[s.status]])}>
-                      {STATUS_LABEL[s.status]}
-                    </span>
-                  </td>
-                  <td>
-                    {s.status === "booked" && (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>{t.farmerDeliverySlots.tableWarehouse}</th>
+                  <th>{t.farmerDeliverySlots.tablePaddyType}</th>
+                  <th>{t.farmerDeliverySlots.tableQuantity}</th>
+                  <th>{t.farmerDeliverySlots.tableDate}</th>
+                  <th>{t.farmerDeliverySlots.tableReference}</th>
+                  <th>{t.farmerDeliverySlots.tableStatus}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {slots.map((s) => (
+                  <tr key={s.id}>
+                    <td>{s.warehouse_name ?? "—"}</td>
+                    <td>{s.paddy_type_name ?? "—"}</td>
+                    <td>{Number(s.estimated_quantity_kg).toLocaleString()}</td>
+                    <td>{format(new Date(s.scheduled_date), "MMM d, yyyy")}</td>
+                    <td>{s.booking_reference}</td>
+                    <td>
+                      <span className={clsx(styles.badge, styles[STATUS_BADGE[s.status]])}>
+                        {STATUS_LABEL[s.status]}
+                      </span>
+                    </td>
+                    <td>
+                      {s.status === "booked" && (
+                        <button
+                          type="button"
+                          className={styles.withdrawBtn}
+                          disabled={isPending}
+                          onClick={() => setCancelTarget(s)}
+                        >
+                          {t.farmerDeliverySlots.cancelSlot}
+                        </button>
+                      )}
                       <button
                         type="button"
-                        className={styles.withdrawBtn}
-                        disabled={isPending}
-                        onClick={() => setCancelTarget(s)}
+                        className={styles.traceLink}
+                        onClick={() => setQrTarget(s)}
                       >
-                        {t.farmerDeliverySlots.cancelSlot}
+                        <QrCode size={14} /> {t.farmerDeliverySlots.viewQr}
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      className={styles.traceLink}
-                      onClick={() => setQrTarget(s)}
-                    >
-                      <QrCode size={14} /> {t.farmerDeliverySlots.viewQr}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className={styles.emptyState}>
             <CalendarClock size={28} style={{ marginBottom: "0.5rem", opacity: 0.6 }} />

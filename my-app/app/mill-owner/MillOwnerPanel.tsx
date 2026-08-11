@@ -84,28 +84,30 @@ export default function MillOwnerPanel({ data }: { data: MillOwnerDashboardData 
             <h3 className={styles.tableTitle}>Recent Licenses</h3>
           </div>
           {data.licenses.length > 0 ? (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>License No.</th>
-                  <th>Status</th>
-                  <th>Expiry</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.licenses.map((l) => (
-                  <tr key={l.id}>
-                    <td>{l.license_no ?? "—"}</td>
-                    <td>
-                      <span className={`${styles.badge} ${styles[`badge-${l.status === "approved" ? "success" : l.status === "rejected" ? "danger" : "warning"}`]}`}>
-                        {l.status}
-                      </span>
-                    </td>
-                    <td>{l.expiry_date ? format(new Date(l.expiry_date), "MMM d, yyyy") : "—"}</td>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>License No.</th>
+                    <th>Status</th>
+                    <th>Expiry</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.licenses.map((l) => (
+                    <tr key={l.id}>
+                      <td>{l.license_no ?? "—"}</td>
+                      <td>
+                        <span className={`${styles.badge} ${styles[`badge-${l.status === "approved" ? "success" : l.status === "rejected" ? "danger" : "warning"}`]}`}>
+                          {l.status}
+                        </span>
+                      </td>
+                      <td>{l.expiry_date ? format(new Date(l.expiry_date), "MMM d, yyyy") : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className={styles.subtitle}>No licenses yet — apply from the Licenses page.</p>
           )}
@@ -116,24 +118,26 @@ export default function MillOwnerPanel({ data }: { data: MillOwnerDashboardData 
             <h3 className={styles.tableTitle}>Recent Milling Reports</h3>
           </div>
           {data.milling_reports.length > 0 ? (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Paddy (kg)</th>
-                  <th>Rice (kg)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.milling_reports.map((r) => (
-                  <tr key={r.id}>
-                    <td>{format(new Date(r.report_date), "MMM d, yyyy")}</td>
-                    <td>{Number(r.paddy_processed_kg).toLocaleString()}</td>
-                    <td>{Number(r.rice_output_kg).toLocaleString()}</td>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Paddy (kg)</th>
+                    <th>Rice (kg)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.milling_reports.map((r) => (
+                    <tr key={r.id}>
+                      <td>{format(new Date(r.report_date), "MMM d, yyyy")}</td>
+                      <td>{Number(r.paddy_processed_kg).toLocaleString()}</td>
+                      <td>{Number(r.rice_output_kg).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className={styles.subtitle}>No milling reports yet — submit one from the Milling Reports page.</p>
           )}
@@ -144,32 +148,34 @@ export default function MillOwnerPanel({ data }: { data: MillOwnerDashboardData 
             <h3 className={styles.tableTitle}>Recent Inspections</h3>
           </div>
           {data.inspections.length > 0 ? (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Result</th>
-                  <th>Officer</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.inspections.map((i) => (
-                  <tr key={i.id}>
-                    <td>{format(new Date(i.inspection_date), "MMM d, yyyy")}</td>
-                    <td>
-                      <span
-                        className={`${styles.badge} ${
-                          styles[`badge-${i.result === "pass" ? "success" : i.result === "fail" ? "danger" : "warning"}`]
-                        }`}
-                      >
-                        {INSPECTION_RESULT_LABEL[i.result]}
-                      </span>
-                    </td>
-                    <td>{i.officer_name ?? "—"}</td>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Result</th>
+                    <th>Officer</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.inspections.map((i) => (
+                    <tr key={i.id}>
+                      <td>{format(new Date(i.inspection_date), "MMM d, yyyy")}</td>
+                      <td>
+                        <span
+                          className={`${styles.badge} ${
+                            styles[`badge-${i.result === "pass" ? "success" : i.result === "fail" ? "danger" : "warning"}`]
+                          }`}
+                        >
+                          {INSPECTION_RESULT_LABEL[i.result]}
+                        </span>
+                      </td>
+                      <td>{i.officer_name ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className={styles.subtitle}>No inspections recorded yet.</p>
           )}

@@ -277,6 +277,12 @@
   gap: 1rem;
 }
 
+@media (max-width: 720px) {
+  .fieldRow {
+    grid-template-columns: 1fr;
+  }
+}
+
 .checkboxRow {
   display: flex;
   align-items: center;

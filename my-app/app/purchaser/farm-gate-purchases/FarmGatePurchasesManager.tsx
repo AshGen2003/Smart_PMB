@@ -131,47 +131,49 @@ export default function FarmGatePurchasesManager({
         )}
 
         {purchases.length > 0 ? (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th></th>
-                <th>Receipt</th>
-                <th>Farmer</th>
-                <th>Paddy type</th>
-                <th>Weight (kg)</th>
-                <th>Total (Rs.)</th>
-                <th>Date</th>
-                <th>Manifest</th>
-              </tr>
-            </thead>
-            <tbody>
-              {purchases.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    {p.manifest === null && (
-                      <input
-                        type="checkbox"
-                        checked={selected.has(p.id)}
-                        onChange={() => toggleSelected(p.id)}
-                        aria-label={`Select purchase ${p.receipt_no}`}
-                      />
-                    )}
-                  </td>
-                  <td>{p.receipt_no}</td>
-                  <td>{p.farmer_name ?? "—"}</td>
-                  <td>{p.paddy_type_name ?? "—"}</td>
-                  <td>{Number(p.weight_kg).toLocaleString()}</td>
-                  <td>{Number(p.total_amount).toLocaleString()}</td>
-                  <td>{format(new Date(p.purchase_date), "MMM d, yyyy")}</td>
-                  <td>
-                    <span className={clsx(styles.badge, p.manifest === null ? styles["badge-neutral"] : styles["badge-success"])}>
-                      {p.manifest === null ? "unassigned" : "assigned"}
-                    </span>
-                  </td>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Receipt</th>
+                  <th>Farmer</th>
+                  <th>Paddy type</th>
+                  <th>Weight (kg)</th>
+                  <th>Total (Rs.)</th>
+                  <th>Date</th>
+                  <th>Manifest</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {purchases.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      {p.manifest === null && (
+                        <input
+                          type="checkbox"
+                          checked={selected.has(p.id)}
+                          onChange={() => toggleSelected(p.id)}
+                          aria-label={`Select purchase ${p.receipt_no}`}
+                        />
+                      )}
+                    </td>
+                    <td>{p.receipt_no}</td>
+                    <td>{p.farmer_name ?? "—"}</td>
+                    <td>{p.paddy_type_name ?? "—"}</td>
+                    <td>{Number(p.weight_kg).toLocaleString()}</td>
+                    <td>{Number(p.total_amount).toLocaleString()}</td>
+                    <td>{format(new Date(p.purchase_date), "MMM d, yyyy")}</td>
+                    <td>
+                      <span className={clsx(styles.badge, p.manifest === null ? styles["badge-neutral"] : styles["badge-success"])}>
+                        {p.manifest === null ? "unassigned" : "assigned"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className={styles.emptyState}>
             <Receipt size={28} style={{ marginBottom: "0.5rem", opacity: 0.6 }} />
@@ -183,49 +185,51 @@ export default function FarmGatePurchasesManager({
       <div className={styles.container}>
         <h2 className={styles.sectionTitle}>Dispatch manifests</h2>
         {manifests.length > 0 ? (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Destination warehouse</th>
-                <th>Purchases</th>
-                <th>Requested</th>
-                <th>Status</th>
-                <th>Notes</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {manifests.map((m) => (
-                <tr key={m.id}>
-                  <td>{m.destination_warehouse_name ?? "—"}</td>
-                  <td>
-                    <ul className={styles.manifestPurchaseList}>
-                      {m.purchases.map((p) => (
-                        <li key={p.id}>{p.receipt_no} ({Number(p.weight_kg).toLocaleString()} kg)</li>
-                      ))}
-                    </ul>
-                  </td>
-                  <td>{format(new Date(m.requested_date), "MMM d, yyyy")}</td>
-                  <td>
-                    <span className={clsx(styles.badge, MANIFEST_BADGE[m.status])}>{m.status}</span>
-                  </td>
-                  <td>{m.review_notes || "—"}</td>
-                  <td>
-                    {m.status === "pending" && (
-                      <button
-                        type="button"
-                        className={styles.withdrawBtn}
-                        disabled={isPending}
-                        onClick={() => setWithdrawTarget(m)}
-                      >
-                        Withdraw
-                      </button>
-                    )}
-                  </td>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Destination warehouse</th>
+                  <th>Purchases</th>
+                  <th>Requested</th>
+                  <th>Status</th>
+                  <th>Notes</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {manifests.map((m) => (
+                  <tr key={m.id}>
+                    <td>{m.destination_warehouse_name ?? "—"}</td>
+                    <td>
+                      <ul className={styles.manifestPurchaseList}>
+                        {m.purchases.map((p) => (
+                          <li key={p.id}>{p.receipt_no} ({Number(p.weight_kg).toLocaleString()} kg)</li>
+                        ))}
+                      </ul>
+                    </td>
+                    <td>{format(new Date(m.requested_date), "MMM d, yyyy")}</td>
+                    <td>
+                      <span className={clsx(styles.badge, MANIFEST_BADGE[m.status])}>{m.status}</span>
+                    </td>
+                    <td>{m.review_notes || "—"}</td>
+                    <td>
+                      {m.status === "pending" && (
+                        <button
+                          type="button"
+                          className={styles.withdrawBtn}
+                          disabled={isPending}
+                          onClick={() => setWithdrawTarget(m)}
+                        >
+                          Withdraw
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className={styles.emptyState}>
             <Truck size={28} style={{ marginBottom: "0.5rem", opacity: 0.6 }} />

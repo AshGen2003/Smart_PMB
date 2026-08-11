@@ -41,7 +41,7 @@ function LayoutWrapper({
   previewing,
   impersonating,
 }: MillOwnerShellProps) {
-  const { isMobileSidebarOpen, isSidebarOpen } = useLayout();
+  const { isMobileSidebarOpen, isSidebarOpen, closeMobileSidebar } = useLayout();
 
   return (
     <div className={styles.layout}>
@@ -55,6 +55,11 @@ function LayoutWrapper({
       >
         <MillOwnerSidebar permissions={permissions} />
       </div>
+      <div
+        className={clsx(styles.mobileBackdrop, isMobileSidebarOpen && styles.mobileBackdropVisible)}
+        onClick={closeMobileSidebar}
+        aria-hidden="true"
+      />
       <div className={styles.mainWrapper}>
         {previewing && <PreviewBanner roleName={previewing.name} />}
         {impersonating && <ImpersonationBanner adminEmail={impersonating.email} />}

@@ -75,43 +75,45 @@ export default function LicensesManager({ licenses }: { licenses: LicenseRow[] }
 
       <div className={styles.container}>
         {licenses.length > 0 ? (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>License No.</th>
-                <th>Applied</th>
-                <th>Expiry</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {licenses.map((l) => (
-                <tr key={l.id}>
-                  <td>{l.license_no ?? "—"}</td>
-                  <td>{format(new Date(l.applied_date), "MMM d, yyyy")}</td>
-                  <td>{l.expiry_date ? format(new Date(l.expiry_date), "MMM d, yyyy") : "—"}</td>
-                  <td>
-                    <span className={clsx(styles.badge, styles[LICENSE_BADGE[l.status] ?? "badge-neutral"])}>
-                      {l.status}
-                    </span>
-                  </td>
-                  <td>
-                    {l.status === "pending" && (
-                      <button
-                        type="button"
-                        className={styles.withdrawBtn}
-                        disabled={isPending}
-                        onClick={() => handleWithdraw(l)}
-                      >
-                        Withdraw
-                      </button>
-                    )}
-                  </td>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>License No.</th>
+                  <th>Applied</th>
+                  <th>Expiry</th>
+                  <th>Status</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {licenses.map((l) => (
+                  <tr key={l.id}>
+                    <td>{l.license_no ?? "—"}</td>
+                    <td>{format(new Date(l.applied_date), "MMM d, yyyy")}</td>
+                    <td>{l.expiry_date ? format(new Date(l.expiry_date), "MMM d, yyyy") : "—"}</td>
+                    <td>
+                      <span className={clsx(styles.badge, styles[LICENSE_BADGE[l.status] ?? "badge-neutral"])}>
+                        {l.status}
+                      </span>
+                    </td>
+                    <td>
+                      {l.status === "pending" && (
+                        <button
+                          type="button"
+                          className={styles.withdrawBtn}
+                          disabled={isPending}
+                          onClick={() => handleWithdraw(l)}
+                        >
+                          Withdraw
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className={styles.emptyState}>
             <FileCheck size={28} style={{ marginBottom: "0.5rem", opacity: 0.6 }} />

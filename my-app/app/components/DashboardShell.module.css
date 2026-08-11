@@ -49,6 +49,10 @@
   text-align: center;
 }
 
+.mobileBackdrop {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .sidebarArea {
     position: fixed;
@@ -59,12 +63,38 @@
     transform: translateX(-100%);
     transition: transform var(--transition-speed) ease;
   }
-  
+
   .sidebarAreaCollapsed {
     width: 260px;
   }
 
   .sidebarArea.mobileOpen {
     transform: translateX(0);
+  }
+
+  .mainArea {
+    padding: 1.1rem;
+  }
+
+  .mobileBackdrop {
+    display: block;
+    position: fixed;
+    inset: 70px 0 0 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 15;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-speed) ease;
+  }
+
+  .mobileBackdrop.mobileBackdropVisible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .mainArea {
+    padding: 0.85rem;
   }
 }

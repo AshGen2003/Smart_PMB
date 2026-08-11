@@ -229,6 +229,12 @@
   gap: 1rem;
 }
 
+@media (max-width: 720px) {
+  .fieldRow {
+    grid-template-columns: 1fr;
+  }
+}
+
 .field {
   margin-bottom: 1.1rem;
 }

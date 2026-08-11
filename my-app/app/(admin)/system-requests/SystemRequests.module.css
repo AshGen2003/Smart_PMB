@@ -77,6 +77,10 @@
   margin: 0 0 1rem;
 }
 
+.tableWrap {
+  overflow-x: auto;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

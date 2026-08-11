@@ -44,6 +44,19 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Lock body scroll while the mobile drawer is open — otherwise the page
+  // behind it keeps scrolling under a touch drag, which is what made the
+  // drawer feel like a floating panel rather than real navigation.
+  useEffect(() => {
+    if (isMobileSidebarOpen) {
+      const previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = previousOverflow;
+      };
+    }
+  }, [isMobileSidebarOpen]);
+
   const toggleSidebar = () => setIsSidebarOpen(prev => !prev);
   const toggleMobileSidebar = () => setIsMobileSidebarOpen(prev => !prev);
   const closeMobileSidebar = () => setIsMobileSidebarOpen(false);

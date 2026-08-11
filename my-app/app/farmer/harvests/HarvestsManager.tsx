@@ -87,48 +87,50 @@ export default function HarvestsManager({
 
       <div className={styles.container}>
         {harvests.length > 0 ? (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>{t.farmerHarvests.tablePaddyType}</th>
-                <th>{t.farmerHarvests.tableQuantity}</th>
-                <th>{t.farmerHarvests.tableHarvestDate}</th>
-                <th>{t.farmerHarvests.tableStatus}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {harvests.map((h) => (
-                <tr key={h.id}>
-                  <td>{h.paddy_type_name ?? "—"}</td>
-                  <td>{Number(h.quantity_kg).toLocaleString()}</td>
-                  <td>{format(new Date(h.harvest_date), "MMM d, yyyy")}</td>
-                  <td>
-                    <span className={clsx(styles.badge, styles[HARVEST_BADGE[h.status] ?? "badge-neutral"])}>
-                      {STATUS_LABEL[h.status] ?? h.status}
-                    </span>
-                  </td>
-                  <td>
-                    {h.status === "pending" && (
-                      <button
-                        type="button"
-                        className={styles.withdrawBtn}
-                        disabled={isPending}
-                        onClick={() => handleWithdraw(h)}
-                      >
-                        {t.farmerHarvests.withdraw}
-                      </button>
-                    )}
-                    {h.lot_code && (
-                      <Link href={`/trace/${h.lot_code}`} target="_blank" className={styles.traceLink}>
-                        <QrCode size={14} /> {t.farmerHarvests.viewQr}
-                      </Link>
-                    )}
-                  </td>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>{t.farmerHarvests.tablePaddyType}</th>
+                  <th>{t.farmerHarvests.tableQuantity}</th>
+                  <th>{t.farmerHarvests.tableHarvestDate}</th>
+                  <th>{t.farmerHarvests.tableStatus}</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {harvests.map((h) => (
+                  <tr key={h.id}>
+                    <td>{h.paddy_type_name ?? "—"}</td>
+                    <td>{Number(h.quantity_kg).toLocaleString()}</td>
+                    <td>{format(new Date(h.harvest_date), "MMM d, yyyy")}</td>
+                    <td>
+                      <span className={clsx(styles.badge, styles[HARVEST_BADGE[h.status] ?? "badge-neutral"])}>
+                        {STATUS_LABEL[h.status] ?? h.status}
+                      </span>
+                    </td>
+                    <td>
+                      {h.status === "pending" && (
+                        <button
+                          type="button"
+                          className={styles.withdrawBtn}
+                          disabled={isPending}
+                          onClick={() => handleWithdraw(h)}
+                        >
+                          {t.farmerHarvests.withdraw}
+                        </button>
+                      )}
+                      {h.lot_code && (
+                        <Link href={`/trace/${h.lot_code}`} target="_blank" className={styles.traceLink}>
+                          <QrCode size={14} /> {t.farmerHarvests.viewQr}
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className={styles.emptyState}>
             <Sprout size={28} style={{ marginBottom: "0.5rem", opacity: 0.6 }} />

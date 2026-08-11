@@ -69,22 +69,24 @@ export default function PurchaserPanel({ data }: { data: PurchaserDashboardData 
             <h3 className={styles.tableTitle}>My Stock by Rice Type</h3>
           </div>
           {data.stock_by_type.length > 0 ? (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Rice type</th>
-                  <th>Quantity (kg)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.stock_by_type.map((s) => (
-                  <tr key={s.id}>
-                    <td>{s.paddy_type_name ?? "—"}</td>
-                    <td>{Number(s.quantity_kg).toLocaleString()}</td>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Rice type</th>
+                    <th>Quantity (kg)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.stock_by_type.map((s) => (
+                    <tr key={s.id}>
+                      <td>{s.paddy_type_name ?? "—"}</td>
+                      <td>{Number(s.quantity_kg).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className={styles.subtitle}>You don&apos;t have any stock yet.</p>
           )}
@@ -95,28 +97,30 @@ export default function PurchaserPanel({ data }: { data: PurchaserDashboardData 
             <h3 className={styles.tableTitle}>Recent Requests</h3>
           </div>
           {data.recent_requests.length > 0 ? (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Rice type</th>
-                  <th>Quantity (kg)</th>
-                  <th>Requested</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.recent_requests.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.paddy_type_name ?? "—"}</td>
-                    <td>{Number(r.quantity_kg).toLocaleString()}</td>
-                    <td>{format(new Date(r.requested_date), "MMM d, yyyy")}</td>
-                    <td>
-                      <span className={`${styles.badge} ${styles[STATUS_CLASS[r.status]]}`}>{r.status}</span>
-                    </td>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Rice type</th>
+                    <th>Quantity (kg)</th>
+                    <th>Requested</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.recent_requests.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.paddy_type_name ?? "—"}</td>
+                      <td>{Number(r.quantity_kg).toLocaleString()}</td>
+                      <td>{format(new Date(r.requested_date), "MMM d, yyyy")}</td>
+                      <td>
+                        <span className={`${styles.badge} ${styles[STATUS_CLASS[r.status]]}`}>{r.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className={styles.subtitle}>
               You haven&apos;t made any requests yet — use the Rice Requests page to submit one.

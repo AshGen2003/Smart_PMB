@@ -213,95 +213,97 @@ export default function SystemRequestsManager({ requests }: { requests: SystemRe
       {view === "requests" && (
       <div className={styles.card}>
         {filtered.length > 0 ? (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Request</th>
-                <th>Requested by</th>
-                <th>Status</th>
-                <th>Fee</th>
-                <th>Submitted</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.title}</td>
-                  <td>{r.requested_by_name ?? "—"}</td>
-                  <td>
-                    <span className={clsx(styles.badge, STATUS_BADGE[r.status])}>
-                      {STATUS_LABEL[r.status]}
-                    </span>
-                  </td>
-                  <td>{r.fee_amount ? `Rs. ${Number(r.fee_amount).toLocaleString()}` : "—"}</td>
-                  <td>{format(new Date(r.submitted_at), "MMM d, yyyy")}</td>
-                  <td>
-                    <div className={styles.rowActions}>
-                      <button
-                        type="button"
-                        className={styles.iconBtn}
-                        title="View details"
-                        onClick={() => {
-                          setError(null);
-                          setProgressStage("reviewing");
-                          setProgressNote("");
-                          setDetailTarget(r);
-                        }}
-                      >
-                        <Eye size={14} />
-                      </button>
-                      {r.status === "pending" && (
-                        <>
-                          <button
-                            type="button"
-                            className={styles.iconBtn}
-                            title="Accept"
-                            disabled={isPending}
-                            onClick={() => {
-                              setError(null);
-                              setFeeAmount("");
-                              setAcceptTarget(r);
-                            }}
-                          >
-                            <Check size={14} />
-                          </button>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Request</th>
+                  <th>Requested by</th>
+                  <th>Status</th>
+                  <th>Fee</th>
+                  <th>Submitted</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.title}</td>
+                    <td>{r.requested_by_name ?? "—"}</td>
+                    <td>
+                      <span className={clsx(styles.badge, STATUS_BADGE[r.status])}>
+                        {STATUS_LABEL[r.status]}
+                      </span>
+                    </td>
+                    <td>{r.fee_amount ? `Rs. ${Number(r.fee_amount).toLocaleString()}` : "—"}</td>
+                    <td>{format(new Date(r.submitted_at), "MMM d, yyyy")}</td>
+                    <td>
+                      <div className={styles.rowActions}>
+                        <button
+                          type="button"
+                          className={styles.iconBtn}
+                          title="View details"
+                          onClick={() => {
+                            setError(null);
+                            setProgressStage("reviewing");
+                            setProgressNote("");
+                            setDetailTarget(r);
+                          }}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        {r.status === "pending" && (
+                          <>
+                            <button
+                              type="button"
+                              className={styles.iconBtn}
+                              title="Accept"
+                              disabled={isPending}
+                              onClick={() => {
+                                setError(null);
+                                setFeeAmount("");
+                                setAcceptTarget(r);
+                              }}
+                            >
+                              <Check size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              className={clsx(styles.iconBtn, styles.iconBtnDanger)}
+                              title="Reject"
+                              disabled={isPending}
+                              onClick={() => {
+                                setError(null);
+                                setRejectReason("");
+                                setRejectTarget(r);
+                              }}
+                            >
+                              <X size={14} />
+                            </button>
+                          </>
+                        )}
+                        {canDelete(r) && (
                           <button
                             type="button"
                             className={clsx(styles.iconBtn, styles.iconBtnDanger)}
-                            title="Reject"
+                            title="Delete"
                             disabled={isPending}
                             onClick={() => {
                               setError(null);
-                              setRejectReason("");
-                              setRejectTarget(r);
+                              setDeleteSuccess(null);
+                              setDeleteTarget(r);
                             }}
                           >
-                            <X size={14} />
+                            <Trash2 size={14} />
                           </button>
-                        </>
-                      )}
-                      {canDelete(r) && (
-                        <button
-                          type="button"
-                          className={clsx(styles.iconBtn, styles.iconBtnDanger)}
-                          title="Delete"
-                          disabled={isPending}
-                          onClick={() => {
-                            setError(null);
-                            setDeleteSuccess(null);
-                            setDeleteTarget(r);
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <p className={styles.emptyState}>No requests match this filter.</p>
         )}
@@ -311,55 +313,57 @@ export default function SystemRequestsManager({ requests }: { requests: SystemRe
       {view === "payments" && (
         <div className={styles.card}>
           {paymentRecords.length > 0 ? (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Officer</th>
-                  <th>Request</th>
-                  <th>Amount</th>
-                  <th>Payment status</th>
-                  <th>Token</th>
-                  <th>Token issued</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {paymentRecords.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.requested_by_name ?? "—"}</td>
-                    <td>{r.title}</td>
-                    <td>
-                      {r.currency.toUpperCase()} {Number(r.fee_amount).toLocaleString()}
-                    </td>
-                    <td>
-                      <span className={clsx(styles.badge, paymentStatusBadgeClass(r.status))}>
-                        {paymentStatusLabel(r.status)}
-                      </span>
-                    </td>
-                    <td>{r.token ? <span className={styles.token}>{r.token}</span> : "—"}</td>
-                    <td>
-                      {r.token_issued_at ? format(new Date(r.token_issued_at), "MMM d, yyyy · h:mm a") : "—"}
-                    </td>
-                    <td>
-                      {r.status === "payment_pending" && (
-                        <button
-                          type="button"
-                          className={clsx(styles.iconBtn, styles.iconBtnDanger)}
-                          title="Cancel expired payment"
-                          disabled={isPending}
-                          onClick={() => {
-                            setError(null);
-                            setCancelPaymentTarget(r);
-                          }}
-                        >
-                          <Ban size={14} />
-                        </button>
-                      )}
-                    </td>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Officer</th>
+                    <th>Request</th>
+                    <th>Amount</th>
+                    <th>Payment status</th>
+                    <th>Token</th>
+                    <th>Token issued</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paymentRecords.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.requested_by_name ?? "—"}</td>
+                      <td>{r.title}</td>
+                      <td>
+                        {r.currency.toUpperCase()} {Number(r.fee_amount).toLocaleString()}
+                      </td>
+                      <td>
+                        <span className={clsx(styles.badge, paymentStatusBadgeClass(r.status))}>
+                          {paymentStatusLabel(r.status)}
+                        </span>
+                      </td>
+                      <td>{r.token ? <span className={styles.token}>{r.token}</span> : "—"}</td>
+                      <td>
+                        {r.token_issued_at ? format(new Date(r.token_issued_at), "MMM d, yyyy · h:mm a") : "—"}
+                      </td>
+                      <td>
+                        {r.status === "payment_pending" && (
+                          <button
+                            type="button"
+                            className={clsx(styles.iconBtn, styles.iconBtnDanger)}
+                            title="Cancel expired payment"
+                            disabled={isPending}
+                            onClick={() => {
+                              setError(null);
+                              setCancelPaymentTarget(r);
+                            }}
+                          >
+                            <Ban size={14} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className={styles.emptyState}>No payments recorded yet.</p>
           )}

@@ -35,28 +35,30 @@ export default async function MillingReportsPage() {
 
       <div className={styles.container}>
         {reports.length > 0 ? (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Paddy Processed (kg)</th>
-                <th>Rice Output (kg)</th>
-                <th>Paddy Type</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reports.map((r) => (
-                <tr key={r.id}>
-                  <td>{format(new Date(r.report_date), "MMM d, yyyy")}</td>
-                  <td>{Number(r.paddy_processed_kg).toLocaleString()}</td>
-                  <td>{Number(r.rice_output_kg).toLocaleString()}</td>
-                  <td>{r.paddy_type_name ?? "—"}</td>
-                  <td>{r.notes || "—"}</td>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Paddy Processed (kg)</th>
+                  <th>Rice Output (kg)</th>
+                  <th>Paddy Type</th>
+                  <th>Notes</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {reports.map((r) => (
+                  <tr key={r.id}>
+                    <td>{format(new Date(r.report_date), "MMM d, yyyy")}</td>
+                    <td>{Number(r.paddy_processed_kg).toLocaleString()}</td>
+                    <td>{Number(r.rice_output_kg).toLocaleString()}</td>
+                    <td>{r.paddy_type_name ?? "—"}</td>
+                    <td>{r.notes || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className={styles.emptyState}>No milling reports submitted yet.</div>
         )}

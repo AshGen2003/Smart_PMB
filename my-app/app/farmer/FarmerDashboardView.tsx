@@ -242,35 +242,37 @@ export default function FarmerDashboardView({
           <h3 className={styles.cardTitle}>{t.farmerDashboard.recentHarvestsTitle}</h3>
         </div>
         {harvests.length > 0 ? (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>{t.farmerDashboard.tablePaddyType}</th>
-                <th>{t.farmerDashboard.tableQuantity}</th>
-                <th>{t.farmerDashboard.tableHarvestDate}</th>
-                <th>{t.farmerDashboard.tableStatus}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {harvests.map((h) => (
-                <tr key={h.id}>
-                  <td>{h.paddy_type_name ?? "—"}</td>
-                  <td>{Number(h.quantity_kg).toLocaleString()}</td>
-                  <td>{format(new Date(h.harvest_date), "MMM d, yyyy")}</td>
-                  <td>
-                    <span
-                      className={clsx(
-                        styles.badge,
-                        styles[HARVEST_BADGE[h.status] ?? "badge-neutral"]
-                      )}
-                    >
-                      {STATUS_LABEL[h.status] ?? h.status}
-                    </span>
-                  </td>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>{t.farmerDashboard.tablePaddyType}</th>
+                  <th>{t.farmerDashboard.tableQuantity}</th>
+                  <th>{t.farmerDashboard.tableHarvestDate}</th>
+                  <th>{t.farmerDashboard.tableStatus}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {harvests.map((h) => (
+                  <tr key={h.id}>
+                    <td>{h.paddy_type_name ?? "—"}</td>
+                    <td>{Number(h.quantity_kg).toLocaleString()}</td>
+                    <td>{format(new Date(h.harvest_date), "MMM d, yyyy")}</td>
+                    <td>
+                      <span
+                        className={clsx(
+                          styles.badge,
+                          styles[HARVEST_BADGE[h.status] ?? "badge-neutral"]
+                        )}
+                      >
+                        {STATUS_LABEL[h.status] ?? h.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <p className={styles.emptyState}>{t.farmerDashboard.recentHarvestsEmpty}</p>
         )}

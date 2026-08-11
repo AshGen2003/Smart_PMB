@@ -134,31 +134,33 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
             <h3 className={styles.tableTitle}>Users by Role</h3>
             <a href="/roles" className={styles.viewAll}>View All</a>
           </div>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Role</th>
-                <th>Users</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.role_breakdown.map((r) => (
-                <tr key={r.slug}>
-                  <td>
-                    <div className={styles.userNameRow}>
-                      <span
-                        className={styles.userColorDot}
-                        style={{ backgroundColor: colorForSlug(r.slug) }}
-                        aria-hidden
-                      />
-                      {r.name}
-                    </div>
-                  </td>
-                  <td>{r.user_count}</td>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Role</th>
+                  <th>Users</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.role_breakdown.map((r) => (
+                  <tr key={r.slug}>
+                    <td>
+                      <div className={styles.userNameRow}>
+                        <span
+                          className={styles.userColorDot}
+                          style={{ backgroundColor: colorForSlug(r.slug) }}
+                          aria-hidden
+                        />
+                        {r.name}
+                      </div>
+                    </td>
+                    <td>{r.user_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className={styles.tableCard}>
@@ -166,47 +168,49 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
             <h3 className={styles.tableTitle}>Recent Accounts</h3>
             <a href="/residents" className={styles.viewAll}>View All</a>
           </div>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.recent_users.map((u) => (
-                <tr key={u.id}>
-                  <td>
-                    <div className={styles.userNameRow}>
-                      <span
-                        className={styles.userColorDot}
-                        style={{ backgroundColor: roleColorOf(u.role_name) }}
-                        aria-hidden
-                      />
-                      <div>
-                        <div>{u.full_name || u.email}</div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                          {u.email}
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recent_users.map((u) => (
+                  <tr key={u.id}>
+                    <td>
+                      <div className={styles.userNameRow}>
+                        <span
+                          className={styles.userColorDot}
+                          style={{ backgroundColor: roleColorOf(u.role_name) }}
+                          aria-hidden
+                        />
+                        <div>
+                          <div>{u.full_name || u.email}</div>
+                          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                            {u.email}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td>{u.role_name}</td>
-                  <td>
-                    <span
-                      className={clsx(
-                        styles.badge,
-                        styles[`badge-${u.is_active ? "success" : "danger"}`]
-                      )}
-                    >
-                      {u.is_active ? "active" : "inactive"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                    <td>{u.role_name}</td>
+                    <td>
+                      <span
+                        className={clsx(
+                          styles.badge,
+                          styles[`badge-${u.is_active ? "success" : "danger"}`]
+                        )}
+                      >
+                        {u.is_active ? "active" : "inactive"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
