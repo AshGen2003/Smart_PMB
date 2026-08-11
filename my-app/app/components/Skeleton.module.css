@@ -62,6 +62,7 @@
   border: 1px solid var(--card-border);
   border-radius: var(--radius-md);
   padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
 }
 
 .table {
@@ -93,6 +94,7 @@
   border: 1px solid var(--card-border);
   border-radius: var(--radius-md);
   padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
 }
 
 .chartsGrid {

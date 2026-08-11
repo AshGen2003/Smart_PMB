@@ -48,6 +48,7 @@
   border: 1px solid var(--card-border);
   border-radius: 14px;
   padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
 }
 
 .kpiLabel {
@@ -75,6 +76,7 @@
   border: 1px solid var(--card-border);
   border-radius: 14px;
   padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
 }
 
 .cardTitle {

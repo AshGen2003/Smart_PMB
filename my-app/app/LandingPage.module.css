@@ -535,6 +535,7 @@
   border-radius: 12px;
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-sm);
   transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
@@ -573,6 +574,7 @@
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease,
     border-color 0.3s ease;
 }

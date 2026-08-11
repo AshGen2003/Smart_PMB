@@ -94,6 +94,7 @@
   border: 1px solid var(--card-border);
   border-radius: 12px;
   padding: 1rem 1.25rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
 }
 
 .statLabel {
@@ -157,6 +158,13 @@
   padding: 1.25rem 1.4rem;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
 }
 
 .tintGreen {
