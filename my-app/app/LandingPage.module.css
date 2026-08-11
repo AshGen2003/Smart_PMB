@@ -197,6 +197,38 @@
   }
 }
 
+@media (max-width: 640px) {
+  .nav {
+    padding: 0.85rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .navBrand span {
+    display: none;
+  }
+
+  .navActions {
+    gap: 0.35rem;
+  }
+
+  .navLangBtn,
+  .navIconBtn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  }
+
+  .navGhostBtn,
+  .navPrimaryBtn {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.8rem;
+  }
+
+  .navPrimaryBtnArrow {
+    display: none;
+  }
+}
+
 /* Hero */
 .hero {
   position: relative;
