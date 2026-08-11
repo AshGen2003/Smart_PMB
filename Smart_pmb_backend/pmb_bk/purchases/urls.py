@@ -8,4 +8,5 @@ from . import views
 
 urlpatterns = [
     path("purchaser/dashboard/", views.PurchaserDashboardView.as_view()),
+    path("purchaser/nic-lookup/", views.FarmerNicLookupView.as_view()),
 ]

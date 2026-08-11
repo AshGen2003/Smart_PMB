@@ -100,3 +100,122 @@ export async function fulfillRiceRequest(requestId: number, warehouseId: number)
 export async function verifyRiceRequestTransaction(requestId: number): Promise<{ error?: string }> {
   return riceRequestAction(requestId, "verify_transaction", { status: "verified" });
 }
+
+export type FarmerLookupResult = {
+  id: number;
+  name: string;
+  registration_no: string;
+  reliability_score: number;
+  quota: {
+    max_quota_kg: number | null;
+    quota_used_kg: number;
+    quota_remaining_kg: number | null;
+  };
+};
+
+/** Looks up a farmer by exact NIC match for the farm-gate buying terminal (purchases.views.FarmerNicLookupView). */
+export async function lookupFarmerByNic(nic: string): Promise<{ farmer?: FarmerLookupResult; error?: string }> {
+  const res = await apiFetch(`/api/purchaser/nic-lookup/?nic=${encodeURIComponent(nic)}`);
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data, "No farmer found with that NIC.") };
+  }
+
+  return { farmer: await res.json() };
+}
+
+/**
+ * Records a direct at-source purchase from a farmer already looked up via
+ * lookupFarmerByNic. `farmerId` is bound in by the caller (not part of the
+ * form) so the recorded purchase always matches the farmer shown on screen.
+ */
+export async function submitFarmGatePurchase(
+  farmerId: number,
+  formData: FormData
+): Promise<{ error?: string }> {
+  const res = await apiFetch("/api/purchaser/farm-gate-purchases/", {
+    method: "POST",
+    body: JSON.stringify({
+      farmer: farmerId,
+      paddy_type: Number(formData.get("paddy_type")),
+      weight_kg: String(formData.get("weight_kg") ?? ""),
+    }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/purchaser/farm-gate-purchases");
+  revalidatePath("/purchaser");
+  return {};
+}
+
+/**
+ * Creates a dispatch manifest bundling the given (already-selected,
+ * still-unassigned) farm-gate purchases for transfer to a warehouse.
+ */
+export async function createDispatchManifest(
+  purchaseIds: number[],
+  formData: FormData
+): Promise<{ error?: string }> {
+  const res = await apiFetch("/api/purchaser/dispatch-manifests/", {
+    method: "POST",
+    body: JSON.stringify({
+      destination_warehouse: Number(formData.get("destination_warehouse")),
+      purchase_ids: purchaseIds,
+    }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/purchaser/farm-gate-purchases");
+  revalidatePath("/purchaser");
+  return {};
+}
+
+/** Withdraws a dispatch manifest. Django only allows this while it's still "pending". */
+export async function withdrawDispatchManifest(manifestId: number): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/purchaser/dispatch-manifests/${manifestId}/`, {
+    method: "DELETE",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/purchaser/farm-gate-purchases");
+  revalidatePath("/purchaser");
+  return {};
+}
+
+async function dispatchManifestAction(manifestId: number, action: "approve" | "reject", body?: object) {
+  const res = await apiFetch(`/api/admin/dispatch-manifests/${manifestId}/${action}/`, {
+    method: "POST",
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/dispatch-manifests");
+  return {};
+}
+
+/** Approves a pending dispatch manifest. Doesn't create the Delivery itself — an officer links one separately via Transportation. */
+export async function approveDispatchManifest(manifestId: number): Promise<{ error?: string }> {
+  return dispatchManifestAction(manifestId, "approve");
+}
+
+/** Rejects a pending dispatch manifest, with an optional review note. */
+export async function rejectDispatchManifest(manifestId: number, reviewNotes: string): Promise<{ error?: string }> {
+  return dispatchManifestAction(manifestId, "reject", { review_notes: reviewNotes });
+}

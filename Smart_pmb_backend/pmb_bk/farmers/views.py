@@ -31,7 +31,7 @@ from accounts.serializers import generate_temp_password
 from accounts.sms import send_sms
 from sysops.models import SystemAlert
 from sysops.serializers import SystemAlertSerializer
-from sysops.utils import WAREHOUSE_ALERT_TYPE_PREFIXES, log_audit, raise_low_stock_alert
+from sysops.utils import WAREHOUSE_ALERT_TYPE_PREFIXES, get_config_value, log_audit, raise_low_stock_alert
 
 from .pdf import build_officer_report_pdf
 from .reports import build_officer_report_data
@@ -40,6 +40,7 @@ from .scoring import recalculate_reliability_score
 from .models import (
     Delivery,
     DeliveryLocationPing,
+    DeliverySlot,
     Farmer,
     FuelRecord,
     Harvest,
@@ -54,11 +55,14 @@ from .models import (
     Vehicle,
     Warehouse,
     WarehouseTransferRequest,
+    season_date_range,
 )
 from .permissions import CanViewVehicles
 from .serializers import (
     DeliveryLocationPingSerializer,
     DeliverySerializer,
+    DeliverySlotCreateSerializer,
+    DeliverySlotSerializer,
     DeliveryWriteSerializer,
     DistrictSerializer,
     FarmerBankDetailsSerializer,
@@ -81,6 +85,7 @@ from .serializers import (
     TransactionVerificationWriteSerializer,
     VehicleSerializer,
     WarehouseManagerSelfUpdateSerializer,
+    WarehouseManagerDeliverySlotSerializer,
     WarehouseSerializer,
     WarehouseStockAdjustmentSerializer,
     WarehouseTransferRequestSerializer,
@@ -132,6 +137,34 @@ class DistrictListView(generics.ListAPIView):
     queryset = District.objects.select_related("province").order_by("name")
     serializer_class = DistrictSerializer
     permission_classes = [AllowAny]
+
+
+def _current_season_harvest_total_kg(farmer):
+    """Sum of this farmer's confirmed (verified/collected) harvest quantity within the current season."""
+    start, end = season_date_range(timezone.now().date())
+    return farmer.harvests.filter(
+        harvest_date__range=(start, end), status__in=["verified", "collected"]
+    ).aggregate(total=Sum("quantity_kg"))["total"] or 0
+
+
+def _current_season_channel_totals_kg(farmer):
+    """
+    Confirmed Harvest kg plus FarmGatePurchase kg for this farmer in the
+    current season — the combined figure the seasonal quota is actually
+    checked against, since a real farmer sells through multiple channels
+    (the collection pipeline and direct farm-gate purchases) against one
+    seasonal cap. Local import of purchases.models avoids a circular
+    import at module load (purchases/views.py already imports from this
+    module, farmers/views.py must not import back at the top level).
+    """
+    from purchases.models import FarmGatePurchase
+
+    start, end = season_date_range(timezone.now().date())
+    harvest_kg = _current_season_harvest_total_kg(farmer)
+    farmgate_kg = FarmGatePurchase.objects.filter(
+        farmer=farmer, purchase_date__range=(start, end)
+    ).aggregate(total=Sum("weight_kg"))["total"] or 0
+    return harvest_kg + farmgate_kg
 
 
 class FarmerDashboardView(APIView):
@@ -252,12 +285,91 @@ class FarmerHarvestViewSet(viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
+class FarmerDeliverySlotViewSet(viewsets.ModelViewSet):
+    """
+    Self-service CRUD for a farmer's own DeliverySlot bookings: list/view
+    their history, book a new slot, and cancel one while it's still
+    booked. Mirrors FarmerHarvestViewSet's shape.
+    """
+
+    permission_classes = [HasPermission("access_farmer_portal")]
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_queryset(self):
+        return DeliverySlot.objects.filter(farmer__user=self.request.user).select_related(
+            "warehouse", "paddy_type"
+        )
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return DeliverySlotCreateSerializer
+        return DeliverySlotSerializer
+
+    def perform_create(self, serializer):
+        booking_reference = f"BK-{timezone.now():%Y%m%d}-{secrets.token_hex(3).upper()}"
+        serializer.save(farmer=self.request.user.farmer_profile, booking_reference=booking_reference)
+
+    def destroy(self, request, *args, **kwargs):
+        slot = self.get_object()
+        if slot.status != DeliverySlot.Status.BOOKED:
+            return Response({"detail": "Only a booked slot can be cancelled."}, status=400)
+        slot.status = DeliverySlot.Status.CANCELLED
+        slot.save(update_fields=["status"])
+        return Response(status=204)
+
+
+class DeliverySlotQrView(APIView):
+    """
+    Generates a QR PNG (on the fly, never stored) encoding the booking's
+    check-in URL — unlike PublicHarvestTraceQrView, this is NOT AllowAny:
+    only the booking's own farmer or the warehouse's assigned manager can
+    fetch it. Meant to be served via a Next.js Route Handler proxy on the
+    frontend (reading the httpOnly auth cookie server-side and forwarding
+    it), not a direct <img> straight to this origin — a plain <img> tag
+    can't attach the frontend's auth cookie to a cross-origin Django request.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, booking_reference):
+        slot = get_object_or_404(DeliverySlot, booking_reference=booking_reference)
+        is_own_farmer = (
+            getattr(request.user, "farmer_profile", None) and slot.farmer_id == request.user.farmer_profile.id
+        )
+        is_warehouse_manager = slot.warehouse.managed_by_id == request.user.id
+        if not (is_own_farmer or is_warehouse_manager):
+            return Response(status=403)
+
+        img = qrcode.make(f"{settings.FRONTEND_URL}/warehouse-manager/delivery-slots?ref={booking_reference}")
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        return HttpResponse(buffer.getvalue(), content_type="image/png")
+
+
 class FarmerListView(generics.ListAPIView):
     """List of all farmers (name + registration number) for the officer UI's farmer picker when recording a purchase."""
 
     permission_classes = [HasPermission("record_purchases")]
     queryset = Farmer.objects.all().order_by("name")
     serializer_class = FarmerOptionSerializer
+
+
+class WarehouseOptionsView(generics.ListAPIView):
+    """
+    GET /api/warehouses/options/ — lightweight id/name list of active
+    warehouses, for self-service pickers where a mill owner or authorized
+    purchaser needs to choose a destination warehouse (e.g. a milling
+    return request or dispatch manifest) but doesn't have the
+    "manage_warehouses" permission WarehouseViewSet requires.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Warehouse.objects.filter(status=Warehouse.Status.ACTIVE).order_by("name")
+
+    def list(self, request, *args, **kwargs):
+        return Response([{"id": w.id, "name": w.name} for w in self.get_queryset()])
 
 
 class WarehouseViewSet(viewsets.ModelViewSet):
@@ -683,6 +795,49 @@ class WarehouseManagerTransferRequestViewSet(viewsets.ModelViewSet):
         serializer.save(to_warehouse=own_warehouse, requested_by=self.request.user)
 
 
+class WarehouseManagerDeliverySlotLookupView(APIView):
+    """GET ?ref=<booking_reference> — looks up a DeliverySlot booking, scoped to warehouses this manager actually manages."""
+
+    permission_classes = [HasPermission("access_warehouse_manager_portal")]
+
+    def get(self, request):
+        ref = request.query_params.get("ref", "").strip()
+        if not ref:
+            return Response({"detail": "ref query param is required."}, status=400)
+        slot = DeliverySlot.objects.filter(
+            booking_reference=ref, warehouse__managed_by=request.user
+        ).select_related("farmer", "paddy_type").first()
+        if not slot:
+            return Response({"detail": "No booking found with that reference for your warehouse."}, status=404)
+        return Response(WarehouseManagerDeliverySlotSerializer(slot).data)
+
+
+class WarehouseManagerDeliverySlotCheckInView(APIView):
+    """POST {"action": "arrived"|"completed"|"no_show"} — the warehouse manager updates a booking's status on physical arrival/departure/no-show."""
+
+    permission_classes = [HasPermission("access_warehouse_manager_portal")]
+
+    def post(self, request, pk):
+        slot = get_object_or_404(DeliverySlot, pk=pk, warehouse__managed_by=request.user)
+        action_name = request.data.get("action")
+        transitions = {
+            "arrived": DeliverySlot.Status.ARRIVED,
+            "completed": DeliverySlot.Status.COMPLETED,
+            "no_show": DeliverySlot.Status.NO_SHOW,
+        }
+        if action_name not in transitions:
+            return Response({"detail": "action must be 'arrived', 'completed', or 'no_show'."}, status=400)
+
+        slot.status = transitions[action_name]
+        if action_name == "arrived":
+            slot.checked_in_by = request.user
+            slot.checked_in_at = timezone.now()
+            slot.save(update_fields=["status", "checked_in_by", "checked_in_at"])
+        else:
+            slot.save(update_fields=["status"])
+        return Response(WarehouseManagerDeliverySlotSerializer(slot).data)
+
+
 class WarehouseTransferRequestViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Officer-facing review queue for warehouse managers' transfer requests:
@@ -898,6 +1053,54 @@ def _log_transaction(
     Inventory.objects.filter(pk=inventory.pk).update(
         quantity=F("quantity") + quantity_change, updated_by=updated_by
     )
+
+
+def _handle_delivery_delivered(delivery, user):
+    """
+    When a Delivery carrying a linked purchaser/mill-owner request
+    transitions to "delivered", adds the relevant quantity into the
+    destination warehouse's stock and flips the linked request to
+    "delivered" too — mirrors the existing harvest-collection stock-
+    increment pattern. Called from DeliveryViewSet.update_status and
+    DriverDeliveryStatusView.post. Local imports of purchases/mills models
+    avoid a circular import (those apps' views.py already import from this
+    module at load time).
+    """
+    if not delivery.warehouse_id:
+        return
+
+    if delivery.dispatch_manifest_id:
+        from purchases.models import DispatchManifest
+
+        manifest = delivery.dispatch_manifest
+        paddy_type_ids = manifest.purchases.values_list("paddy_type", flat=True).distinct()
+        for paddy_type in PaddyType.objects.filter(id__in=paddy_type_ids):
+            qty = manifest.purchases.filter(paddy_type=paddy_type).aggregate(total=Sum("weight_kg"))["total"] or 0
+            if not qty:
+                continue
+            Warehouse.objects.filter(pk=delivery.warehouse_id).update(current_stock=F("current_stock") + qty)
+            _log_transaction(
+                delivery.warehouse, TransactionLog.TransactionType.DISPATCH_MANIFEST_DELIVERY,
+                qty, paddy_type=paddy_type, updated_by=user, notes=f"DispatchManifest #{manifest.id}",
+            )
+        manifest.status = DispatchManifest.Status.DELIVERED
+        manifest.save(update_fields=["status"])
+
+    elif delivery.milling_return_request_id:
+        from mills.models import MillingReturnRequest
+
+        req = delivery.milling_return_request
+        Warehouse.objects.filter(pk=delivery.warehouse_id).update(current_stock=F("current_stock") + req.rice_kg)
+        _log_transaction(
+            delivery.warehouse, TransactionLog.TransactionType.MILLING_RETURN_DELIVERY,
+            req.rice_kg, paddy_type=req.allocation.paddy_type, updated_by=user,
+            notes=f"MillingReturnRequest #{req.id}",
+        )
+        req.status = MillingReturnRequest.Status.DELIVERED
+        req.save(update_fields=["status"])
+
+    delivery.warehouse.refresh_from_db(fields=["current_stock"])
+    _raise_high_capacity_alert(delivery.warehouse, delivery.warehouse.current_stock)
 
 
 def _notify_farmer(harvest, message):
@@ -1445,6 +1648,8 @@ class DeliveryViewSet(viewsets.ModelViewSet):
             )
         delivery.status = new_status
         delivery.save(update_fields=["status"])
+        if new_status == Delivery.Status.DELIVERED:
+            _handle_delivery_delivered(delivery, request.user)
         return Response(DeliverySerializer(delivery).data)
 
 
@@ -1643,6 +1848,8 @@ class DriverDeliveryStatusView(APIView):
             )
         delivery.status = new_status
         delivery.save(update_fields=["status"])
+        if new_status == Delivery.Status.DELIVERED:
+            _handle_delivery_delivered(delivery, request.user)
         return Response(DeliverySerializer(delivery).data)
 
 

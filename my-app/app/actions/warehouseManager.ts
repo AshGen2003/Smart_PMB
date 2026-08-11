@@ -99,6 +99,60 @@ export async function requestWarehouseTransfer(
   return {};
 }
 
+export type DeliverySlotLookupResult = {
+  id: number;
+  farmer_name: string | null;
+  farmer_registration_no: string | null;
+  paddy_type_name: string | null;
+  estimated_quantity_kg: string;
+  scheduled_date: string;
+  status: "booked" | "arrived" | "completed" | "cancelled" | "no_show";
+  booking_reference: string;
+  checked_in_at: string | null;
+};
+
+/**
+ * Looks up a farmer's delivery-slot booking by reference — scoped
+ * server-side to warehouses this manager actually manages (see
+ * farmers.views.WarehouseManagerDeliverySlotLookupView), same as every
+ * other action in this file.
+ */
+export async function lookupDeliverySlot(
+  ref: string
+): Promise<{ slot?: DeliverySlotLookupResult; error?: string }> {
+  const res = await apiFetch(`/api/warehouse-manager/delivery-slots/lookup/?ref=${encodeURIComponent(ref)}`);
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data, "No booking found with that reference for your warehouse.") };
+  }
+
+  return { slot: await res.json() };
+}
+
+/**
+ * Updates a booking's status on physical arrival/departure/no-show (see
+ * farmers.views.WarehouseManagerDeliverySlotCheckInView). Returns the
+ * updated slot directly (not just `{}`) so the caller can update its
+ * on-screen state without a second lookup round-trip.
+ */
+export async function checkInDeliverySlot(
+  slotId: number,
+  action: "arrived" | "completed" | "no_show"
+): Promise<{ slot?: DeliverySlotLookupResult; error?: string }> {
+  const res = await apiFetch(`/api/warehouse-manager/delivery-slots/${slotId}/check-in/`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  return { slot: await res.json() };
+}
+
 /**
  * Updates the logged-in manager's own warehouse's operational info — only
  * contact_number and status (see farmers/serializers.py's

@@ -5,9 +5,12 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from django.utils import timezone
+
 from .models import (
     Delivery,
     DeliveryLocationPing,
+    DeliverySlot,
     District,
     Farmer,
     FuelRecord,
@@ -440,3 +443,52 @@ class MaintenanceDecisionSerializer(serializers.Serializer):
     """Validates the required rejection reason submitted with MaintenanceRecordViewSet's reject action."""
 
     reason = serializers.CharField(max_length=500)
+
+
+class DeliverySlotSerializer(serializers.ModelSerializer):
+    """Read representation of a DeliverySlot, for a farmer viewing their own bookings."""
+
+    warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+
+    class Meta:
+        model = DeliverySlot
+        fields = [
+            "id", "warehouse", "warehouse_name", "paddy_type", "paddy_type_name",
+            "estimated_quantity_kg", "scheduled_date", "status", "booking_reference",
+            "checked_in_at",
+        ]
+
+
+class DeliverySlotCreateSerializer(serializers.ModelSerializer):
+    """Create representation of a DeliverySlot (submitted by the farmer). booking_reference/farmer/status are set server-side."""
+
+    class Meta:
+        model = DeliverySlot
+        fields = ["id", "warehouse", "paddy_type", "estimated_quantity_kg", "scheduled_date"]
+
+    def validate_scheduled_date(self, value):
+        if value < timezone.now().date():
+            raise serializers.ValidationError("Scheduled date can't be in the past.")
+        return value
+
+
+class WarehouseManagerDeliverySlotSerializer(serializers.ModelSerializer):
+    """
+    Read representation of a DeliverySlot for the warehouse manager's
+    check-in screen. Includes the farmer's name — unlike the public
+    harvest-trace endpoint, this is not public; the manager is verifying an
+    in-person arrival and genuinely needs to identify who they're talking to.
+    """
+
+    farmer_name = serializers.CharField(source="farmer.name", default=None)
+    farmer_registration_no = serializers.CharField(source="farmer.registration_no", default=None)
+    paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+
+    class Meta:
+        model = DeliverySlot
+        fields = [
+            "id", "farmer_name", "farmer_registration_no", "paddy_type_name",
+            "estimated_quantity_kg", "scheduled_date", "status", "booking_reference",
+            "checked_in_at",
+        ]

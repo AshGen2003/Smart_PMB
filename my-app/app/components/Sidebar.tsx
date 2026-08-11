@@ -43,6 +43,7 @@ import {
   FileCheck,
   Package,
   Receipt,
+  Boxes,
 } from "lucide-react";
 
 // Full set of possible sidebar links. `permission` gates a link behind a
@@ -104,6 +105,18 @@ const NAV_ITEMS = [
     label: "Rice Requests",
     href: "/purchase-requests",
     icon: Package,
+    permissions: ["monitor_operations", "record_purchases"],
+  },
+  {
+    label: "Dispatch Manifests",
+    href: "/dispatch-manifests",
+    icon: Truck,
+    permissions: ["monitor_operations", "record_purchases"],
+  },
+  {
+    label: "Milling Allocations",
+    href: "/milling-allocations",
+    icon: Boxes,
     permissions: ["monitor_operations", "record_purchases"],
   },
   { label: "Reports", href: "/reports", icon: BarChart3, permission: "generate_reports" },

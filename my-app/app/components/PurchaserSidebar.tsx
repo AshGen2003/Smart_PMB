@@ -22,6 +22,7 @@ import {
   ChevronRight,
   User,
   Package,
+  Receipt,
 } from "lucide-react";
 
 // A purchaser's rice requests against warehouse stock (see
@@ -31,6 +32,7 @@ import {
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/purchaser", icon: LayoutDashboard, permission: "view_dashboard" },
   { label: "Rice Requests", href: "/purchaser/rice-requests", icon: Package, permission: "view_dashboard" },
+  { label: "Farm-Gate Purchases", href: "/purchaser/farm-gate-purchases", icon: Receipt, permission: "view_dashboard" },
   { label: "Messages", href: "/purchaser/messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", href: "/purchaser/settings", icon: Settings, permission: "view_settings" },
 ];

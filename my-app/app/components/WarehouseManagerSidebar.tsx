@@ -14,11 +14,12 @@ import { usePathname } from "next/navigation";
 import { useLayout } from "./LayoutProvider";
 import styles from "./Sidebar.module.css";
 import clsx from "clsx";
-import { History, LayoutDashboard, MessageSquare, Settings, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { History, LayoutDashboard, MessageSquare, QrCode, Settings, ChevronLeft, ChevronRight, User } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/warehouse-manager", icon: LayoutDashboard, permission: "view_dashboard" },
   { label: "Transactions", href: "/warehouse-manager/transactions", icon: History, permission: "view_dashboard" },
+  { label: "Delivery Check-In", href: "/warehouse-manager/delivery-slots", icon: QrCode, permission: "view_dashboard" },
   { label: "Messages", href: "/warehouse-manager/messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", href: "/warehouse-manager/settings", icon: Settings, permission: "view_settings" },
 ];

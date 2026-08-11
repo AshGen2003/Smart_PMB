@@ -17,6 +17,10 @@ export type BankDetailsFormState = {
   error?: string;
 };
 
+export type DeliverySlotFormState = {
+  error?: string;
+};
+
 /**
  * Marks a single notification as read for the current farmer.
  *
@@ -84,6 +88,54 @@ export async function withdrawHarvest(harvestId: number): Promise<{ error?: stri
   }
 
   revalidatePath("/farmer/harvests");
+  return {};
+}
+
+/**
+ * Books a new advance delivery slot for the logged-in farmer at a chosen
+ * warehouse. paddy_type is optional (a farmer may not know the exact type
+ * yet when booking ahead); booking_reference/farmer/status are set
+ * server-side (see farmers.views.FarmerDeliverySlotViewSet.perform_create).
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Must contain `warehouse` and `scheduled_date`; may
+ *   contain `paddy_type` and `estimated_quantity_kg`.
+ */
+export async function submitDeliverySlot(
+  _prevState: DeliverySlotFormState,
+  formData: FormData
+): Promise<DeliverySlotFormState> {
+  const res = await apiFetch("/api/farmer/delivery-slots/", {
+    method: "POST",
+    body: JSON.stringify({
+      warehouse: Number(formData.get("warehouse")),
+      paddy_type: formData.get("paddy_type") ? Number(formData.get("paddy_type")) : null,
+      estimated_quantity_kg: String(formData.get("estimated_quantity_kg") ?? ""),
+      scheduled_date: String(formData.get("scheduled_date") ?? ""),
+    }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/farmer/delivery-slots");
+  return {};
+}
+
+/** Cancels a delivery slot booking. Django only allows this while it's still "booked". */
+export async function cancelDeliverySlot(slotId: number): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/farmer/delivery-slots/${slotId}/`, {
+    method: "DELETE",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/farmer/delivery-slots");
   return {};
 }
 

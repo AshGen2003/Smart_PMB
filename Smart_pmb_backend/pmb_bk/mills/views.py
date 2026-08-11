@@ -5,7 +5,8 @@
 # mill-owner actor.
 import random
 
-from django.db.models import Sum
+from django.db import transaction
+from django.db.models import F, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, viewsets
@@ -14,19 +15,27 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import HasAnyPermission, HasPermission
-from sysops.utils import log_audit
+from farmers.models import TransactionLog, Warehouse
+from farmers.views import _log_transaction
+from sysops.utils import log_audit, raise_low_stock_alert
 
-from .models import Inspection, License, Mill, MillingReport
+from .models import Inspection, License, Mill, MillingAllocation, MillingReport, MillingReturnRequest, MillStock
 from .serializers import (
     InspectionSerializer,
     InspectionWriteSerializer,
     LicenseSerializer,
+    MillingAllocationCreateSerializer,
+    MillingAllocationSerializer,
     MillingReportSerializer,
     MillingReportWriteSerializer,
+    MillingReturnRequestCreateSerializer,
+    MillingReturnRequestSerializer,
     MillSerializer,
     MillWriteSerializer,
     OfficerInspectionSerializer,
     OfficerLicenseSerializer,
+    OfficerMillingAllocationSerializer,
+    OfficerMillingReturnRequestSerializer,
 )
 
 LICENSE_VALIDITY_DAYS = 365
@@ -226,3 +235,178 @@ class OfficerInspectionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         inspection = serializer.save(officer=self.request.user)
         log_audit(self.request.user, "log_inspection", "mills", f"Inspection #{inspection.id} ({inspection.mill.mill_name})")
+
+
+class MillingAllocationViewSet(viewsets.ModelViewSet):
+    """Self-service CRUD for a mill owner's own milling-allocation requests. Mirrors LicenseViewSet's shape exactly."""
+
+    permission_classes = [HasPermission("access_mill_owner_portal")]
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_queryset(self):
+        return MillingAllocation.objects.filter(mill__user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return MillingAllocationCreateSerializer
+        return MillingAllocationSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(mill=self.request.user.mill_profile)
+
+    def destroy(self, request, *args, **kwargs):
+        allocation = self.get_object()
+        if allocation.status != MillingAllocation.Status.PENDING:
+            return Response(
+                {"detail": "Only a pending allocation request can be withdrawn."}, status=400
+            )
+        return super().destroy(request, *args, **kwargs)
+
+
+class OfficerMillingAllocationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    PMB officer review queue for mill owners' milling-allocation requests:
+    list/view all requests, plus the approve/reject/fulfill workflow
+    actions. Mirrors purchases.OfficerRiceRequestViewSet exactly, reusing
+    the same "record_purchases" codename (the purchasing/milling-request
+    review permission already gating RiceRequest).
+    """
+
+    queryset = MillingAllocation.objects.select_related(
+        "mill", "paddy_type", "reviewed_by", "fulfilled_from_warehouse"
+    ).order_by("-requested_date")
+    serializer_class = OfficerMillingAllocationSerializer
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [HasAnyPermission("monitor_operations", "record_purchases")]
+        return [HasPermission("record_purchases")]
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        """Moves a pending allocation request to "approved", ready to be fulfilled from a warehouse."""
+        allocation = self.get_object()
+        if allocation.status != MillingAllocation.Status.PENDING:
+            return Response({"detail": "Only pending requests can be approved."}, status=400)
+        allocation.status = MillingAllocation.Status.APPROVED
+        allocation.reviewed_by = request.user
+        allocation.save(update_fields=["status", "reviewed_by"])
+        log_audit(request.user, "approve_milling_allocation", "mills", f"MillingAllocation #{allocation.id}")
+        return Response(self.get_serializer(allocation).data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        """Moves a pending allocation request straight to "rejected" (a terminal state)."""
+        allocation = self.get_object()
+        if allocation.status != MillingAllocation.Status.PENDING:
+            return Response({"detail": "Only pending requests can be rejected."}, status=400)
+        allocation.status = MillingAllocation.Status.REJECTED
+        allocation.review_notes = request.data.get("review_notes", "")
+        allocation.reviewed_by = request.user
+        allocation.save(update_fields=["status", "review_notes", "reviewed_by"])
+        log_audit(request.user, "reject_milling_allocation", "mills", f"MillingAllocation #{allocation.id}")
+        return Response(self.get_serializer(allocation).data)
+
+    @action(detail=True, methods=["post"])
+    def fulfill(self, request, pk=None):
+        """Confirms release of an approved allocation's quantity from a chosen warehouse into the mill's own stock ledger."""
+        allocation = self.get_object()
+        if allocation.status != MillingAllocation.Status.APPROVED:
+            return Response({"detail": "Only approved requests can be fulfilled."}, status=400)
+
+        warehouse_id = request.data.get("warehouse")
+        warehouse = get_object_or_404(Warehouse, pk=warehouse_id)
+        if warehouse.current_stock < allocation.quantity_kg:
+            return Response(
+                {"detail": "Selected warehouse does not have enough stock for this allocation."}, status=400
+            )
+
+        with transaction.atomic():
+            Warehouse.objects.filter(pk=warehouse.pk).update(
+                current_stock=F("current_stock") - allocation.quantity_kg
+            )
+            stock, _ = MillStock.objects.get_or_create(mill=allocation.mill, paddy_type=allocation.paddy_type)
+            MillStock.objects.filter(pk=stock.pk).update(quantity_kg=F("quantity_kg") + allocation.quantity_kg)
+            _log_transaction(
+                warehouse,
+                TransactionLog.TransactionType.MILLING_ALLOCATION_FULFILLMENT,
+                -allocation.quantity_kg,
+                paddy_type=allocation.paddy_type,
+                updated_by=request.user,
+                notes=f"MillingAllocation #{allocation.id}",
+            )
+
+            allocation.status = MillingAllocation.Status.FULFILLED
+            allocation.fulfilled_from_warehouse = warehouse
+            allocation.reviewed_by = request.user
+            allocation.save(update_fields=["status", "fulfilled_from_warehouse", "reviewed_by"])
+            warehouse.refresh_from_db(fields=["current_stock"])
+
+        raise_low_stock_alert(warehouse, warehouse.current_stock)
+
+        log_audit(request.user, "fulfill_milling_allocation", "mills", f"MillingAllocation #{allocation.id}")
+        return Response(self.get_serializer(allocation).data)
+
+
+class MillingReturnRequestViewSet(viewsets.ModelViewSet):
+    """Self-service create/list/withdraw for a mill owner's own milling-return transport requests."""
+
+    permission_classes = [HasPermission("access_mill_owner_portal")]
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_queryset(self):
+        return MillingReturnRequest.objects.filter(mill__user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return MillingReturnRequestCreateSerializer
+        return MillingReturnRequestSerializer
+
+    def get_serializer_context(self):
+        return {**super().get_serializer_context(), "request": self.request}
+
+    def perform_create(self, serializer):
+        serializer.save(mill=self.request.user.mill_profile)
+
+    def destroy(self, request, *args, **kwargs):
+        return_request = self.get_object()
+        if return_request.status != MillingReturnRequest.Status.PENDING:
+            return Response({"detail": "Only a pending return request can be withdrawn."}, status=400)
+        return super().destroy(request, *args, **kwargs)
+
+
+class OfficerMillingReturnRequestViewSet(viewsets.ReadOnlyModelViewSet):
+    """PMB officer review queue for mill owners' milling-return transport requests. Approval doesn't create the Delivery -- an officer does that separately via the Transportation page."""
+
+    queryset = MillingReturnRequest.objects.select_related(
+        "mill", "allocation", "destination_warehouse", "reviewed_by"
+    ).order_by("-requested_date")
+    serializer_class = OfficerMillingReturnRequestSerializer
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [HasAnyPermission("monitor_operations", "record_purchases")]
+        return [HasPermission("record_purchases")]
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        return_request = self.get_object()
+        if return_request.status != MillingReturnRequest.Status.PENDING:
+            return Response({"detail": "Only pending requests can be approved."}, status=400)
+        return_request.status = MillingReturnRequest.Status.APPROVED
+        return_request.reviewed_by = request.user
+        return_request.save(update_fields=["status", "reviewed_by"])
+        log_audit(request.user, "approve_milling_return", "mills", f"MillingReturnRequest #{return_request.id}")
+        return Response(self.get_serializer(return_request).data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        return_request = self.get_object()
+        if return_request.status != MillingReturnRequest.Status.PENDING:
+            return Response({"detail": "Only pending requests can be rejected."}, status=400)
+        return_request.status = MillingReturnRequest.Status.REJECTED
+        return_request.review_notes = request.data.get("review_notes", "")
+        return_request.reviewed_by = request.user
+        return_request.save(update_fields=["status", "review_notes", "reviewed_by"])
+        log_audit(request.user, "reject_milling_return", "mills", f"MillingReturnRequest #{return_request.id}")
+        return Response(self.get_serializer(return_request).data)

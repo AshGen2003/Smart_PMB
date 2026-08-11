@@ -2,8 +2,29 @@
 # (Province/District), farmer profiles, warehouses, paddy types and their
 # guaranteed prices, harvest submissions and their approval workflow, and
 # the payments/notifications generated along the way.
+from datetime import date
+
 from django.conf import settings
 from django.db import models
+
+
+class Season(models.TextChoices):
+    YALA = "yala", "Yala"
+    MAHA = "maha", "Maha"
+
+
+def season_for_date(d: date) -> str:
+    """Sri Lanka's two paddy growing seasons: Yala (Apr-Aug), Maha (Sep-Mar, wraps year-end)."""
+    return Season.YALA if 4 <= d.month <= 8 else Season.MAHA
+
+
+def season_date_range(today: date) -> tuple[date, date]:
+    """The concrete start/end dates of the season `today` falls within (Maha wraps across the year boundary)."""
+    if season_for_date(today) == Season.YALA:
+        return date(today.year, 4, 1), date(today.year, 8, 31)
+    if today.month >= 9:
+        return date(today.year, 9, 1), date(today.year + 1, 3, 31)
+    return date(today.year - 1, 9, 1), date(today.year, 3, 31)
 
 
 class Province(models.Model):
@@ -144,6 +165,47 @@ class Warehouse(models.Model):
         return f"{self.name} ({self.code})"
 
 
+class DeliverySlot(models.Model):
+    """
+    A farmer's advance booking of a future paddy delivery to a warehouse,
+    verified on arrival by that warehouse's manager (see
+    WarehouseManagerDeliverySlotLookupView/CheckInView). `booking_reference`
+    uses a deliberately different format from Harvest.lot_code
+    (BK-YYYYMMDD-XXXXXX vs PMB-000123-ABCDEF) so the two can never be
+    confused when read off a QR/printed slip — this is a scheduling
+    artifact, not a traceability one.
+    """
+
+    class Status(models.TextChoices):
+        BOOKED = "booked", "Booked"
+        ARRIVED = "arrived", "Arrived"
+        COMPLETED = "completed", "Completed"
+        CANCELLED = "cancelled", "Cancelled"
+        NO_SHOW = "no_show", "No Show"
+
+    farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name="delivery_slots")
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT, related_name="delivery_slots")
+    paddy_type = models.ForeignKey(
+        PaddyType, on_delete=models.SET_NULL, null=True, blank=True, related_name="delivery_slots"
+    )
+    estimated_quantity_kg = models.DecimalField(max_digits=10, decimal_places=2)
+    scheduled_date = models.DateField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.BOOKED)
+    booking_reference = models.CharField(max_length=30, unique=True, db_index=True)
+    checked_in_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    checked_in_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-scheduled_date", "-id"]
+
+    def __str__(self):
+        return f"{self.booking_reference} ({self.farmer}, {self.status})"
+
+
 class Harvest(models.Model):
     """
     A farmer's paddy harvest submission and its progress through the
@@ -174,6 +236,12 @@ class Harvest(models.Model):
     quantity_kg = models.DecimalField(max_digits=10, decimal_places=2)
     harvest_date = models.DateField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    # Optional link to the DeliverySlot booking this harvest fulfilled, for
+    # traceability. Doesn't affect officer-side assessment (grade/price/
+    # warehouse), which stays officer-only regardless.
+    delivery_slot = models.ForeignKey(
+        DeliverySlot, on_delete=models.SET_NULL, null=True, blank=True, related_name="harvests"
+    )
 
     # Officer-recorded fields — null/no-default means "not yet assessed",
     # distinct from an officer having actually recorded a pass/grade.
@@ -258,6 +326,9 @@ class TransactionLog(models.Model):
         MANUAL_ADJUSTMENT = "manual_adjustment", "Manual Adjustment"
         TRANSFER_OUT = "transfer_out", "Transfer Out"
         TRANSFER_IN = "transfer_in", "Transfer In"
+        MILLING_ALLOCATION_FULFILLMENT = "milling_allocation_fulfillment", "Milling Allocation Fulfillment"
+        DISPATCH_MANIFEST_DELIVERY = "dispatch_manifest_delivery", "Dispatch Manifest Delivery"
+        MILLING_RETURN_DELIVERY = "milling_return_delivery", "Milling Return Delivery"
 
     warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name="transaction_logs")
     transaction_type = models.CharField(max_length=30, choices=TransactionType.choices)
@@ -478,6 +549,19 @@ class Delivery(models.Model):
     )
     scheduled_date = models.DateField()
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.SCHEDULED)
+    # Set when this delivery is carrying a purchaser's dispatch manifest or
+    # a mill's finished-rice return back into PMB custody, rather than a
+    # plain warehouse-to-warehouse transfer — an officer links one of these
+    # manually from Transportation after approving the manifest/return (no
+    # Delivery is auto-created on approval). When this delivery reaches
+    # "delivered", _handle_delivery_delivered below credits the destination
+    # warehouse's stock and flips the linked manifest/return to DELIVERED.
+    dispatch_manifest = models.ForeignKey(
+        "purchases.DispatchManifest", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
+    )
+    milling_return_request = models.ForeignKey(
+        "mills.MillingReturnRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
+    )
 
     class AssignmentStatus(models.TextChoices):
         PENDING = "pending", "Pending"

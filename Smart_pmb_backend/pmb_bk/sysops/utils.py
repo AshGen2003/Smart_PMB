@@ -17,6 +17,11 @@ CONFIG_DEFS = {
     "payments_enabled": {"default": "true", "category": "system", "type": "bool"},
     "sms_enabled": {"default": "true", "category": "system", "type": "bool"},
     "signups_enabled": {"default": "true", "category": "system", "type": "bool"},
+    # Per-acre seasonal paddy quota (kg) used to cap how much a single
+    # farmer can sell across all channels (harvest deliveries + farm-gate
+    # purchases) in one growing season — see farmers.models.season_date_range
+    # and purchases.views.FarmGatePurchaseViewSet.perform_create.
+    "quota_kg_per_acre": {"default": "1000", "category": "purchasing", "type": "int"},
 }
 
 

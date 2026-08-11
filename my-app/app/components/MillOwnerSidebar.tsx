@@ -23,6 +23,7 @@ import {
   User,
   FileCheck,
   ClipboardList,
+  Boxes,
 } from "lucide-react";
 
 // A mill owner's ongoing License history (renewable, expiry-tracked — see
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", href: "/mill-owner", icon: LayoutDashboard, permission: "view_dashboard" },
   { label: "Licenses", href: "/mill-owner/licenses", icon: FileCheck, permission: "view_dashboard" },
   { label: "Milling Reports", href: "/mill-owner/milling-reports", icon: ClipboardList, permission: "view_dashboard" },
+  { label: "Milling Allocations", href: "/mill-owner/milling-allocations", icon: Boxes, permission: "view_dashboard" },
   { label: "Messages", href: "/mill-owner/messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", href: "/mill-owner/settings", icon: Settings, permission: "view_settings" },
 ];
