@@ -3,9 +3,11 @@
  * every page under it is rendered as `children` inside this layout,
  * wrapped in OfficerShell. Mirrors (admin)/layout.tsx's data-fetching
  * (system config, unread-message/pending-request counts for the sidebar's
- * red dots), scoped to just the "pmb_officer" role rather than "anyone
- * who isn't farmer/driver/etc" — admins still manage the system from the
- * shared `(admin)` shell, they don't get a view of this portal.
+ * red dots), gated by "access_pmb_officer_portal" (see accounts/migrations/
+ * 0034) rather than "anyone who isn't farmer/driver/etc" — admins still
+ * manage the system from the shared `(admin)` shell, they don't get a view
+ * of this portal. Same access_<role>_portal convention migrations 0032/
+ * 0033 already applied to the other five portals.
  *
  * Portal Preview CAN reach this layout: entering preview redirects to
  * /dashboard, and (admin)/layout.tsx's `pmb_officer` redirect (which
@@ -15,7 +17,7 @@
  * (admin)/layout.tsx does for its own equivalents.
  */
 import { redirect } from "next/navigation";
-import { requireRole } from "@/app/lib/dal";
+import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import OfficerShell from "@/app/components/OfficerShell";
 
@@ -24,7 +26,7 @@ export default async function OfficerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireRole("pmb_officer");
+  const user = await requirePermission("access_pmb_officer_portal");
 
   // An admin-set (or admin-reset) temporary password must be changed
   // before this account reaches any real page.
