@@ -12,14 +12,21 @@ import {
   AlertTriangle,
   Check,
   ClipboardList,
+  EyeOff,
   Loader2,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   Trash2,
   Warehouse as WarehouseIcon,
 } from "lucide-react";
-import { deleteWarehouse, resolveWarehouseCapacityAlert } from "@/app/actions/warehouses";
+import {
+  deactivateWarehouse,
+  deleteWarehouse,
+  reactivateWarehouse,
+  resolveWarehouseCapacityAlert,
+} from "@/app/actions/warehouses";
 import WarehouseFormModal, {
   type DistrictOption,
   type EditableWarehouse,
@@ -92,6 +99,7 @@ export default function WarehousesManager({
   alerts,
   permissions,
   canWrite = true,
+  role,
 }: {
   warehouses: WarehouseRow[];
   districts: DistrictOption[];
@@ -104,8 +112,12 @@ export default function WarehousesManager({
   // False for viewers who can only see warehouses (Portal Preview, or a
   // future read-only role) — hides the create/edit/delete affordances.
   canWrite?: boolean;
+  // PMB officers can't permanently delete a warehouse — they get a
+  // "Deactivate" action instead (see canDelete/canDeactivate below), and
+  // inactive warehouses are then hidden from their own list.
+  role: string;
 }) {
-  const [tab, setTab] = useState<"warehouses" | "alerts">("warehouses");
+  const [tab, setTab] = useState<"warehouses" | "alerts" | "deactivated">("warehouses");
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState<
     { mode: "create" } | { mode: "edit"; warehouse: EditableWarehouse } | null
@@ -114,16 +126,31 @@ export default function WarehousesManager({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const isOfficer = role === "pmb_officer";
+  const canDelete = canWrite && !isOfficer;
+  const canDeactivate = canWrite && isOfficer;
+
   const filtered = useMemo(() => {
+    // Officers can only deactivate (never delete) a warehouse, so an
+    // inactive one is hidden from their list instead — admins still see
+    // and manage every status.
+    const visible = isOfficer ? warehouses.filter((w) => w.status !== "inactive") : warehouses;
     const q = query.trim().toLowerCase();
-    if (!q) return warehouses;
-    return warehouses.filter(
+    if (!q) return visible;
+    return visible.filter(
       (w) =>
         w.name.toLowerCase().includes(q) ||
         w.code.toLowerCase().includes(q) ||
         (w.district_name ?? "").toLowerCase().includes(q)
     );
-  }, [warehouses, query]);
+  }, [warehouses, query, isOfficer]);
+
+  // Warehouses this officer previously deactivated (hidden from the main
+  // list above) — surfaced in their own tab so they can reactivate one.
+  const deactivatedWarehouses = useMemo(
+    () => warehouses.filter((w) => w.status === "inactive"),
+    [warehouses]
+  );
 
   const openAlertCount = useMemo(
     () => alerts.filter((a) => a.status === "open").length,
@@ -131,6 +158,7 @@ export default function WarehousesManager({
   );
 
   const [deleteTarget, setDeleteTarget] = useState<WarehouseRow | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<WarehouseRow | null>(null);
 
   function handleDelete(warehouse: WarehouseRow) {
     setDeleteTarget(warehouse);
@@ -144,6 +172,25 @@ export default function WarehousesManager({
       const result = await deleteWarehouse(target.id);
       if (result.error) setDeleteError(result.error);
       setDeleteTarget(null);
+    });
+  }
+
+  function confirmDeactivate() {
+    if (!deactivateTarget) return;
+    const target = deactivateTarget;
+    setDeleteError(null);
+    startTransition(async () => {
+      const result = await deactivateWarehouse(target.id);
+      if (result.error) setDeleteError(result.error);
+      setDeactivateTarget(null);
+    });
+  }
+
+  function handleReactivate(warehouse: WarehouseRow) {
+    setDeleteError(null);
+    startTransition(async () => {
+      const result = await reactivateWarehouse(warehouse.id);
+      if (result.error) setDeleteError(result.error);
     });
   }
 
@@ -194,6 +241,19 @@ export default function WarehousesManager({
           Alerts
           {openAlertCount > 0 && <span className={styles.tabCount}>{openAlertCount}</span>}
         </button>
+        {canDeactivate && (
+          <button
+            type="button"
+            className={clsx(styles.tab, tab === "deactivated" && styles.tabActive)}
+            onClick={() => setTab("deactivated")}
+          >
+            <EyeOff size={15} />
+            Deactivated
+            {deactivatedWarehouses.length > 0 && (
+              <span className={styles.tabCount}>{deactivatedWarehouses.length}</span>
+            )}
+          </button>
+        )}
       </div>
 
       {deleteError && <div className={styles.banner}>{deleteError}</div>}
@@ -249,7 +309,7 @@ export default function WarehousesManager({
                       className={styles.editBtn}
                       onClick={() => setDetailWarehouse(w)}
                     >
-                      <ClipboardList size={14} /> Stock detail
+                      <ClipboardList size={14} /> View
                     </button>
                     {canWrite && (
                       <>
@@ -276,15 +336,29 @@ export default function WarehousesManager({
                         >
                           <Pencil size={14} /> Edit
                         </button>
-                        <button
-                          type="button"
-                          className={styles.deleteIconBtn}
-                          aria-label="Delete warehouse"
-                          disabled={isPending}
-                          onClick={() => handleDelete(w)}
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {canDelete && (
+                          <button
+                            type="button"
+                            className={styles.deleteIconBtn}
+                            aria-label="Delete warehouse"
+                            disabled={isPending}
+                            onClick={() => handleDelete(w)}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                        {canDeactivate && (
+                          <button
+                            type="button"
+                            className={styles.deleteIconBtn}
+                            aria-label="Deactivate and hide warehouse"
+                            title="Make inactive and hide"
+                            disabled={isPending}
+                            onClick={() => setDeactivateTarget(w)}
+                          >
+                            <EyeOff size={16} />
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
@@ -309,6 +383,52 @@ export default function WarehousesManager({
             </div>
           ) : (
             <p className={styles.emptyState}>No warehouse alerts recorded yet.</p>
+          )}
+        </div>
+      )}
+
+      {tab === "deactivated" && (
+        <div className={styles.container}>
+          <h2 className={styles.sectionLabel}>Deactivated warehouses</h2>
+          {deactivatedWarehouses.length > 0 ? (
+            <div className={styles.grid}>
+              {deactivatedWarehouses.map((w) => (
+                <div key={w.id} className={clsx(styles.card, STATUS_TINT[w.status])}>
+                  <div className={styles.cardHeader}>
+                    <div className={styles.titleRow}>
+                      <span className={styles.icon}>
+                        <WarehouseIcon size={18} />
+                      </span>
+                      <div>
+                        <div className={styles.name}>{w.name}</div>
+                        <div className={styles.code}>{w.code}</div>
+                      </div>
+                    </div>
+                    <span className={styles.statusBadge}>{STATUS_LABEL[w.status]}</span>
+                  </div>
+
+                  {(w.district_name || w.location || w.managed_by_name) && (
+                    <p className={styles.meta}>
+                      {[w.district_name, w.location].filter(Boolean).join(" · ")}
+                      {w.managed_by_name && ` · Managed by ${w.managed_by_name}`}
+                    </p>
+                  )}
+
+                  <div className={styles.cardActions}>
+                    <button
+                      type="button"
+                      className={styles.editBtn}
+                      disabled={isPending}
+                      onClick={() => handleReactivate(w)}
+                    >
+                      <RotateCcw size={14} /> Reactivate
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.emptyState}>No deactivated warehouses.</p>
           )}
         </div>
       )}
@@ -358,6 +478,25 @@ export default function WarehousesManager({
           pending={isPending}
           onConfirm={confirmDelete}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {deactivateTarget && (
+        <ConfirmModal
+          title="Make this warehouse inactive?"
+          message={
+            <>
+              <strong>&quot;{deactivateTarget.name}&quot;</strong> will be marked inactive and
+              hidden from your warehouse list. You can reactivate it anytime from the
+              Deactivated tab.
+            </>
+          }
+          confirmLabel="Deactivate"
+          pendingLabel="Deactivating…"
+          variant="warning"
+          pending={isPending}
+          onConfirm={confirmDeactivate}
+          onClose={() => setDeactivateTarget(null)}
         />
       )}
     </div>

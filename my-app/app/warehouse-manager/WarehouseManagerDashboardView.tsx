@@ -54,7 +54,7 @@ export type TransactionLogEntry = {
 
 const TRANSACTION_LABEL: Record<TransactionLogEntry["transaction_type"], string> = {
   harvest_collection: "Harvest collected",
-  rice_request_fulfillment: "Rice request fulfilled",
+  rice_request_fulfillment: "Paddy request fulfilled",
   manual_adjustment: "Manual adjustment",
   transfer_out: "Transferred out",
   transfer_in: "Transferred in",

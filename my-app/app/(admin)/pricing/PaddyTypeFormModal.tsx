@@ -11,7 +11,36 @@ import {
   updatePaddyType,
   type PaddyTypeFormState,
 } from "@/app/actions/pricing";
+import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./Pricing.module.css";
+
+// Common paddy varieties grown/purchased in Sri Lanka. `variety` is a plain
+// text field on the backend (PaddyType.variety), so this is a curated
+// picklist for consistency, not a hard backend constraint.
+const VARIETY_OPTIONS = [
+  { value: "BG 300", label: "BG 300" },
+  { value: "BG 352", label: "BG 352" },
+  { value: "BG 358", label: "BG 358" },
+  { value: "BG 359", label: "BG 359" },
+  { value: "BG 366", label: "BG 366" },
+  { value: "BG 369", label: "BG 369" },
+  { value: "BG 379-2", label: "BG 379-2" },
+  { value: "BG 380", label: "BG 380" },
+  { value: "AT 306", label: "AT 306" },
+  { value: "AT 353", label: "AT 353" },
+  { value: "AT 362", label: "AT 362" },
+  { value: "LD 408", label: "LD 408" },
+  { value: "BW 267-3", label: "BW 267-3" },
+  { value: "BW 372", label: "BW 372" },
+  { value: "Nadu", label: "Nadu" },
+  { value: "Samba", label: "Samba" },
+  { value: "Kekulu", label: "Kekulu" },
+  { value: "Suwandel", label: "Suwandel" },
+  { value: "Basmati", label: "Basmati" },
+  { value: "Kalu Heenati", label: "Kalu Heenati" },
+  { value: "Pachchaperumal", label: "Pachchaperumal" },
+  { value: "Red Rice", label: "Red Rice" },
+];
 
 /** Subset of paddy-type fields needed to pre-fill the form when editing. */
 export type EditablePaddyType = {
@@ -87,12 +116,12 @@ export default function PaddyTypeFormModal({
                 <label className={styles.label} htmlFor="variety">
                   Variety <span className={styles.optional}>(optional)</span>
                 </label>
-                <input
+                <StyledSelect
                   id="variety"
                   name="variety"
-                  type="text"
+                  options={VARIETY_OPTIONS}
                   defaultValue={paddyType?.variety}
-                  className={styles.input}
+                  placeholder="Select a variety…"
                 />
               </div>
               <div className={styles.field}>

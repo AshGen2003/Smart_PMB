@@ -75,7 +75,7 @@ const ADMIN_NAV_ITEMS = [
   { label: "Pricing", icon: Coins, permission: "manage_pricing" },
   { label: "Approvals", icon: ClipboardCheck, permissions: ["monitor_operations", "record_purchases"] },
   { label: "Transportation", icon: Truck, permission: "manage_transport" },
-  { label: "Licenses", icon: BadgeCheck, permission: "approve_licenses" },
+  { label: "License", icon: BadgeCheck, permission: "approve_licenses" },
   { label: "Reports", icon: BarChart3, permission: "generate_reports" },
   { label: "Roles", icon: ShieldCheck, permission: "manage_roles" },
   { label: "Preview Portal", icon: Eye, permission: "manage_roles" },
@@ -118,7 +118,7 @@ const MILL_OWNER_NAV_ITEMS = [
 // Mirrors PurchaserSidebar.tsx's NAV_ITEMS.
 const PURCHASER_NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
-  { label: "Rice Requests", icon: Package, permission: "view_dashboard" },
+  { label: "Paddy Requests", icon: Package, permission: "view_dashboard" },
   { label: "Messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", icon: Settings, permission: "view_settings" },
   { label: "Profile", icon: User, permission: "view_profile" },

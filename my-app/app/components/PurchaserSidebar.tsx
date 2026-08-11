@@ -31,7 +31,7 @@ import {
 // business feature, same as Messages/Settings.
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/purchaser", icon: LayoutDashboard, permission: "view_dashboard" },
-  { label: "Rice Requests", href: "/purchaser/rice-requests", icon: Package, permission: "view_dashboard" },
+  { label: "Paddy Requests", href: "/purchaser/rice-requests", icon: Package, permission: "view_dashboard" },
   { label: "Farm-Gate Purchases", href: "/purchaser/farm-gate-purchases", icon: Receipt, permission: "view_dashboard" },
   { label: "Messages", href: "/purchaser/messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", href: "/purchaser/settings", icon: Settings, permission: "view_settings" },

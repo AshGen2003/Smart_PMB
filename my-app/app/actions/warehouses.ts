@@ -107,6 +107,50 @@ export async function deleteWarehouse(warehouseId: number): Promise<{ error?: st
 }
 
 /**
+ * Sets a warehouse to "inactive" without deleting it — used in place of
+ * deleteWarehouse for PMB officers, who aren't allowed to permanently
+ * remove a warehouse (see WarehousesManager.tsx: officers get a
+ * "Deactivate" action instead of Delete, and inactive warehouses are then
+ * filtered out of their own warehouse list).
+ */
+export async function deactivateWarehouse(warehouseId: number): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/admin/warehouses/${warehouseId}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "inactive" }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/warehouses");
+  updateTag("warehouses");
+  return {};
+}
+
+/**
+ * Sets a warehouse back to "active" — the undo for deactivateWarehouse.
+ * Lets a PMB officer reactivate a warehouse they (or another officer)
+ * previously deactivated, without needing an admin.
+ */
+export async function reactivateWarehouse(warehouseId: number): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/admin/warehouses/${warehouseId}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "active" }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/warehouses");
+  updateTag("warehouses");
+  return {};
+}
+
+/**
  * Manually adds or removes stock for one paddy type (+ optional grade) at
  * a warehouse, via WarehouseViewSet.adjust_stock. `direction` ("add" or
  * "remove") is expected as a hidden field in `formData` (see

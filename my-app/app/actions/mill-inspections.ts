@@ -27,6 +27,6 @@ export async function logInspection(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/mill-licenses");
+  revalidatePath("/licenses");
   return {};
 }

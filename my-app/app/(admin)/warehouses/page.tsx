@@ -46,6 +46,7 @@ export default async function WarehousesPage() {
         alerts={[]}
         permissions={user.permissions}
         canWrite={false}
+        role={user.role}
       />
     );
   }
@@ -84,6 +85,7 @@ export default async function WarehousesPage() {
       alerts={alerts}
       permissions={user.permissions}
       canWrite={canWrite}
+      role={user.role}
     />
   );
 }

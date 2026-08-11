@@ -61,8 +61,8 @@ export default function RiceRequestsManager({
   return (
     <div className={styles.dashboard}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Rice Requests</h1>
-        <p className={styles.subtitle}>Request rice from warehouse stock and track its fulfillment.</p>
+        <h1 className={styles.title}>Paddy Requests</h1>
+        <p className={styles.subtitle}>Request paddy from warehouse stock and track its fulfillment.</p>
       </div>
 
       <RequestRiceForm paddyTypes={paddyTypes} />
@@ -74,7 +74,7 @@ export default function RiceRequestsManager({
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Rice type</th>
+                <th>Paddy type</th>
                 <th>Quantity (kg)</th>
                 <th>Requested</th>
                 <th>Status</th>
@@ -109,7 +109,7 @@ export default function RiceRequestsManager({
         ) : (
           <div className={styles.emptyRow}>
             <Package size={20} />
-            <span>No rice requests yet. Use the form above to submit one.</span>
+            <span>No paddy requests yet. Use the form above to submit one.</span>
           </div>
         )}
       </div>

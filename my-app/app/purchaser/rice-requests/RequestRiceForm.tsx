@@ -30,18 +30,18 @@ export default function RequestRiceForm({ paddyTypes }: { paddyTypes: PaddyTypeO
 
   return (
     <div className={formStyles.card}>
-      <h3 className={formStyles.cardTitle}>Request rice</h3>
+      <h3 className={formStyles.cardTitle}>Request paddy</h3>
       <p className={formStyles.cardSubtitle}>
-        Ask for a specific rice type and quantity. A PMB officer will review and fulfill it from warehouse stock.
+        Ask for a specific paddy type and quantity. A PMB officer will review and fulfill it from warehouse stock.
       </p>
 
       {state.error && <div className={`${formStyles.banner} ${formStyles.bannerError}`}>{state.error}</div>}
 
       <form action={formAction} ref={formRef} noValidate>
         <div className={formStyles.field}>
-          <label className={formStyles.label} htmlFor="paddy_type">Rice type</label>
+          <label className={formStyles.label} htmlFor="paddy_type">Paddy type</label>
           <select id="paddy_type" name="paddy_type" required className={formStyles.input} defaultValue="">
-            <option value="" disabled>Select a rice type</option>
+            <option value="" disabled>Select a paddy type</option>
             {paddyTypes.map((p) => (
               <option key={p.id} value={p.id}>{p.type_name}</option>
             ))}

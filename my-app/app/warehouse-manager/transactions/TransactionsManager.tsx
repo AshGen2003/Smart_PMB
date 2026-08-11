@@ -21,7 +21,7 @@ export type TransactionRow = {
 
 const TRANSACTION_LABEL: Record<TransactionRow["transaction_type"], string> = {
   harvest_collection: "Harvest collected",
-  rice_request_fulfillment: "Rice request fulfilled",
+  rice_request_fulfillment: "Paddy request fulfilled",
   manual_adjustment: "Manual adjustment",
 };
 
