@@ -32,6 +32,7 @@
   top: 0;
   z-index: 30;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
@@ -104,8 +105,10 @@
 .navActions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.6rem;
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .navIconBtn {
@@ -716,7 +719,18 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.85rem;
-  flex-shrink: 0;
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .ctaActions {
+    width: 100%;
+  }
+
+  .ctaActions a {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 720px) {
