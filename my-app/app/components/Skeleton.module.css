@@ -103,6 +103,14 @@
   gap: 1.25rem;
 }
 
+@media (max-width: 480px) {
+  .cardsGrid,
+  .kpiGrid,
+  .chartsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .list {
   display: flex;
   flex-direction: column;

@@ -49,6 +49,7 @@
   border-radius: 14px;
   padding: 1.25rem;
   box-shadow: var(--shadow-sm);
+  min-width: 0;
 }
 
 .kpiLabel {
@@ -77,6 +78,13 @@
   border-radius: 14px;
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .gridTwo {
+    grid-template-columns: 1fr;
+  }
 }
 
 .cardTitle {
