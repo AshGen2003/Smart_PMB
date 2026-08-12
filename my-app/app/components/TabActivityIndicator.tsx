@@ -39,12 +39,26 @@ function prettifyPathname(pathname: string): string {
     .join(" ");
 }
 
-function buildSpinnerFaviconHref(): string {
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><style>.s{transform-origin:center;animation:pmbspin .8s linear infinite}@keyframes pmbspin{to{transform:rotate(360deg)}}</style><circle class='s' cx='12' cy='12' r='9' fill='none' stroke='#1e5128' stroke-width='3' stroke-linecap='round' stroke-dasharray='42 14'/></svg>`;
+// An embedded CSS @keyframes animation inside a single SVG favicon isn't
+// reliably honored across browsers (confirmed not working in practice) —
+// so instead of hoping the browser animates it, this generates several
+// static frames (the ring pre-rotated to different angles) and the
+// component below cycles the favicon's href through them on a plain JS
+// timer. A genuinely different image on every tick is guaranteed to
+// redraw, regardless of whether the browser would've run an animation
+// embedded in a favicon at all.
+const SPIN_FRAME_COUNT = 8;
+
+function buildSpinnerFrame(angleDeg: number): string {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9' fill='none' stroke='#1e5128' stroke-width='3' stroke-linecap='round' stroke-dasharray='42 14' transform='rotate(${angleDeg} 12 12)'/></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-const SPINNER_FAVICON_HREF = buildSpinnerFaviconHref();
+const SPIN_FRAMES = Array.from({ length: SPIN_FRAME_COUNT }, (_, i) =>
+  buildSpinnerFrame(Math.round((360 / SPIN_FRAME_COUNT) * i))
+);
+const SPIN_FRAME_INTERVAL_MS = 90;
+
 let originalFaviconHref: string | null = null;
 
 function getFaviconLink(): HTMLLinkElement {
@@ -152,7 +166,17 @@ export default function TabActivityIndicator() {
 
   useEffect(() => {
     const link = getFaviconLink();
-    link.href = active ? SPINNER_FAVICON_HREF : originalFaviconHref ?? "/favicon.ico";
+    if (!active) {
+      link.href = originalFaviconHref ?? "/favicon.ico";
+      return;
+    }
+    let frame = 0;
+    link.href = SPIN_FRAMES[frame];
+    const intervalId = setInterval(() => {
+      frame = (frame + 1) % SPIN_FRAMES.length;
+      link.href = SPIN_FRAMES[frame];
+    }, SPIN_FRAME_INTERVAL_MS);
+    return () => clearInterval(intervalId);
   }, [active]);
 
   useEffect(() => {
