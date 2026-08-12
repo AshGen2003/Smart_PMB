@@ -14,7 +14,7 @@ import type { PermissionOption } from "./RoleFormModal";
 export default async function RolesPage() {
   await requirePermissionOrAdminRole("manage_roles");
 
-  // Roles/permissions are reused as reference data on /residents too — see
+  // Roles/permissions are reused as reference data on /users too — see
   // apiFetchCached's docstring. revalidateTag("roles") in actions/roles.ts
   // keeps this fresh the moment a role is created/edited/deleted; permission
   // codenames have no create/edit UI at all (fixed at the model level), so a

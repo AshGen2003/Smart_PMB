@@ -4,7 +4,7 @@
  * This is distinct from actions/profile.ts, which lets a user edit their
  * own account — these actions act on other users and therefore require
  * the caller to hold the relevant admin permission (enforced by the
- * "/residents" page via lib/dal.ts before these are ever reachable).
+ * "/users" page via lib/dal.ts before these are ever reachable).
  */
 "use server";
 
@@ -22,7 +22,7 @@ export type UserFormState = {
  * @param _prevState Previous form state (unused; useActionState contract).
  * @param formData User fields: email, password, fullName, role (role ID).
  * @returns `{ error }` on failure, otherwise `{}` after revalidating
- *   "/residents" (the user list page).
+ *   "/users" (the user list page).
  */
 export async function createUser(
   _prevState: UserFormState,
@@ -53,7 +53,7 @@ export async function createUser(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/residents");
+  revalidatePath("/users");
   return {};
 }
 
@@ -67,7 +67,7 @@ export async function createUser(
  * @param _prevState Previous form state (unused; useActionState contract).
  * @param formData Updated user fields: email, fullName, role, isActive.
  * @returns `{ error }` on failure, otherwise `{}` after revalidating
- *   "/residents".
+ *   "/users".
  */
 export async function updateUser(
   userId: string,
@@ -97,7 +97,7 @@ export async function updateUser(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/residents");
+  revalidatePath("/users");
   return {};
 }
 
@@ -112,7 +112,7 @@ export async function deleteUser(userId: string): Promise<{ error?: string }> {
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/residents");
+  revalidatePath("/users");
   return {};
 }
 
@@ -130,7 +130,7 @@ export async function unlockUser(userId: string): Promise<{ error?: string }> {
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/residents");
+  revalidatePath("/users");
   return {};
 }
 
@@ -157,7 +157,7 @@ export async function resetUserPassword(userId: string): Promise<{ error?: strin
  * Forces another user's active session(s) to end server-side (e.g.
  * invalidating their refresh token), for admin security actions like
  * responding to a compromised account. Note this doesn't call
- * `revalidatePath` — it doesn't change any data the "/residents" list
+ * `revalidatePath` — it doesn't change any data the "/users" list
  * displays, only the target user's session state.
  */
 export async function forceLogoutUser(userId: string): Promise<{ error?: string }> {

@@ -17,7 +17,7 @@ import type { RoleRow } from "../roles/RolesManager";
 export default async function PreviewPage() {
   await requirePermission("manage_roles");
 
-  // Reference data shared with /roles and /residents — see
+  // Reference data shared with /roles and /users — see
   // apiFetchCached's docstring.
   const rolesRes = await apiFetchCached("/api/admin/roles/", 300, ["roles"]);
   const allRoles = rolesRes.ok ? ((await rolesRes.json()) as RoleRow[]) : [];

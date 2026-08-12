@@ -14,7 +14,7 @@ import {
   HelpCenterSettings,
   SupportSettings,
 } from "@/app/components/SettingsSections";
-import styles from "@/app/(admin)/residents/Users.module.css";
+import styles from "@/app/(admin)/users/Users.module.css";
 
 export default async function OfficerSettingsPage() {
   const user = await requirePermission("view_settings");

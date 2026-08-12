@@ -1,6 +1,7 @@
 /**
- * `/residents` — user account management (despite the route name, this
- * lists all platform accounts, not just farmers/residents). Requires
+ * `/users` — user account management (lists all platform accounts —
+ * farmers, drivers, warehouse managers, officers, everyone — not a
+ * farmer-only "residents" list). Requires
  * `manage_users` (full access) or any of the narrower per-role
  * permissions (manage_farmers, manage_drivers, manage_warehouse_managers,
  * manage_mill_owners, manage_purchasers) — matching AdminUserViewSet's

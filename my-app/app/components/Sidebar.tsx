@@ -57,7 +57,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, permission: "view_dashboard" },
   {
     label: "Users",
-    href: "/residents",
+    href: "/users",
     icon: Users,
     permissions: [
       "manage_users",

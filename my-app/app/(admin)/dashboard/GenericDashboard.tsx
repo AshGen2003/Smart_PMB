@@ -94,7 +94,7 @@ export default function GenericDashboard() {
       <div className={styles.kpiGrid}>
         <div className={styles.kpiCard}>
           <div className={styles.kpiHeader}>
-            <span>Total Residents</span>
+            <span>Total Users</span>
             <div className={styles.kpiIcon}><Users size={20} /></div>
           </div>
           <h2 className={styles.kpiValue}>1,248</h2>

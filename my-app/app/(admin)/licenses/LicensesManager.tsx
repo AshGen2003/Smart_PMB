@@ -13,7 +13,7 @@ import { Check, Loader2, X } from "lucide-react";
 import { approveLicense, rejectLicense } from "@/app/actions/licenses";
 import StyledSelect from "@/app/components/StyledSelect";
 import ConfirmModal from "@/app/components/ConfirmModal";
-import styles from "../residents/Users.module.css";
+import styles from "../users/Users.module.css";
 
 /** Shape of an application row as returned by `GET /api/admin/license-applications/`. */
 export type LicenseApplicationRow = {

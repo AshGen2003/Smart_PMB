@@ -15,7 +15,7 @@ import {
   HelpCenterSettings,
   SupportSettings,
 } from "@/app/components/SettingsSections";
-import styles from "../residents/Users.module.css";
+import styles from "../users/Users.module.css";
 
 /** Server Component: loads the current user and conditionally renders the manage_users-only shortcuts panel. */
 export default async function SettingsPage() {

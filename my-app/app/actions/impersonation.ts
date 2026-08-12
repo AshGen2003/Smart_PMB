@@ -117,7 +117,7 @@ export async function overrideImpersonation(userId: string, reason: string): Pro
 
 /**
  * Ends impersonation: restores the admin's real stashed tokens and returns
- * to /residents (the Users page impersonation is started from) — same
+ * to /users (the Users page impersonation is started from) — same
  * reasoning as exitPreview() returning to /preview instead of /dashboard:
  * an admin ending one impersonation is usually about to start another (or
  * just came from there), so this saves them re-navigating back every time.
@@ -128,5 +128,5 @@ export async function overrideImpersonation(userId: string, reason: string): Pro
 export async function stopImpersonation() {
   const restored = await restoreImpersonatorTokens();
   revalidatePath("/", "layout");
-  redirect(restored ? "/residents" : "/login");
+  redirect(restored ? "/users" : "/login");
 }

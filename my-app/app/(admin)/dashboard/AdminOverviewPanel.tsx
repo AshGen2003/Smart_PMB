@@ -166,7 +166,7 @@ export default function AdminOverviewPanel({ data }: { data: AdminOverviewData }
         <div className={styles.tableCard}>
           <div className={styles.tableHeader}>
             <h3 className={styles.tableTitle}>Recent Accounts</h3>
-            <a href="/residents" className={styles.viewAll}>View All</a>
+            <a href="/users" className={styles.viewAll}>View All</a>
           </div>
           <div className={styles.tableWrap}>
             <table className={styles.table}>

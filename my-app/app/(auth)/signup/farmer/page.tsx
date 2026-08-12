@@ -1,7 +1,7 @@
 /**
  * `/signup/farmer` — public self-registration page for farmers. Admin,
  * officer, and other staff accounts are created by an admin via
- * `/residents`, not through public signup.
+ * `/users`, not through public signup.
  */
 import AuthShell from "../../AuthShell";
 import SignupFarmerForm, { type DistrictOption } from "./SignupFarmerForm";

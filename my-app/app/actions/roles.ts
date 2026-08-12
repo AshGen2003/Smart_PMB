@@ -35,7 +35,7 @@ function dashboardWidgetsFromFormData(formData: FormData): string[] {
  * @param formData Role fields: name, description, and one or more
  *   "permissions" checkbox values.
  * @returns `{ error }` on failure. On success, revalidates both "/roles"
- *   (the role list) and "/residents" (the user list, since it displays
+ *   (the role list) and "/users" (the user list, since it displays
  *   each user's role) and returns `{}`.
  */
 export async function createRole(
@@ -60,7 +60,7 @@ export async function createRole(
   }
 
   revalidatePath("/roles");
-  revalidatePath("/residents");
+  revalidatePath("/users");
   updateTag("roles");
   return {};
 }
@@ -73,7 +73,7 @@ export async function createRole(
  * @param _prevState Previous form state (unused; useActionState contract).
  * @param formData Updated role fields.
  * @returns `{ error }` on failure, otherwise `{}` after revalidating
- *   "/roles" and "/residents".
+ *   "/roles" and "/users".
  */
 export async function updateRole(
   roleId: number,
@@ -98,7 +98,7 @@ export async function updateRole(
   }
 
   revalidatePath("/roles");
-  revalidatePath("/residents");
+  revalidatePath("/users");
   updateTag("roles");
   return {};
 }
@@ -160,7 +160,7 @@ export async function toggleRolePermission(
 
   revalidatePath("/preview");
   revalidatePath("/roles");
-  revalidatePath("/residents");
+  revalidatePath("/users");
   updateTag("roles");
   return {};
 }

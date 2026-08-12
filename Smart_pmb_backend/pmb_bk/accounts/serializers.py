@@ -192,7 +192,7 @@ def notify_officers(sender, body):
     pmb_officer teams — reused for both self-registered licensing
     applications and admin-created purchaser/mill-owner accounts, so
     neither team ever finds out about a new account only by happening to
-    check /licenses or /residents. Both are notified since both hold
+    check /licenses or /users. Both are notified since both hold
     approve_licenses, but pmb_officer additionally lacks view_audit_logs
     (so a SystemAlert-based notice would have missed them entirely).
     """
