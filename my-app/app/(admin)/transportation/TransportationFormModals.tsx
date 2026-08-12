@@ -165,10 +165,12 @@ export function VehicleFormModal({
 export function RouteFormModal({
   mode,
   route,
+  warehouses,
   onClose,
 }: {
   mode: "create" | "edit";
   route?: RouteRow;
+  warehouses: { id: number; name: string }[];
   onClose: () => void;
 }) {
   const action = mode === "create" ? createRoute : updateRoute.bind(null, route!.id);
@@ -274,6 +276,17 @@ export function RouteFormModal({
           </div>
         </div>
         {calcError && <p className={styles.calcNote}>{calcError}</p>}
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="warehouse">
+            Warehouse <span className={styles.optional}>(optional)</span>
+          </label>
+          <StyledSelect
+            id="warehouse"
+            name="warehouse"
+            defaultValue={route?.warehouse != null ? String(route.warehouse) : ""}
+            options={[{ value: "", label: "None" }, ...warehouses.map((w) => ({ value: String(w.id), label: w.name }))]}
+          />
+        </div>
         <FormFooter pending={pending} onClose={onClose} />
       </form>
     </ModalShell>
@@ -289,7 +302,7 @@ export type EditableDelivery = {
   route: number;
   warehouse: number | null;
   scheduled_date: string;
-  status: string;
+  scheduled_time: string | null;
 };
 
 export function DeliveryFormModal({
@@ -312,6 +325,20 @@ export function DeliveryFormModal({
   const action = mode === "create" ? createDelivery : updateDelivery.bind(null, delivery!.id);
   const [state, formAction, pending] = useActionState(action, initialState);
   useAutoClose(pending, state.error, onClose);
+
+  const [routeId, setRouteId] = useState(delivery?.route != null ? String(delivery.route) : "");
+  const [warehouseId, setWarehouseId] = useState(delivery?.warehouse != null ? String(delivery.warehouse) : "");
+
+  // Picking a route auto-fills the warehouse from that route's own
+  // warehouse (set once when the route was created) — still a normal,
+  // independently editable dropdown afterward for the rare one-off override.
+  function handleRouteChange(value: string) {
+    setRouteId(value);
+    const route = routes.find((r) => String(r.id) === value);
+    if (route?.warehouse != null) {
+      setWarehouseId(String(route.warehouse));
+    }
+  }
 
   return (
     <ModalShell title={mode === "create" ? "New delivery" : "Edit delivery"} onClose={onClose} error={state.error}>
@@ -346,7 +373,8 @@ export function DeliveryFormModal({
             id="route"
             name="route"
             required
-            defaultValue={delivery?.route != null ? String(delivery.route) : undefined}
+            value={routeId}
+            onChange={handleRouteChange}
             placeholder="Select a route"
             options={routes.map((r) => ({ value: String(r.id), label: `${r.origin} → ${r.destination}` }))}
           />
@@ -357,7 +385,8 @@ export function DeliveryFormModal({
             <StyledSelect
               id="warehouse"
               name="warehouse"
-              defaultValue={delivery?.warehouse != null ? String(delivery.warehouse) : ""}
+              value={warehouseId}
+              onChange={setWarehouseId}
               options={[{ value: "", label: "None" }, ...warehouses.map((w) => ({ value: String(w.id), label: w.name }))]}
             />
           </div>
@@ -367,19 +396,8 @@ export function DeliveryFormModal({
           </div>
         </div>
         <div className={styles.field}>
-          <label className={styles.label} htmlFor="status">Status</label>
-          <StyledSelect
-            id="status"
-            name="status"
-            defaultValue={delivery?.status ?? "scheduled"}
-            options={[
-              { value: "scheduled", label: "Scheduled" },
-              { value: "in_transit", label: "In Transit" },
-              { value: "delivered", label: "Delivered" },
-              { value: "delayed", label: "Delayed" },
-              { value: "cancelled", label: "Cancelled" },
-            ]}
-          />
+          <label className={styles.label} htmlFor="scheduled_time">Scheduled time</label>
+          <input id="scheduled_time" name="scheduled_time" type="time" required defaultValue={delivery?.scheduled_time ?? undefined} className={styles.input} />
         </div>
         <FormFooter pending={pending} onClose={onClose} />
       </form>

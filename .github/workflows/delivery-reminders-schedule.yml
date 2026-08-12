@@ -1,0 +1,36 @@
+name: Send delivery reminders
+
+# This project has no in-process task scheduler, so reminding a delivery's
+# driver when they haven't accepted a task starting within the next 3 hours
+# (farmers/management/commands/send_delivery_reminders.py) is driven from
+# here instead: every 15 minutes, hit the backend's
+# POST /api/internal/run-delivery-reminders/ endpoint
+# (sysops.views.RunDeliveryRemindersView), which runs
+# `manage.py send_delivery_reminders` and returns its output.
+#
+# Every 15 minutes (not once a day, like capacity-forecast-schedule.yml)
+# so the reminder actually lands close to the real 3-hour-before mark
+# instead of being hours late.
+#
+# Reuses the same repo configuration as capacity-forecast-schedule.yml —
+# see that workflow's header comment for how BACKEND_BASE_URL/
+# INTERNAL_TASK_SECRET are set up. No extra config needed if that one is
+# already working.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  run-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call run-delivery-reminders endpoint
+        run: |
+          if [ -z "${{ vars.BACKEND_BASE_URL }}" ] || [ -z "${{ secrets.INTERNAL_TASK_SECRET }}" ]; then
+            echo "::error::BACKEND_BASE_URL (repo variable) and/or INTERNAL_TASK_SECRET (repo secret) are not set — see capacity-forecast-schedule.yml's header comment."
+            exit 1
+          fi
+          curl --fail-with-body -sS -X POST \
+            -H "X-Internal-Task-Secret: ${{ secrets.INTERNAL_TASK_SECRET }}" \
+            "${{ vars.BACKEND_BASE_URL }}/api/internal/run-delivery-reminders/"

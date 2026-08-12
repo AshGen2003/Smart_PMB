@@ -1,8 +1,11 @@
 /**
  * Client Component for the Transportation page: tab-switches between
- * Vehicles / Routes / Deliveries / Fuel / Maintenance, plus a stats header
- * and an inline status dropdown on the Deliveries tab for quick status
- * changes without opening the modal.
+ * Vehicles / Routes / Deliveries / Fuel / Maintenance, plus a stats header.
+ * The Deliveries tab's status is read-only here (a badge, not a dropdown)
+ * — scheduled/in_transit/delivered is entirely driver-driven (accept, then
+ * their own in-transit/delivered actions); the officer's only manual status
+ * control is a Delayed/Cancel action button for the two exceptional cases,
+ * both gated behind a confirm dialog.
  *
  * Vehicles/Routes/Deliveries have create/edit/delete (mirroring
  * WarehousesManager's pattern); Fuel and Maintenance are read-only here —
@@ -18,7 +21,7 @@
 
 import { useState, useTransition } from "react";
 import clsx from "clsx";
-import { Check, Fuel, MapPin, Pencil, Plus, Route as RouteIcon, Trash2, Truck, Wrench, X as XIcon } from "lucide-react";
+import { Ban, Check, Clock, Fuel, MapPin, Pencil, Plus, Route as RouteIcon, Trash2, Truck, Wrench, X as XIcon } from "lucide-react";
 import {
   deleteVehicle,
   deleteRoute,
@@ -35,7 +38,6 @@ import {
   MaintenanceRejectModal,
   type EditableDelivery,
 } from "./TransportationFormModals";
-import StyledSelect from "@/app/components/StyledSelect";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import styles from "./Transportation.module.css";
 
@@ -62,6 +64,8 @@ export type RouteRow = {
   destination: string;
   distance_km: string;
   estimated_time: string;
+  warehouse: number | null;
+  warehouse_name: string | null;
 };
 
 export type DeliveryRow = {
@@ -78,6 +82,7 @@ export type DeliveryRow = {
   approved_by: string | null;
   approved_by_name: string | null;
   scheduled_date: string;
+  scheduled_time: string | null;
   status: "scheduled" | "in_transit" | "delivered" | "delayed" | "cancelled";
   assignment_status: "pending" | "accepted" | "rejected";
   latest_location: { latitude: number; longitude: number; recorded_at: string } | null;
@@ -218,11 +223,28 @@ export default function TransportationManager({
     });
   }
 
-  function handleStatusChange(deliveryId: number, newStatus: string) {
+  const [delayTarget, setDelayTarget] = useState<DeliveryRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<DeliveryRow | null>(null);
+
+  function confirmDelay() {
+    if (!delayTarget) return;
+    const target = delayTarget;
     setError(null);
     startTransition(async () => {
-      const result = await updateDeliveryStatus(deliveryId, newStatus);
+      const result = await updateDeliveryStatus(target.id, "delayed");
       if (result.error) setError(result.error);
+      setDelayTarget(null);
+    });
+  }
+
+  function confirmCancelDelivery() {
+    if (!cancelTarget) return;
+    const target = cancelTarget;
+    setError(null);
+    startTransition(async () => {
+      const result = await updateDeliveryStatus(target.id, "cancelled");
+      if (result.error) setError(result.error);
+      setCancelTarget(null);
     });
   }
 
@@ -349,7 +371,7 @@ export default function TransportationManager({
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Origin</th><th>Destination</th><th>Distance (km)</th><th>Est. time</th>{canWrite && <th></th>}
+                      <th>Origin</th><th>Destination</th><th>Distance (km)</th><th>Est. time</th><th>Warehouse</th>{canWrite && <th></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -359,6 +381,7 @@ export default function TransportationManager({
                         <td>{r.destination}</td>
                         <td>{Number(r.distance_km).toLocaleString()}</td>
                         <td>{r.estimated_time || "—"}</td>
+                        <td>{r.warehouse_name ?? "—"}</td>
                         {canWrite && (
                           <td>
                             <div className={styles.rowActions}>
@@ -425,18 +448,7 @@ export default function TransportationManager({
                           </span>
                         </td>
                         <td>
-                          {canWrite ? (
-                            <StyledSelect
-                              compact
-                              fitContent
-                              value={d.status}
-                              disabled={isPending}
-                              onChange={(newStatus) => handleStatusChange(d.id, newStatus)}
-                              options={Object.entries(DELIVERY_STATUS_LABEL).map(([value, label]) => ({ value, label }))}
-                            />
-                          ) : (
-                            <span className={styles.badge}>{DELIVERY_STATUS_LABEL[d.status]}</span>
-                          )}
+                          <span className={styles.badge}>{DELIVERY_STATUS_LABEL[d.status]}</span>
                         </td>
                         <td>
                           {d.assignment_status === "accepted" ? (
@@ -469,13 +481,37 @@ export default function TransportationManager({
                                       route: d.route,
                                       warehouse: d.warehouse,
                                       scheduled_date: d.scheduled_date,
-                                      status: d.status,
+                                      scheduled_time: d.scheduled_time,
                                     },
                                   })
                                 }
                               >
                                 <Pencil size={14} />
                               </button>
+                              {(d.status === "scheduled" || d.status === "in_transit") && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className={styles.iconBtn}
+                                    aria-label="Mark delayed"
+                                    title="Mark delayed"
+                                    disabled={isPending}
+                                    onClick={() => setDelayTarget(d)}
+                                  >
+                                    <Clock size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.iconBtn}
+                                    aria-label="Cancel delivery"
+                                    title="Cancel delivery"
+                                    disabled={isPending}
+                                    onClick={() => setCancelTarget(d)}
+                                  >
+                                    <Ban size={14} />
+                                  </button>
+                                </>
+                              )}
                               <button
                                 type="button"
                                 className={clsx(styles.iconBtn, styles.deleteIconBtn)}
@@ -604,8 +640,8 @@ export default function TransportationManager({
       {vehicleModal?.mode === "create" && <VehicleFormModal mode="create" onClose={() => setVehicleModal(null)} />}
       {vehicleModal?.mode === "edit" && <VehicleFormModal mode="edit" vehicle={vehicleModal.row} onClose={() => setVehicleModal(null)} />}
 
-      {routeModal?.mode === "create" && <RouteFormModal mode="create" onClose={() => setRouteModal(null)} />}
-      {routeModal?.mode === "edit" && <RouteFormModal mode="edit" route={routeModal.row} onClose={() => setRouteModal(null)} />}
+      {routeModal?.mode === "create" && <RouteFormModal mode="create" warehouses={warehouses} onClose={() => setRouteModal(null)} />}
+      {routeModal?.mode === "edit" && <RouteFormModal mode="edit" route={routeModal.row} warehouses={warehouses} onClose={() => setRouteModal(null)} />}
 
       {deliveryModal?.mode === "create" && (
         <DeliveryFormModal mode="create" vehicles={vehicles} drivers={drivers} routes={routes} warehouses={warehouses} onClose={() => setDeliveryModal(null)} />
@@ -632,6 +668,32 @@ export default function TransportationManager({
           pending={isPending}
           onConfirm={confirmDelete}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {delayTarget && (
+        <ConfirmModal
+          title="Mark this delivery delayed?"
+          message={<>Mark delivery <strong>#{delayTarget.id}</strong> as delayed?</>}
+          confirmLabel="Mark delayed"
+          pendingLabel="Saving…"
+          variant="warning"
+          pending={isPending}
+          onConfirm={confirmDelay}
+          onClose={() => setDelayTarget(null)}
+        />
+      )}
+
+      {cancelTarget && (
+        <ConfirmModal
+          title="Cancel this delivery?"
+          message={<>Cancel delivery <strong>#{cancelTarget.id}</strong>? This cannot be undone.</>}
+          confirmLabel="Cancel delivery"
+          pendingLabel="Cancelling…"
+          variant="danger"
+          pending={isPending}
+          onConfirm={confirmCancelDelivery}
+          onClose={() => setCancelTarget(null)}
         />
       )}
 

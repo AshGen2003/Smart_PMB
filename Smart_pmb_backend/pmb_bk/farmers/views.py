@@ -3,11 +3,13 @@
 # warehouses, paddy types, and the harvest approval workflow (the core
 # business logic of the whole system lives in OfficerHarvestViewSet below).
 import io
+import logging
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import qrcode
 from django.conf import settings
+from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Avg, Count, F, Q, Sum
 from django.db.models.functions import TruncWeek
@@ -93,6 +95,8 @@ from .serializers import (
     WarehouseWriteSerializer,
 )
 from .models import District
+
+logger = logging.getLogger(__name__)
 
 
 STATUS_LABELS = {
@@ -1605,15 +1609,52 @@ def _notify_driver_assigned(delivery, assigned_by):
     )
 
 
+def _send_delivery_reminder(delivery):
+    """
+    Reminds a delivery's assigned driver that they haven't accepted a task
+    starting within the next 3 hours — called by the send_delivery_reminders
+    management command, not from a request. Sent over all three channels
+    unconditionally (no opt-in preference, unlike Farmer.notify_via_sms):
+    this is a time-sensitive accept-or-miss-it deadline, not a routine
+    update. Each channel's failure is caught independently so one bad send
+    (e.g. no SMTP configured) doesn't stop the others or abort the batch.
+    """
+    driver = delivery.driver
+    body = (
+        f"Reminder: you haven't responded to delivery #{delivery.id} "
+        f"({delivery.route.origin} → {delivery.route.destination}), scheduled to start at "
+        f"{delivery.scheduled_time.strftime('%H:%M')} on {delivery.scheduled_date}. "
+        "Please accept or reject it soon."
+    )
+
+    if delivery.approved_by_id:
+        Message.objects.create(sender=delivery.approved_by, recipient=driver, body=body)
+
+    if driver.phone_number:
+        send_sms(driver.phone_number, body)
+
+    try:
+        send_mail(
+            subject="Smart PMB: unaccepted delivery starting soon",
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[driver.email],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception("Failed to send delivery-reminder email to %s", driver.email)
+
+
 class DeliveryViewSet(viewsets.ModelViewSet):
     """
-    CRUD over deliveries, plus a lightweight `update_status` action for
-    moving a delivery through scheduled -> in_transit -> delivered (or
-    delayed/cancelled) without resubmitting the full record. Assigning (or
-    reassigning) a driver notifies them and resets `assignment_status` to
-    "pending" so they see it as a new task to accept/reject — the driver's
-    own acceptance/status-progression endpoints live on DriverDeliveryViewSet
-    below, gated by access_driver_portal instead of manage_transport.
+    CRUD over deliveries, plus a lightweight `update_status` action.
+    scheduled -> in_transit -> delivered is entirely driver-driven (see
+    DriverDeliveryStatusView on DriverDeliveryViewSet below, gated by
+    access_driver_portal); `update_status` here is officer-only and
+    restricted to the two exceptional states the driver can't set
+    themselves, delayed/cancelled. Assigning (or reassigning) a driver
+    notifies them and resets `assignment_status` to "pending" so they see
+    it as a new task to accept/reject.
     """
 
     permission_classes = [HasPermission("manage_transport")]
@@ -1640,16 +1681,14 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     def update_status(self, request, pk=None):
         delivery = self.get_object()
         new_status = request.data.get("status")
-        valid = [c[0] for c in Delivery.Status.choices]
+        valid = [Delivery.Status.DELAYED, Delivery.Status.CANCELLED]
         if new_status not in valid:
             return Response(
-                {"detail": f"Invalid status. Choose from {valid}."},
+                {"detail": f"Officers can only mark a delivery Delayed or Cancelled — scheduled/in_transit/delivered are set by the driver. Choose from {valid}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         delivery.status = new_status
         delivery.save(update_fields=["status"])
-        if new_status == Delivery.Status.DELIVERED:
-            _handle_delivery_delivered(delivery, request.user)
         return Response(DeliverySerializer(delivery).data)
 
 

@@ -281,8 +281,8 @@ const PREVIEW_DRIVERS = [
 ];
 
 const PREVIEW_ROUTES = [
-  { id: 1, origin: "Anuradhapura Central Store", destination: "Colombo Rice Mill", distance_km: "205.0", estimated_time: "4h 30m" },
-  { id: 2, origin: "Polonnaruwa Storage Facility", destination: "Kandy Rice Mill", distance_km: "140.5", estimated_time: "3h 10m" },
+  { id: 1, origin: "Anuradhapura Central Store", destination: "Colombo Rice Mill", distance_km: "205.0", estimated_time: "4h 30m", warehouse: 1, warehouse_name: "Anuradhapura Central Store" },
+  { id: 2, origin: "Polonnaruwa Storage Facility", destination: "Kandy Rice Mill", distance_km: "140.5", estimated_time: "3h 10m", warehouse: 2, warehouse_name: "Polonnaruwa Storage Facility" },
 ];
 
 export const PREVIEW_TRANSPORTATION = {
@@ -305,6 +305,7 @@ export const PREVIEW_TRANSPORTATION = {
       approved_by: null,
       approved_by_name: "Sample data",
       scheduled_date: "2026-07-20",
+      scheduled_time: "08:00",
       status: "in_transit" as const,
       assignment_status: "accepted" as const,
       latest_location: { latitude: 7.8731, longitude: 80.7718, recorded_at: "2026-07-20T09:00:00Z" },
@@ -323,6 +324,7 @@ export const PREVIEW_TRANSPORTATION = {
       approved_by: null,
       approved_by_name: "Sample data",
       scheduled_date: "2026-07-25",
+      scheduled_time: "10:30",
       status: "scheduled" as const,
       assignment_status: "pending" as const,
       latest_location: null,

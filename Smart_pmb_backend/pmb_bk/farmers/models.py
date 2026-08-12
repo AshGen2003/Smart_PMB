@@ -516,6 +516,13 @@ class Route(models.Model):
     destination = models.CharField(max_length=200)
     distance_km = models.DecimalField(max_digits=8, decimal_places=2)
     estimated_time = models.CharField(max_length=50, blank=True, help_text="e.g. 3h 20m")
+    # The warehouse a delivery on this route should credit stock to on
+    # arrival — set once per route so a new Delivery's own `warehouse` field
+    # can be auto-filled from it (see DeliveryFormModal on the frontend),
+    # instead of the officer re-picking the same warehouse every time.
+    warehouse = models.ForeignKey(
+        Warehouse, on_delete=models.SET_NULL, null=True, blank=True, related_name="routes"
+    )
 
     class Meta:
         ordering = ["origin", "destination"]
@@ -548,7 +555,16 @@ class Delivery(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
     scheduled_date = models.DateField()
+    # Nullable so existing rows (created before this field existed) don't
+    # break — new deliveries are required to set it at the serializer/form
+    # level so the reminder job below has a real trip-start time to count
+    # back from.
+    scheduled_time = models.TimeField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.SCHEDULED)
+    # Set by send_delivery_reminders (see the management command) once the
+    # "driver hasn't accepted and the trip starts within 3 hours" reminder
+    # has fired for this delivery, so the periodic job never sends it twice.
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
     # Set when this delivery is carrying a purchaser's dispatch manifest or
     # a mill's finished-rice return back into PMB custody, rather than a
     # plain warehouse-to-warehouse transfer — an officer links one of these

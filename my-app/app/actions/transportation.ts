@@ -74,6 +74,7 @@ function routePayload(formData: FormData) {
     destination: String(formData.get("destination") ?? "").trim(),
     distance_km: String(formData.get("distance_km") ?? ""),
     estimated_time: String(formData.get("estimated_time") ?? "").trim(),
+    warehouse: formData.get("warehouse") ? Number(formData.get("warehouse")) : null,
   };
 }
 
@@ -98,7 +99,7 @@ function deliveryPayload(formData: FormData) {
     route: Number(formData.get("route")),
     warehouse: formData.get("warehouse") ? Number(formData.get("warehouse")) : null,
     scheduled_date: String(formData.get("scheduled_date") ?? ""),
-    status: String(formData.get("status") ?? "scheduled"),
+    scheduled_time: String(formData.get("scheduled_time") ?? ""),
   };
 }
 
@@ -114,7 +115,7 @@ export async function deleteDelivery(id: number) {
   return remove(`/api/admin/deliveries/${id}/`);
 }
 
-/** Lightweight status-only update, used by the delivery table's inline status dropdown. */
+/** Lightweight status-only update — used by the delivery table's Mark Delayed / Cancel delivery buttons (the backend only accepts "delayed"/"cancelled" here; scheduled/in_transit/delivered are driver-driven). */
 export async function updateDeliveryStatus(id: number, newStatus: string) {
   const res = await apiFetch(`/api/admin/deliveries/${id}/update_status/`, {
     method: "POST",

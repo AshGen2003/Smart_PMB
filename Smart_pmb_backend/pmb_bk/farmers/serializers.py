@@ -320,9 +320,11 @@ class VehicleSerializer(serializers.ModelSerializer):
 class RouteSerializer(serializers.ModelSerializer):
     """Read/write representation of a Route."""
 
+    warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+
     class Meta:
         model = Route
-        fields = ["id", "origin", "destination", "distance_km", "estimated_time"]
+        fields = ["id", "origin", "destination", "distance_km", "estimated_time", "warehouse", "warehouse_name"]
 
 
 class DeliverySerializer(serializers.ModelSerializer):
@@ -344,7 +346,7 @@ class DeliverySerializer(serializers.ModelSerializer):
         fields = [
             "id", "vehicle", "vehicle_registration", "driver", "driver_name",
             "route", "route_label", "route_destination", "warehouse", "warehouse_name",
-            "approved_by", "approved_by_name", "scheduled_date", "status",
+            "approved_by", "approved_by_name", "scheduled_date", "scheduled_time", "status",
             "assignment_status", "latest_location",
         ]
 
@@ -373,18 +375,18 @@ class DeliveryLocationPingSerializer(serializers.ModelSerializer):
 
 class DeliveryWriteSerializer(serializers.ModelSerializer):
     """
-    Create/update representation of a Delivery. `status` is writable here
-    too (unlike Harvest) since deliveries don't have the same
-    approve/reject/collect gating workflow — an officer can move a
-    delivery through scheduled/in_transit/delivered/delayed/cancelled
-    directly, or via the `update_status` action for a lighter-weight call.
+    Create/update representation of a Delivery. `status` is deliberately
+    NOT writable here — the normal scheduled -> in_transit -> delivered
+    progression is entirely driver-driven (DriverDeliveryStatusView), and
+    the only officer-side status changes (delayed/cancelled) go through
+    DeliveryViewSet.update_status instead, not a full-record PATCH.
     """
 
     class Meta:
         model = Delivery
         fields = [
             "id", "vehicle", "driver", "route", "warehouse",
-            "scheduled_date", "status",
+            "scheduled_date", "scheduled_time",
         ]
 
 

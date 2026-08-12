@@ -720,3 +720,35 @@ class RunCapacityForecastsView(APIView):
         buffer = io.StringIO()
         call_command("check_capacity_forecasts", stdout=buffer)
         return Response({"output": buffer.getvalue()})
+
+
+class RunDeliveryRemindersView(APIView):
+    """
+    POST /api/internal/run-delivery-reminders/ — runs the
+    send_delivery_reminders management command (reminds a delivery's driver
+    when they haven't accepted and the trip starts within 3 hours; see
+    farmers/views.py's _send_delivery_reminder), meant to be called every 15
+    minutes by .github/workflows/delivery-reminders-schedule.yml since this
+    codebase has no in-process task scheduler.
+
+    Same "unauthenticated caller, secret-verified, exactly one hardcoded
+    command" shape as RunCapacityForecastsView above — a leaked
+    INTERNAL_TASK_SECRET can only ever trigger this one harmless job.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "internal_task"
+
+    def post(self, request):
+        if not settings.INTERNAL_TASK_SECRET:
+            return HttpResponse(status=500)
+
+        provided = request.META.get("HTTP_X_INTERNAL_TASK_SECRET", "")
+        if not secrets.compare_digest(provided, settings.INTERNAL_TASK_SECRET):
+            return HttpResponse(status=403)
+
+        buffer = io.StringIO()
+        call_command("send_delivery_reminders", stdout=buffer)
+        return Response({"output": buffer.getvalue()})
