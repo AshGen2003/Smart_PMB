@@ -5,12 +5,23 @@
  * only send a "request" to the admin/officer team, while staff
  * (admin/officer) can message any specific user.
  *
+ * Opening the dropdown marks every currently-loaded message read (not
+ * just viewed) — the badge/sidebar dot only exists to say "you have
+ * something to check," so checking it is what clears it, same as most
+ * bell-icon UX elsewhere. The dot only reappears once a genuinely new
+ * message arrives afterward (pushed live over the WebSocket below).
+ * Every read-marking path also calls router.refresh() — the sidebar's own
+ * unread dot (Sidebar.tsx/OfficerSidebar.tsx) is computed server-side by
+ * the layout, which doesn't re-run on its own just because this Client
+ * Component's local state changed.
+ *
  * Client Component: polling + a dropdown need `useEffect`/`useState`, so
  * this can't be a Server Component.
  */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Bell, Loader2, Send } from "lucide-react";
 import clsx from "clsx";
@@ -78,6 +89,7 @@ export default function NotificationBell({
   notifyMessages?: boolean;
 }) {
   const { t } = useLanguage();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<MessageRow[] | null>(null);
   const [recipients, setRecipients] = useState<RecipientOption[] | null>(null);
@@ -171,10 +183,12 @@ export default function NotificationBell({
 
   function markRead(id: number) {
     setMessages((prev) => prev?.map((m) => (m.id === id ? { ...m, is_read: true } : m)) ?? prev);
-    fetch(`/api/messages/${id}/read`, { method: "POST" }).catch(() => {
-      // Best-effort — a failed mark-read just gets retried next time the
-      // user clicks it; not worth surfacing an error for.
-    });
+    fetch(`/api/messages/${id}/read`, { method: "POST" })
+      .then(() => router.refresh())
+      .catch(() => {
+        // Best-effort — a failed mark-read just gets retried next time the
+        // user clicks it; not worth surfacing an error for.
+      });
   }
 
   async function markAllRead() {
@@ -184,11 +198,24 @@ export default function NotificationBell({
     setMessages((prev) => prev?.map((m) => ({ ...m, is_read: true })) ?? prev);
     try {
       await fetch("/api/messages/mark-all-read", { method: "POST" });
+      router.refresh();
     } catch {
       // Best-effort, same as markRead() — the next poll will show any
       // messages that didn't actually get marked read server-side.
     } finally {
       setMarkingAllRead(false);
+    }
+  }
+
+  // Opening the dropdown is treated as "checked it" — clears the badge/
+  // sidebar dot immediately, same as most bell-icon UX. Only fires when
+  // there's actually something unread, so it doesn't fire a pointless
+  // request (or a router.refresh()) on every single open.
+  function handleToggle() {
+    const opening = !open;
+    setOpen(opening);
+    if (opening && !previewing && notifyMessages && unreadCount > 0) {
+      markAllRead();
     }
   }
 
@@ -233,7 +260,7 @@ export default function NotificationBell({
       <button
         type="button"
         className={styles.iconBtn}
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleToggle}
         aria-label={t.notificationBell.ariaLabel}
         aria-haspopup="menu"
         aria-expanded={open}

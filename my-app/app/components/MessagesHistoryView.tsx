@@ -9,6 +9,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { Loader2, Search, Send } from "lucide-react";
 import StyledSelect from "./StyledSelect";
@@ -68,6 +69,7 @@ export default function MessagesHistoryView({
   initialHasMore: boolean;
 }) {
   const { t } = useLanguage();
+  const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   // Debounced copy of `search` — what's actually been sent to the server.
@@ -80,6 +82,7 @@ export default function MessagesHistoryView({
   const [loadingMore, setLoadingMore] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
 
   const [recipients, setRecipients] = useState<RecipientOption[] | null>(null);
   const [recipientId, setRecipientId] = useState("");
@@ -147,10 +150,29 @@ export default function MessagesHistoryView({
 
   function markRead(id: number) {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, is_read: true } : m)));
-    fetch(`/api/messages/${id}/read`, { method: "POST" }).catch(() => {
-      // Best-effort — a failed mark-read just gets retried next time the
-      // user clicks it; not worth surfacing an error for.
-    });
+    fetch(`/api/messages/${id}/read`, { method: "POST" })
+      .then(() => router.refresh())
+      .catch(() => {
+        // Best-effort — a failed mark-read just gets retried next time the
+        // user clicks it; not worth surfacing an error for.
+      });
+  }
+
+  // router.refresh() here (and in markRead above) re-runs the (admin)
+  // layout's server-side unread count — the sidebar's dot is computed
+  // once when that layout mounts and otherwise never re-checks itself
+  // just because this page's own client state changed.
+  async function markAllRead() {
+    setMarkingAllRead(true);
+    setMessages((prev) => prev.map((m) => ({ ...m, is_read: true })));
+    try {
+      await fetch("/api/messages/mark-all-read", { method: "POST" });
+      router.refresh();
+    } catch {
+      // Best-effort, same as markRead() above.
+    } finally {
+      setMarkingAllRead(false);
+    }
   }
 
   function loadRecipientsIfNeeded() {
@@ -273,6 +295,14 @@ export default function MessagesHistoryView({
             >
               {t.messagesHistory.unreadTab}
               {unreadCount > 0 && <span className={styles.tabCount}>{unreadCount}</span>}
+            </button>
+            <button
+              type="button"
+              className={styles.markAllReadBtn}
+              onClick={markAllRead}
+              disabled={markingAllRead || unreadCount === 0}
+            >
+              {markingAllRead ? t.notificationBell.markingAllRead : t.notificationBell.markAllRead}
             </button>
           </div>
 

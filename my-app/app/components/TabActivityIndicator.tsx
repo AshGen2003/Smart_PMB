@@ -18,11 +18,13 @@
  *         the user actually clicked) is deliberately excluded via its
  *         next-router-prefetch header — otherwise the icon would spin
  *         from passive scrolling instead of only real actions.
- *      b. Any <button> click anywhere on the page, for a fixed short
- *         pulse — covers the many buttons that don't cause a fetch at all
- *         (e.g. an in-app tab switcher that's just local React state), so
- *         clicking still gets an immediate reaction even when there's
- *         nothing to actually wait for.
+ *      b. Any <button> or link click anywhere on the page, for a fixed short
+ *         pulse — covers both the many buttons that don't cause a fetch at
+ *         all (e.g. an in-app tab switcher that's just local React state)
+ *         and sidebar/nav "tabs", which are <Link>s (real <a> elements,
+ *         not <button>s) — so clicking either still gets an immediate
+ *         reaction even when there's nothing to wait for, or before a
+ *         navigation's own fetch has even started.
  */
 "use client";
 
@@ -145,14 +147,15 @@ export default function TabActivityIndicator() {
     };
   }, []);
 
-  // Any button/tab click gives the favicon a brief, fixed pulse of its
+  // Any button/link click gives the favicon a brief, fixed pulse of its
   // own — many "tabs" in this app (e.g. Transportation's Vehicles/Routes/
-  // Deliveries switcher) are just local state with no fetch behind them
-  // at all, so the fetch-patch above alone wouldn't react to those.
+  // Deliveries switcher) are just local state with no fetch behind them at
+  // all, and sidebar nav "tabs" are <Link>s (real <a> elements), so the
+  // fetch-patch above alone wouldn't reliably react to either.
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       const target = e.target as HTMLElement | null;
-      if (!target?.closest("button")) return;
+      if (!target?.closest("button, a")) return;
       if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
       setClickActive(true);
       clickTimeoutRef.current = setTimeout(() => setClickActive(false), CLICK_PULSE_MS);

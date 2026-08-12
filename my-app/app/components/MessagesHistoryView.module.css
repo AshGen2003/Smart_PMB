@@ -98,7 +98,30 @@
 
 .tabsRow {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.markAllReadBtn {
+  margin-left: 0.25rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: none;
+  color: var(--primary-text, var(--primary));
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.markAllReadBtn:hover:not(:disabled) {
+  background-color: var(--sidebar-hover);
+}
+
+.markAllReadBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .searchWrap {
