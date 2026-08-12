@@ -138,6 +138,50 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Swaps the plain OS calendar/clock icon on every <input type="date"/"time">
+   in the app for a brand-colored one that matches the current theme —
+   the popup itself (the calendar grid, the clock face) is still drawn by
+   the OS/browser and can't be restyled at all, only this trailing icon
+   can. Chromium/WebKit only (::-webkit-calendar-picker-indicator has no
+   standard equivalent); Firefox falls back to its own native icon, which
+   color-scheme above already makes visible in dark mode. Uses mask-image
+   (not background-image) so the icon is filled with --primary via
+   background-color and re-tints automatically on every theme change,
+   instead of needing a separate light/dark SVG. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  width: 17px;
+  height: 17px;
+  padding: 5px;
+  margin-left: 0.3rem;
+  border-radius: 6px;
+  cursor: pointer;
+  background-image: none;
+  background-color: var(--primary);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: 15px;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: 15px;
+  transition: background-color 0.15s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2v4'/%3E%3Cpath d='M16 2v4'/%3E%3Crect width='18' height='18' x='3' y='4' rx='2'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2v4'/%3E%3Cpath d='M16 2v4'/%3E%3Crect width='18' height='18' x='3' y='4' rx='2'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E");
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E");
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  background-color: var(--primary-hover);
+}
+
 /* Plus Jakarta Sans has no Sinhala glyphs, so Sinhala text would otherwise
    fall through to whatever generic sans-serif the OS picks — naming a
    proper Sinhala-aware font first keeps it legible and consistent. */
