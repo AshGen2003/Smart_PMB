@@ -1,18 +1,41 @@
 /**
- * `/licenses` — officer/admin review queue for authorized-purchaser and
- * mill-owner self-registrations. Requires `approve_licenses` — a
- * pre-seeded permission (see accounts/migrations/0003_role_permission.py)
- * already granted to admin + pmb_officer by default.
+ * `/licenses` — combined "License" page: account-approval applications for
+ * both authorized-purchaser and mill-owner self-registrations, plus the
+ * ongoing per-mill operating license queue and inspection log (formerly the
+ * separate `/mill-licenses` page — merged into a single tabbed page; see
+ * LicenseTabs.tsx). Viewable by anyone with `monitor_operations`
+ * (read-only) or `approve_licenses` (full read/write).
  */
-import { requirePermission } from "@/app/lib/dal";
+import { requireAnyPermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
-import LicensesManager, { type LicenseApplicationRow } from "./LicensesManager";
+import LicenseTabs from "./LicenseTabs";
+import type { LicenseApplicationRow } from "./LicensesManager";
+import type { LicenseRow } from "../mill-licenses/LicensesManager";
+import type { InspectionRow, MillOption } from "../mill-licenses/InspectionsSection";
 
 export default async function LicensesPage() {
-  await requirePermission("approve_licenses");
+  const user = await requireAnyPermission("monitor_operations", "approve_licenses");
+  const canWrite = user.permissions.includes("approve_licenses") && !user.previewing;
 
-  const res = await apiFetch("/api/admin/license-applications/");
-  const applications: LicenseApplicationRow[] = res.ok ? await res.json() : [];
+  const [applicationsRes, millLicensesRes, inspectionsRes, millsRes] = await Promise.all([
+    apiFetch("/api/admin/license-applications/"),
+    apiFetch("/api/admin/mill-licenses/"),
+    apiFetch("/api/admin/mill-inspections/"),
+    canWrite ? apiFetch("/api/admin/mills/") : Promise.resolve(null),
+  ]);
 
-  return <LicensesManager applications={applications} />;
+  const applications: LicenseApplicationRow[] = applicationsRes.ok ? await applicationsRes.json() : [];
+  const millLicenses: LicenseRow[] = millLicensesRes.ok ? await millLicensesRes.json() : [];
+  const inspections: InspectionRow[] = inspectionsRes.ok ? await inspectionsRes.json() : [];
+  const mills: MillOption[] = millsRes?.ok ? await millsRes.json() : [];
+
+  return (
+    <LicenseTabs
+      applications={applications}
+      millLicenses={millLicenses}
+      inspections={inspections}
+      mills={mills}
+      canWrite={canWrite}
+    />
+  );
 }

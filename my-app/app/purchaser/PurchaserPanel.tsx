@@ -49,7 +49,7 @@ export default function PurchaserPanel({ data }: { data: PurchaserDashboardData 
         </div>
         <div className={styles.kpiCard}>
           <div className={styles.kpiHeader}>
-            <span>Rice Types in Stock</span>
+            <span>Paddy Types in Stock</span>
             <div className={styles.kpiIcon}><Layers size={20} /></div>
           </div>
           <h2 className={styles.kpiValue}>{data.kpis.stock_types_count}</h2>
@@ -66,14 +66,14 @@ export default function PurchaserPanel({ data }: { data: PurchaserDashboardData 
       <div className={styles.tablesGrid}>
         <div className={styles.tableCard}>
           <div className={styles.tableHeader}>
-            <h3 className={styles.tableTitle}>My Stock by Rice Type</h3>
+            <h3 className={styles.tableTitle}>My Stock by Paddy Type</h3>
           </div>
           {data.stock_by_type.length > 0 ? (
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Rice type</th>
+                    <th>Paddy type</th>
                     <th>Quantity (kg)</th>
                   </tr>
                 </thead>
@@ -101,7 +101,7 @@ export default function PurchaserPanel({ data }: { data: PurchaserDashboardData 
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Rice type</th>
+                    <th>Paddy type</th>
                     <th>Quantity (kg)</th>
                     <th>Requested</th>
                     <th>Status</th>
@@ -123,7 +123,7 @@ export default function PurchaserPanel({ data }: { data: PurchaserDashboardData 
             </div>
           ) : (
             <p className={styles.subtitle}>
-              You haven&apos;t made any requests yet — use the Rice Requests page to submit one.
+              You haven&apos;t made any requests yet — use the Paddy Requests page to submit one.
             </p>
           )}
         </div>

@@ -1,3 +1,10 @@
-// `/officer/mill-licenses` — identical implementation to `/mill-licenses`
-// (requires monitor_operations or approve_licenses).
-export { default } from "@/app/(admin)/mill-licenses/page";
+/**
+ * `/officer/mill-licenses` — merged into the combined `/officer/licenses`
+ * page (see (admin)/licenses/LicenseTabs.tsx's "Mill License" tab). Kept as
+ * a redirect so old links/bookmarks still land somewhere useful.
+ */
+import { redirect } from "next/navigation";
+
+export default function OfficerMillLicensesPage() {
+  redirect("/officer/licenses");
+}

@@ -64,7 +64,6 @@ export type HarvestRow = {
 const TABS: { key: HarvestRow["status"]; label: string }[] = [
   { key: "pending", label: "Pending" },
   { key: "verified", label: "Verified" },
-  { key: "collected", label: "Collected" },
   { key: "rejected", label: "Rejected" },
 ];
 

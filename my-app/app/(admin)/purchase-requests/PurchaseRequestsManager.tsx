@@ -112,7 +112,7 @@ export default function PurchaseRequestsManager({
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>Rice Requests</h1>
+        <h1 className={styles.pageTitle}>Paddy Requests</h1>
       </div>
 
       <div className={styles.tabsRow}>
@@ -138,7 +138,7 @@ export default function PurchaseRequestsManager({
               <thead>
                 <tr>
                   <th>Purchaser</th>
-                  <th>Rice type</th>
+                  <th>Paddy type</th>
                   <th>Quantity (kg)</th>
                   <th>Requested</th>
                   <th>Status</th>
@@ -218,7 +218,7 @@ export default function PurchaseRequestsManager({
         ) : (
           <div className={styles.emptyState}>
             <ClipboardList size={28} />
-            <p>No {tab} rice requests.</p>
+            <p>No {tab} paddy requests.</p>
           </div>
         )}
       </div>
@@ -226,7 +226,7 @@ export default function PurchaseRequestsManager({
       {rejectTarget && (
         <div className={styles.overlay} onClick={() => setRejectTarget(null)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <h3 className={styles.modalTitle}>Reject rice request</h3>
+            <h3 className={styles.modalTitle}>Reject paddy request</h3>
             <textarea
               className={styles.textarea}
               placeholder="Reason (optional)"
@@ -248,7 +248,7 @@ export default function PurchaseRequestsManager({
       {fulfillTarget && (
         <div className={styles.overlay} onClick={() => setFulfillTarget(null)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <h3 className={styles.modalTitle}>Fulfill rice request</h3>
+            <h3 className={styles.modalTitle}>Fulfill paddy request</h3>
             <select
               className={styles.select}
               value={fulfillWarehouse}

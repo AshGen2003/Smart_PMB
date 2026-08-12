@@ -40,8 +40,13 @@ const STATUS_BADGE: Record<LicenseApplicationRow["status"], string> = {
 
 export default function LicensesManager({
   applications,
+  canWrite = true,
 }: {
   applications: LicenseApplicationRow[];
+  // False for viewers who can see applications but not decide them (e.g. a
+  // monitor_operations-only officer viewing the merged /licenses page's
+  // Mill License tab) — hides the Approve/Reject actions.
+  canWrite?: boolean;
 }) {
   const [statusFilter, setStatusFilter] = useState("pending");
   const [rejectTarget, setRejectTarget] = useState<LicenseApplicationRow | null>(null);
@@ -154,7 +159,7 @@ export default function LicensesManager({
                   </td>
                   <td>{format(new Date(a.submitted_at), "MMM d, yyyy")}</td>
                   <td>
-                    {a.status === "pending" && (
+                    {canWrite && a.status === "pending" && (
                       <div className={styles.rowActions}>
                         <button
                           type="button"

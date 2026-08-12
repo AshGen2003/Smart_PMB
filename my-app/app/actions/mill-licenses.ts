@@ -24,7 +24,7 @@ export async function approveMillLicense(licenseId: number): Promise<{ error?: s
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/mill-licenses");
+  revalidatePath("/licenses");
   return {};
 }
 
@@ -43,6 +43,6 @@ export async function rejectMillLicense(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/mill-licenses");
+  revalidatePath("/licenses");
   return {};
 }
