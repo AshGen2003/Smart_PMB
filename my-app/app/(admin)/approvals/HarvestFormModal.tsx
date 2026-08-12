@@ -10,6 +10,7 @@ import React, { useEffect, useRef, useActionState } from "react";
 import { ClipboardList, Loader2, X } from "lucide-react";
 import { createHarvest, updateHarvest, type HarvestFormState } from "@/app/actions/approvals";
 import StyledSelect from "@/app/components/StyledSelect";
+import StyledDatePicker from "@/app/components/StyledDatePicker";
 import styles from "./Approvals.module.css";
 
 export type FarmerOption = { id: number; name: string; registration_no: string };
@@ -138,13 +139,7 @@ export default function HarvestFormModal({
               </div>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="purchase_date">Purchase date</label>
-                <input
-                  id="purchase_date"
-                  name="purchase_date"
-                  type="date"
-                  defaultValue={harvest?.purchase_date ?? ""}
-                  className={styles.input}
-                />
+                <StyledDatePicker id="purchase_date" name="purchase_date" defaultValue={harvest?.purchase_date ?? ""} />
               </div>
             </div>
 

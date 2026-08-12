@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useActionState } from "react";
 import { CalendarClock, Loader2, X } from "lucide-react";
 import { submitDeliverySlot, type DeliverySlotFormState } from "@/app/actions/farmer";
 import { useLanguage } from "@/app/components/LanguageProvider";
+import StyledDatePicker from "@/app/components/StyledDatePicker";
 import styles from "./DeliverySlots.module.css";
 
 export type WarehouseOption = { id: number; name: string };
@@ -90,14 +91,7 @@ export default function BookDeliverySlotModal({
 
             <div className={styles.field}>
               <label className={styles.label} htmlFor="scheduled_date">{t.bookDeliverySlotModal.dateLabel}</label>
-              <input
-                id="scheduled_date"
-                name="scheduled_date"
-                type="date"
-                min={todayStr}
-                required
-                className={styles.input}
-              />
+              <StyledDatePicker id="scheduled_date" name="scheduled_date" min={todayStr} required />
             </div>
 
             <div className={styles.modalActions}>

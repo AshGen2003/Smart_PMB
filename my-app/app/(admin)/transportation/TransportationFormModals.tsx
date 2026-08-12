@@ -23,6 +23,7 @@ import {
 import { LocationMap, LocationMapPlaceholder } from "@/app/components/LocationMap";
 import { calculateRouteDistance } from "@/app/lib/routeDistance";
 import StyledSelect from "@/app/components/StyledSelect";
+import StyledDatePicker, { StyledTimePicker } from "@/app/components/StyledDatePicker";
 import styles from "./Transportation.module.css";
 import { DELIVERY_STATUS_LABEL, type VehicleRow, type DriverOption, type RouteRow, type DeliveryRow } from "./TransportationManager";
 
@@ -393,12 +394,12 @@ export function DeliveryFormModal({
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="scheduled_date">Scheduled date</label>
-            <input id="scheduled_date" name="scheduled_date" type="date" required defaultValue={delivery?.scheduled_date} className={styles.input} />
+            <StyledDatePicker id="scheduled_date" name="scheduled_date" required defaultValue={delivery?.scheduled_date} />
           </div>
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="scheduled_time">Scheduled time</label>
-          <input id="scheduled_time" name="scheduled_time" type="time" required defaultValue={delivery?.scheduled_time ?? undefined} className={styles.input} />
+          <StyledTimePicker id="scheduled_time" name="scheduled_time" required defaultValue={delivery?.scheduled_time ?? undefined} />
         </div>
         <FormFooter pending={pending} onClose={onClose} />
       </form>

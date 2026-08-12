@@ -17,6 +17,7 @@ import {
   type DriverFormState,
 } from "@/app/actions/driver";
 import StyledSelect from "@/app/components/StyledSelect";
+import StyledDatePicker from "@/app/components/StyledDatePicker";
 import styles from "./VehicleLog.module.css";
 import type { VehicleOption } from "./VehicleLogManager";
 
@@ -137,7 +138,7 @@ export function FuelRecordFormModal({
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="fuel_date">Date</label>
-            <input id="fuel_date" name="fuel_date" type="date" required defaultValue={record?.fuel_date} className={styles.input} />
+            <StyledDatePicker id="fuel_date" name="fuel_date" required defaultValue={record?.fuel_date} />
           </div>
         </div>
         <FormFooter pending={pending} onClose={onClose} />
@@ -191,7 +192,7 @@ export function MaintenanceRecordFormModal({
         <div className={styles.fieldRow}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="service_date">Service date</label>
-            <input id="service_date" name="service_date" type="date" required defaultValue={record?.service_date} className={styles.input} />
+            <StyledDatePicker id="service_date" name="service_date" required defaultValue={record?.service_date} />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="cost">Cost (Rs.)</label>
@@ -200,7 +201,7 @@ export function MaintenanceRecordFormModal({
         </div>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="next_service_date">Next service date <span className={styles.optional}>(optional)</span></label>
-          <input id="next_service_date" name="next_service_date" type="date" defaultValue={record?.next_service_date ?? ""} className={styles.input} />
+          <StyledDatePicker id="next_service_date" name="next_service_date" defaultValue={record?.next_service_date ?? ""} />
         </div>
         <FormFooter pending={pending} onClose={onClose} />
       </form>

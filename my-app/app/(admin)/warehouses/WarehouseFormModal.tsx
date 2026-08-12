@@ -12,6 +12,7 @@ import {
   type WarehouseFormState,
 } from "@/app/actions/warehouses";
 import StyledSelect from "@/app/components/StyledSelect";
+import StyledDatePicker from "@/app/components/StyledDatePicker";
 import styles from "./Warehouses.module.css";
 
 export type DistrictOption = {
@@ -167,13 +168,7 @@ export default function WarehouseFormModal({
               </div>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="established_date">Established</label>
-                <input
-                  id="established_date"
-                  name="established_date"
-                  type="date"
-                  defaultValue={warehouse?.established_date ?? ""}
-                  className={styles.input}
-                />
+                <StyledDatePicker id="established_date" name="established_date" defaultValue={warehouse?.established_date ?? ""} />
               </div>
             </div>
 

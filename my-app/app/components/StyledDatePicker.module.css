@@ -1,0 +1,268 @@
+/* Trigger — deliberately matches StyledSelect.module.css's .trigger so
+   both feel like the same design system, not a bolted-on widget. */
+.wrap {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  color: var(--foreground);
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: var(--primary);
+  background-color: var(--sidebar-hover);
+}
+
+.triggerOpen,
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.triggerIcon {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.triggerLabel {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.triggerPlaceholder {
+  color: var(--text-muted);
+}
+
+/* Portaled to document.body, so position comes from inline style
+   (computed from the trigger's bounding rect) — only visual styling
+   lives here, same approach as StyledSelect's .panel. */
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --- Date panel --- */
+
+.datePanel {
+  z-index: 500;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  box-shadow: var(--shadow-md);
+  animation: panelIn 0.12s ease;
+}
+
+.calendarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.calendarTitle {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.navBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.navBtn:hover {
+  background-color: var(--sidebar-hover);
+  color: var(--foreground);
+}
+
+.weekdayRow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 0.25rem;
+}
+
+.weekdayLabel {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.25rem 0;
+}
+
+.dayGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dayCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--foreground);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.dayCell:hover:not(:disabled) {
+  background-color: var(--sidebar-hover);
+}
+
+.dayCell:disabled {
+  cursor: not-allowed;
+}
+
+.dayCellOutside {
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+
+.dayCell:disabled:not(.dayCellOutside) {
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+
+.dayCellToday {
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.dayCellSelected {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 700;
+}
+
+.dayCellSelected:hover:not(:disabled) {
+  background-color: var(--primary);
+}
+
+.dayCellFocused {
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.panelFooter {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--card-border);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.footerBtn {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: none;
+  color: var(--primary-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.footerBtn:hover:not(:disabled) {
+  background-color: var(--sidebar-hover);
+}
+
+.footerBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Time panel --- */
+
+.timePanel {
+  z-index: 500;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  padding: 0.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  box-shadow: var(--shadow-md);
+  animation: panelIn 0.12s ease;
+}
+
+.timeColumns {
+  display: flex;
+  gap: 0.4rem;
+  max-height: 220px;
+}
+
+.timeColumn {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scroll-behavior: smooth;
+}
+
+.timeOption {
+  padding: 0.4rem 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--foreground);
+  font-size: 0.85rem;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.timeOption:hover {
+  background-color: var(--sidebar-hover);
+}
+
+.timeOptionSelected {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 700;
+}
