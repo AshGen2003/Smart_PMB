@@ -21,7 +21,7 @@
 
 import { useState, useTransition } from "react";
 import clsx from "clsx";
-import { Ban, Check, Clock, Fuel, MapPin, Pencil, Plus, Route as RouteIcon, Trash2, Truck, Wrench, X as XIcon } from "lucide-react";
+import { Ban, Check, Clock, Fuel, MapPin, Pencil, Plus, Route as RouteIcon, Trash2, Truck, UserCog, Wrench, X as XIcon } from "lucide-react";
 import {
   deleteVehicle,
   deleteRoute,
@@ -35,6 +35,7 @@ import {
   RouteFormModal,
   DeliveryFormModal,
   DeliveryTrackModal,
+  ReassignDriverModal,
   MaintenanceRejectModal,
   type EditableDelivery,
 } from "./TransportationFormModals";
@@ -178,6 +179,7 @@ export default function TransportationManager({
     { mode: "create" } | { mode: "edit"; row: EditableDelivery } | null
   >(null);
   const [trackDelivery, setTrackDelivery] = useState<DeliveryRow | null>(null);
+  const [reassignTarget, setReassignTarget] = useState<DeliveryRow | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<
     { label: string; fn: () => Promise<{ error?: string }> } | null
@@ -490,6 +492,17 @@ export default function TransportationManager({
                                   <Pencil size={14} />
                                 </button>
                               )}
+                              {d.assignment_status === "rejected" && (
+                                <button
+                                  type="button"
+                                  className={styles.iconBtn}
+                                  aria-label="Reassign driver"
+                                  title="Reassign driver"
+                                  onClick={() => setReassignTarget(d)}
+                                >
+                                  <UserCog size={14} />
+                                </button>
+                              )}
                               {(d.status === "scheduled" || d.status === "in_transit") && (
                                 <>
                                   <button
@@ -654,6 +667,10 @@ export default function TransportationManager({
 
       {trackDelivery && (
         <DeliveryTrackModal delivery={trackDelivery} live={canWrite} onClose={() => setTrackDelivery(null)} />
+      )}
+
+      {reassignTarget && (
+        <ReassignDriverModal delivery={reassignTarget} drivers={drivers} onClose={() => setReassignTarget(null)} />
       )}
 
       {deleteTarget && (

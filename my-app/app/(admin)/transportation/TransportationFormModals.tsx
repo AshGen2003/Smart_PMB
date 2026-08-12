@@ -17,6 +17,7 @@ import {
   updateRoute,
   createDelivery,
   updateDelivery,
+  reassignDelivery,
   type TransportFormState,
 } from "@/app/actions/transportation";
 import { LocationMap, LocationMapPlaceholder } from "@/app/components/LocationMap";
@@ -400,6 +401,70 @@ export function DeliveryFormModal({
           <input id="scheduled_time" name="scheduled_time" type="time" required defaultValue={delivery?.scheduled_time ?? undefined} className={styles.input} />
         </div>
         <FormFooter pending={pending} onClose={onClose} />
+      </form>
+    </ModalShell>
+  );
+}
+
+// --- Reassign driver (rejected deliveries) ---------------------------------
+
+/**
+ * Lightweight driver-only picker for a delivery the previous driver
+ * rejected — Edit is hidden in that state (see TransportationManager), so
+ * this is the only remaining path to act on it. Submitting reassigns the
+ * driver, which the backend also revives back to "scheduled".
+ */
+export function ReassignDriverModal({
+  delivery,
+  drivers,
+  onClose,
+}: {
+  delivery: DeliveryRow;
+  drivers: DriverOption[];
+  onClose: () => void;
+}) {
+  const [driverId, setDriverId] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!driverId) return;
+    setPending(true);
+    setError(undefined);
+    const result = await reassignDelivery(delivery.id, driverId);
+    setPending(false);
+    if (result.error) setError(result.error);
+    else onClose();
+  }
+
+  return (
+    <ModalShell title={`Reassign delivery #${delivery.id}`} onClose={onClose} error={error}>
+      <p className={styles.readOnlyNote} style={{ marginBottom: "0.75rem" }}>
+        {delivery.driver_name ?? "The previous driver"} declined this delivery
+        {delivery.route_label ? ` (${delivery.route_label})` : ""}. Pick a different driver to send it out again.
+      </p>
+      <form onSubmit={handleSubmit}>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="reassignDriver">Driver</label>
+          <StyledSelect
+            id="reassignDriver"
+            required
+            value={driverId}
+            onChange={setDriverId}
+            placeholder="Select a driver"
+            options={drivers.map((d) => ({ value: d.id, label: d.name }))}
+          />
+        </div>
+        <div className={styles.modalActions}>
+          <button type="button" className={styles.secondaryBtn} onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className={styles.primaryBtn} disabled={pending || !driverId}>
+            {pending && <Loader2 size={16} className={styles.spin} />}
+            {pending ? "Reassigning…" : "Reassign"}
+          </button>
+        </div>
       </form>
     </ModalShell>
   );

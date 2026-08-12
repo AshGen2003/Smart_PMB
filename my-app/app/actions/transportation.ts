@@ -129,6 +129,26 @@ export async function updateDeliveryStatus(id: number, newStatus: string) {
   return {};
 }
 
+/**
+ * Lightweight driver-only reassignment — used by the ReassignDriverModal
+ * shown on a delivery the previous driver rejected (Edit is hidden for
+ * those; this is the only path left to act on one). A plain PATCH with
+ * just `driver` set: the backend's DeliveryViewSet.perform_update resets
+ * assignment_status to pending and revives status back to scheduled.
+ */
+export async function reassignDelivery(id: number, driverId: string) {
+  const res = await apiFetch(`/api/admin/deliveries/${id}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ driver: driverId }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+  revalidatePath("/transportation");
+  return {};
+}
+
 // --- Maintenance record review ------------------------------------------
 
 /** Approves a driver-logged maintenance record's cost. */
