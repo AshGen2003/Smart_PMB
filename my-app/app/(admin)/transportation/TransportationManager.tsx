@@ -467,27 +467,29 @@ export default function TransportationManager({
                         {canWrite && (
                           <td>
                             <div className={styles.rowActions}>
-                              <button
-                                type="button"
-                                className={styles.iconBtn}
-                                aria-label="Edit delivery"
-                                onClick={() =>
-                                  setDeliveryModal({
-                                    mode: "edit",
-                                    row: {
-                                      id: d.id,
-                                      vehicle: d.vehicle,
-                                      driver: d.driver,
-                                      route: d.route,
-                                      warehouse: d.warehouse,
-                                      scheduled_date: d.scheduled_date,
-                                      scheduled_time: d.scheduled_time,
-                                    },
-                                  })
-                                }
-                              >
-                                <Pencil size={14} />
-                              </button>
+                              {d.status !== "delivered" && d.assignment_status !== "rejected" && (
+                                <button
+                                  type="button"
+                                  className={styles.iconBtn}
+                                  aria-label="Edit delivery"
+                                  onClick={() =>
+                                    setDeliveryModal({
+                                      mode: "edit",
+                                      row: {
+                                        id: d.id,
+                                        vehicle: d.vehicle,
+                                        driver: d.driver,
+                                        route: d.route,
+                                        warehouse: d.warehouse,
+                                        scheduled_date: d.scheduled_date,
+                                        scheduled_time: d.scheduled_time,
+                                      },
+                                    })
+                                  }
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                              )}
                               {(d.status === "scheduled" || d.status === "in_transit") && (
                                 <>
                                   <button

@@ -1671,10 +1671,19 @@ class DeliveryViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         previous_driver_id = serializer.instance.driver_id
+        previous_status = serializer.instance.status
         delivery = serializer.save()
         if delivery.driver_id != previous_driver_id:
             delivery.assignment_status = Delivery.AssignmentStatus.PENDING
-            delivery.save(update_fields=["assignment_status"])
+            update_fields = ["assignment_status"]
+            # Reassigning the driver on a delivery a previous driver
+            # rejected (see DeliveryRespondView) revives it back to
+            # scheduled — otherwise it'd stay stuck showing "Cancelled"
+            # forever despite now having a fresh driver to try.
+            if previous_status == Delivery.Status.CANCELLED:
+                delivery.status = Delivery.Status.SCHEDULED
+                update_fields.append("status")
+            delivery.save(update_fields=update_fields)
             _notify_driver_assigned(delivery, self.request.user)
 
     @action(detail=True, methods=["post"])
@@ -1834,7 +1843,13 @@ class DriverVehicleInfoView(APIView):
 
 
 class DeliveryRespondView(APIView):
-    """POST {"accept": true/false} — the driver accepts or rejects a task assigned to them."""
+    """
+    POST {"accept": true/false} — the driver accepts or rejects a task
+    assigned to them. A rejection also cancels the delivery's `status`
+    (nothing is moving until an officer reassigns a different driver) —
+    reassigning the driver on this delivery afterward (DeliveryViewSet.
+    perform_update) resets it back to SCHEDULED so it's usable again.
+    """
 
     permission_classes = [HasPermission("access_driver_portal")]
 
@@ -1849,7 +1864,11 @@ class DeliveryRespondView(APIView):
         delivery.assignment_status = (
             Delivery.AssignmentStatus.ACCEPTED if accept else Delivery.AssignmentStatus.REJECTED
         )
-        delivery.save(update_fields=["assignment_status"])
+        update_fields = ["assignment_status"]
+        if not accept:
+            delivery.status = Delivery.Status.CANCELLED
+            update_fields.append("status")
+        delivery.save(update_fields=update_fields)
 
         if not accept and delivery.approved_by:
             Message.objects.create(
