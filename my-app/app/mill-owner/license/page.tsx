@@ -1,8 +1,8 @@
 /**
- * `/partner/license` — the logged-in mill owner/authorized purchaser's own
- * digital license certificate: business name, license type/number, and a
- * download link for the PDF (see accounts.MyLicenseCertificateView via
- * /api/license/certificate). By the time this renders, partner/layout.tsx
+ * `/mill-owner/license` — the logged-in mill owner's own digital license
+ * certificate: business name, license type/number, and a download link for
+ * the PDF (see accounts.MyLicenseCertificateView via
+ * /api/licenses/certificate). By the time this renders, mill-owner/layout.tsx
  * has already gated out anyone whose application isn't approved (or who has
  * no application at all — an admin-created account), so this only ever
  * shows the "approved" or "no application on file" states.
@@ -11,7 +11,7 @@ import { getCurrentUser } from "@/app/lib/dal";
 import LicenseCertificateCard from "./LicenseCertificateCard";
 import styles from "./License.module.css";
 
-export default async function PartnerLicensePage() {
+export default async function MillOwnerLicensePage() {
   const user = await getCurrentUser();
 
   return (

@@ -2,8 +2,8 @@
  * Server Actions for the officer/admin licensing-application review queue
  * (see (admin)/licenses/). Approving/rejecting an authorized-purchaser or
  * mill-owner application is what flips their account from the pending
- * holding screen (partner/ route group) to real access — see
- * accounts/views.py's LicenseApplicationViewSet.
+ * holding screen (see mill-owner/layout.tsx, purchaser/layout.tsx) to real
+ * access — see accounts/views.py's LicenseApplicationViewSet.
  */
 "use server";
 
@@ -53,7 +53,8 @@ export async function rejectLicense(
 /**
  * Uploads (or replaces) the logged-in applicant's own supporting business
  * document while their LicenseApplication is still pending review. Called
- * from partner/PendingLicenseScreen.tsx's holding screen.
+ * from components/PendingLicenseScreen.tsx's holding screen, shared by both
+ * the mill-owner and purchaser portals.
  */
 export async function uploadLicenseApplicationDocument(
   _prevState: { error?: string },
@@ -77,6 +78,7 @@ export async function uploadLicenseApplicationDocument(
     return { error: firstErrorMessage(data) };
   }
 
-  revalidatePath("/partner");
+  revalidatePath("/mill-owner");
+  revalidatePath("/purchaser");
   return {};
 }
