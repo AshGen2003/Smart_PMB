@@ -368,6 +368,8 @@ class DeliverySerializer(serializers.ModelSerializer):
             "route", "route_label", "route_destination", "warehouse", "warehouse_name",
             "approved_by", "approved_by_name", "scheduled_date", "scheduled_time", "status",
             "assignment_status", "latest_location",
+            "dispatch_manifest", "milling_return_request", "rice_request", "milling_allocation",
+            "linked_request_label",
         ]
 
     def get_route_label(self, obj):
@@ -430,6 +432,7 @@ class DeliveryWriteSerializer(serializers.ModelSerializer):
         fields = [
             "id", "vehicle", "driver", "route", "warehouse",
             "scheduled_date", "scheduled_time",
+            "dispatch_manifest", "milling_return_request", "rice_request", "milling_allocation",
         ]
 
     def validate(self, attrs):

@@ -170,13 +170,17 @@ class DispatchManifestSerializer(serializers.ModelSerializer):
 
     destination_warehouse_name = serializers.CharField(source="destination_warehouse.name", default=None)
     purchases = FarmGatePurchaseSerializer(many=True, read_only=True)
+    delivery = serializers.SerializerMethodField()
 
     class Meta:
         model = DispatchManifest
         fields = [
             "id", "destination_warehouse", "destination_warehouse_name",
-            "status", "requested_date", "review_notes", "purchases",
+            "status", "requested_date", "review_notes", "purchases", "delivery",
         ]
+
+    def get_delivery(self, obj):
+        return _delivery_status(obj)
 
 
 class DispatchManifestCreateSerializer(serializers.ModelSerializer):
@@ -200,11 +204,15 @@ class OfficerDispatchManifestSerializer(serializers.ModelSerializer):
     destination_warehouse_name = serializers.CharField(source="destination_warehouse.name", default=None)
     reviewed_by_name = serializers.CharField(source="reviewed_by.full_name", default=None)
     purchases = FarmGatePurchaseSerializer(many=True, read_only=True)
+    has_delivery = serializers.SerializerMethodField()
 
     class Meta:
         model = DispatchManifest
         fields = [
             "id", "purchaser", "purchaser_name", "destination_warehouse",
             "destination_warehouse_name", "status", "requested_date",
-            "reviewed_by_name", "review_notes", "purchases",
+            "reviewed_by_name", "review_notes", "purchases", "has_delivery",
         ]
+
+    def get_has_delivery(self, obj):
+        return obj.deliveries.exists()
