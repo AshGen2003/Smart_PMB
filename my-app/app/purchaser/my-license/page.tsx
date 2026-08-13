@@ -1,17 +1,20 @@
 /**
- * `/partner/license` — the logged-in mill owner/authorized purchaser's own
- * digital license certificate: business name, license type/number, and a
- * download link for the PDF (see accounts.MyLicenseCertificateView via
- * /api/license/certificate). By the time this renders, partner/layout.tsx
- * has already gated out anyone whose application isn't approved (or who has
- * no application at all — an admin-created account), so this only ever
- * shows the "approved" or "no application on file" states.
+ * `/purchaser/my-license` — the logged-in authorized purchaser's own digital
+ * license certificate: business name, license type/number, and a download
+ * link for the PDF (see accounts.MyLicenseCertificateView via
+ * /api/licenses/certificate). This is the one-time account-approval
+ * certificate every authorized purchaser gets once a PMB officer approves
+ * their signup application (accounts.LicenseApplication). By the time this
+ * renders, purchaser/layout.tsx has already gated out anyone whose
+ * application isn't approved (or who has no application at all — an
+ * admin-created account), so this only ever shows the "approved" or
+ * "no application on file" states.
  */
 import { getCurrentUser } from "@/app/lib/dal";
 import LicenseCertificateCard from "./LicenseCertificateCard";
 import styles from "./License.module.css";
 
-export default async function PartnerLicensePage() {
+export default async function PurchaserMyLicensePage() {
   const user = await getCurrentUser();
 
   return (

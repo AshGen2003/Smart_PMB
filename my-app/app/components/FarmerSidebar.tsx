@@ -20,6 +20,8 @@ import {
   LayoutDashboard,
   Sprout,
   CalendarClock,
+  TrendingUp,
+  Wallet,
   MessageSquare,
   Settings,
   ChevronLeft,
@@ -37,6 +39,8 @@ export default function FarmerSidebar({ permissions }: { permissions: string[] }
     { label: t.farmerSidebar.dashboard, href: "/farmer", icon: LayoutDashboard, permission: "view_dashboard" },
     { label: t.farmerSidebar.harvests, href: "/farmer/harvests", icon: Sprout, permission: "view_dashboard" },
     { label: t.farmerSidebar.deliverySlots, href: "/farmer/delivery-slots", icon: CalendarClock, permission: "view_dashboard" },
+    { label: t.farmerSidebar.priceHistory, href: "/farmer/price-history", icon: TrendingUp, permission: "view_dashboard" },
+    { label: t.farmerSidebar.payments, href: "/farmer/payments", icon: Wallet, permission: "view_dashboard" },
     { label: t.farmerSidebar.messages, href: "/farmer/messages", icon: MessageSquare, permission: "view_messages" },
     { label: t.farmerSidebar.settings, href: "/farmer/settings", icon: Settings, permission: "view_settings" },
   ];
