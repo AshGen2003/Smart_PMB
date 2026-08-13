@@ -1,8 +1,8 @@
 /**
- * Authorized purchaser self-registration form: just credentials and a
- * name — no domain profile fields. Submits via the
- * `signupAuthorizedPurchaser` Server Action, which creates the account and
- * sends a confirmation email. Mirrors SignupTransportOperatorForm.tsx.
+ * Authorized purchaser self-registration form: personal/identity details,
+ * organization details, and credentials. Submits via the
+ * `signupAuthorizedPurchaser` Server Action, which creates the account and a
+ * pending LicenseApplication for officer approval.
  */
 "use client";
 
@@ -73,19 +73,65 @@ export default function SignupAuthorizedPurchaserForm() {
           </div>
         </div>
 
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="email">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            className={styles.input}
-            placeholder="you@example.com"
-          />
+        <div className={styles.row2}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="nic">
+              NIC / ID number
+            </label>
+            <input
+              id="nic"
+              name="nic"
+              type="text"
+              required
+              className={styles.input}
+              placeholder="199012345678"
+            />
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="email">
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className={styles.input}
+              placeholder="you@example.com"
+            />
+          </div>
+        </div>
+
+        <div className={styles.row2}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="businessName">
+              Organization / business name
+            </label>
+            <input
+              id="businessName"
+              name="businessName"
+              type="text"
+              required
+              className={styles.input}
+              placeholder="e.g. Perera Traders"
+            />
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="businessRegistrationNo">
+              Business reg. no.
+            </label>
+            <input
+              id="businessRegistrationNo"
+              name="businessRegistrationNo"
+              type="text"
+              required
+              className={styles.input}
+              placeholder="PV 00123456"
+            />
+          </div>
         </div>
 
         <div className={styles.row2}>

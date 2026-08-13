@@ -317,6 +317,7 @@ class DeliverySerializer(serializers.ModelSerializer):
     warehouse_name = serializers.CharField(source="warehouse.name", default=None)
     approved_by_name = serializers.CharField(source="approved_by.full_name", default=None)
     latest_location = serializers.SerializerMethodField()
+    linked_request_label = serializers.SerializerMethodField()
 
     class Meta:
         model = Delivery
@@ -324,12 +325,32 @@ class DeliverySerializer(serializers.ModelSerializer):
             "id", "vehicle", "vehicle_registration", "driver", "driver_name",
             "route", "route_label", "warehouse", "warehouse_name",
             "approved_by", "approved_by_name", "dispatch_manifest",
-            "milling_return_request", "scheduled_date", "status",
+            "milling_return_request", "rice_request", "milling_allocation",
+            "linked_request_label", "scheduled_date", "status",
             "assignment_status", "latest_location",
         ]
 
     def get_route_label(self, obj):
         return f"{obj.route.origin} → {obj.route.destination}" if obj.route_id else None
+
+    def get_linked_request_label(self, obj):
+        # A short human-readable tag for whichever of the four linked-request
+        # fields is set, so the officer's deliveries table doesn't just show
+        # a bare id — mirrors how each type is identified on its own review
+        # queue (purchaser/mill name + quantity).
+        if obj.dispatch_manifest_id:
+            m = obj.dispatch_manifest
+            return f"Dispatch Manifest #{m.id} — {m.purchaser.full_name}"
+        if obj.milling_return_request_id:
+            r = obj.milling_return_request
+            return f"Milling Return #{r.id} — {r.mill.mill_name}"
+        if obj.rice_request_id:
+            rr = obj.rice_request
+            return f"Rice Request #{rr.id} — {rr.purchaser.full_name}"
+        if obj.milling_allocation_id:
+            ma = obj.milling_allocation
+            return f"Milling Allocation #{ma.id} — {ma.mill.mill_name}"
+        return None
 
     def get_latest_location(self, obj):
         ping = obj.location_pings.first()  # Meta.ordering = ["-recorded_at"]
@@ -360,13 +381,51 @@ class DeliveryWriteSerializer(serializers.ModelSerializer):
     directly, or via the `update_status` action for a lighter-weight call.
     """
 
+    LINKED_REQUEST_FIELDS = (
+        "dispatch_manifest", "milling_return_request", "rice_request", "milling_allocation",
+    )
+
     class Meta:
         model = Delivery
         fields = [
             "id", "vehicle", "driver", "route", "warehouse",
             "dispatch_manifest", "milling_return_request",
+            "rice_request", "milling_allocation",
             "scheduled_date", "status",
         ]
+
+    def validate(self, attrs):
+        # Local imports of purchases/mills models avoid a circular import —
+        # those apps' views.py already import from farmers at load time.
+        from mills.models import MillingAllocation, MillingReturnRequest
+        from purchases.models import DispatchManifest, RiceRequest
+
+        linked = [f for f in self.LINKED_REQUEST_FIELDS if attrs.get(f)]
+        if len(linked) > 1:
+            raise serializers.ValidationError(
+                {linked[1]: "A delivery can only be linked to one request."}
+            )
+
+        expected_status = {
+            "dispatch_manifest": (DispatchManifest.Status.APPROVED, "approved"),
+            "milling_return_request": (MillingReturnRequest.Status.APPROVED, "approved"),
+            "rice_request": (RiceRequest.Status.FULFILLED, "fulfilled"),
+            "milling_allocation": (MillingAllocation.Status.FULFILLED, "fulfilled"),
+        }
+        for field in linked:
+            target = attrs[field]
+            required_status, label = expected_status[field]
+            if target.status != required_status:
+                article = "an" if label[0] in "aeiou" else "a"
+                raise serializers.ValidationError(
+                    {field: f"Only {article} {label} request can be linked to a delivery."}
+                )
+            already_linked = target.deliveries.exclude(pk=self.instance.pk if self.instance else None).exists()
+            if already_linked:
+                raise serializers.ValidationError(
+                    {field: "This request is already linked to another delivery."}
+                )
+        return attrs
 
 
 class FuelRecordSerializer(serializers.ModelSerializer):

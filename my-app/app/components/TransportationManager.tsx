@@ -31,6 +31,7 @@ import {
   DeliveryFormModal,
   DeliveryTrackModal,
   type EditableDelivery,
+  type LinkableRequestOption,
 } from "./TransportationFormModals";
 import StyledSelect from "@/app/components/StyledSelect";
 import styles from "./Transportation.module.css";
@@ -72,6 +73,11 @@ export type DeliveryRow = {
   warehouse_name: string | null;
   approved_by: string | null;
   approved_by_name: string | null;
+  dispatch_manifest: number | null;
+  milling_return_request: number | null;
+  rice_request: number | null;
+  milling_allocation: number | null;
+  linked_request_label: string | null;
   scheduled_date: string;
   status: "scheduled" | "in_transit" | "delivered" | "delayed" | "cancelled";
   assignment_status: "pending" | "accepted" | "rejected";
@@ -137,6 +143,10 @@ export default function TransportationManager({
   fuelRecords,
   maintenanceRecords,
   warehouses,
+  dispatchManifests,
+  millingReturnRequests,
+  riceRequests,
+  millingAllocations,
   stats,
   canWrite = true,
 }: {
@@ -147,6 +157,12 @@ export default function TransportationManager({
   fuelRecords: FuelRecordRow[];
   maintenanceRecords: MaintenanceRecordRow[];
   warehouses: { id: number; name: string }[];
+  // Approved/fulfilled requests not yet linked to a Delivery — options for
+  // the delivery form's "Linked request" picker (see DeliveryFormModal).
+  dispatchManifests: LinkableRequestOption[];
+  millingReturnRequests: LinkableRequestOption[];
+  riceRequests: LinkableRequestOption[];
+  millingAllocations: LinkableRequestOption[];
   stats: Stats;
   // False during Portal Preview — hides every create/edit/delete affordance.
   canWrite?: boolean;
@@ -359,7 +375,7 @@ export default function TransportationManager({
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Vehicle</th><th>Driver</th><th>Route</th><th>Warehouse</th><th>Date</th><th>Task response</th><th>Status</th><th>Location</th>{canWrite && <th></th>}
+                      <th>Vehicle</th><th>Driver</th><th>Route</th><th>Warehouse</th><th>Linked request</th><th>Date</th><th>Task response</th><th>Status</th><th>Location</th>{canWrite && <th></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -369,6 +385,7 @@ export default function TransportationManager({
                         <td>{d.driver_name ?? "—"}</td>
                         <td>{d.route_label ?? "—"}</td>
                         <td>{d.warehouse_name ?? "—"}</td>
+                        <td>{d.linked_request_label ?? "—"}</td>
                         <td>{d.scheduled_date}</td>
                         <td>
                           <span
@@ -425,6 +442,10 @@ export default function TransportationManager({
                                       driver: d.driver,
                                       route: d.route,
                                       warehouse: d.warehouse,
+                                      dispatch_manifest: d.dispatch_manifest,
+                                      milling_return_request: d.milling_return_request,
+                                      rice_request: d.rice_request,
+                                      milling_allocation: d.milling_allocation,
                                       scheduled_date: d.scheduled_date,
                                       status: d.status,
                                     },
@@ -526,10 +547,33 @@ export default function TransportationManager({
       {routeModal?.mode === "edit" && <RouteFormModal mode="edit" route={routeModal.row} onClose={() => setRouteModal(null)} />}
 
       {deliveryModal?.mode === "create" && (
-        <DeliveryFormModal mode="create" vehicles={vehicles} drivers={drivers} routes={routes} warehouses={warehouses} onClose={() => setDeliveryModal(null)} />
+        <DeliveryFormModal
+          mode="create"
+          vehicles={vehicles}
+          drivers={drivers}
+          routes={routes}
+          warehouses={warehouses}
+          dispatchManifests={dispatchManifests}
+          millingReturnRequests={millingReturnRequests}
+          riceRequests={riceRequests}
+          millingAllocations={millingAllocations}
+          onClose={() => setDeliveryModal(null)}
+        />
       )}
       {deliveryModal?.mode === "edit" && (
-        <DeliveryFormModal mode="edit" delivery={deliveryModal.row} vehicles={vehicles} drivers={drivers} routes={routes} warehouses={warehouses} onClose={() => setDeliveryModal(null)} />
+        <DeliveryFormModal
+          mode="edit"
+          delivery={deliveryModal.row}
+          vehicles={vehicles}
+          drivers={drivers}
+          routes={routes}
+          warehouses={warehouses}
+          dispatchManifests={dispatchManifests}
+          millingReturnRequests={millingReturnRequests}
+          riceRequests={riceRequests}
+          millingAllocations={millingAllocations}
+          onClose={() => setDeliveryModal(null)}
+        />
       )}
 
       {trackDelivery && (

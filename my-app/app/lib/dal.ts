@@ -50,6 +50,8 @@ export type AppUser = {
   licenseRejectionReason: string;
   licenseBusinessName: string;
   licenseTypeDisplay: string;
+  // Assigned only once licenseStatus is "approved" — see accounts.LicenseApplicationViewSet.approve.
+  licenseNumber: string | null;
   // Set only while an admin is using Portal Preview (see
   // actions/preview.ts) — `role`/`roleName`/`permissions` above are already
   // swapped to the previewed role's when this is present, so every existing
@@ -170,6 +172,7 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
   let licenseRejectionReason = "";
   let licenseBusinessName = "";
   let licenseTypeDisplay = "";
+  let licenseNumber: string | null = null;
 
   const meRes = await apiFetch("/api/auth/me/");
   // A 503 with this shape means sysops.middleware.MaintenanceModeMiddleware
@@ -202,6 +205,7 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
       license_rejection_reason: string;
       license_business_name: string;
       license_type_display: string;
+      license_number: string | null;
     } = await meRes.json();
     email = me.email;
     fullName = me.full_name || null;
@@ -220,6 +224,7 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
     licenseRejectionReason = me.license_rejection_reason ?? "";
     licenseBusinessName = me.license_business_name ?? "";
     licenseTypeDisplay = me.license_type_display ?? "";
+    licenseNumber = me.license_number ?? null;
   }
 
   const user: AppUser = {
@@ -241,6 +246,7 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
     licenseRejectionReason,
     licenseBusinessName,
     licenseTypeDisplay,
+    licenseNumber,
   };
 
   // While impersonating, `user` above already reflects the REAL target

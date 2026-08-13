@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core import signing
 from django.db.models import Count, Q
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, status, viewsets
@@ -35,6 +36,7 @@ from .emails import (
 )
 from .models import ONLINE_WINDOW, LicenseApplication, Message, PasswordResetOTP, Permission, Role, User
 from .otp import MAX_OTP_ATTEMPTS, OTP_EXPIRY_MINUTES, generate_otp_code
+from .pdf import build_license_certificate_pdf
 from .permissions import HasPermission, RoleAccessPermission
 from .serializers import (
     AdminUserSerializer,
@@ -326,6 +328,7 @@ class MeView(APIView):
             "license_type_display": (
                 application.get_license_type_display() if application else ""
             ),
+            "license_number": application.license_number if application else None,
         }
 
     def get(self, request):
@@ -574,7 +577,15 @@ class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):
         application.reviewed_by = request.user
         application.reviewed_at = timezone.now()
         application.rejection_reason = ""
-        application.save(update_fields=["status", "reviewed_by", "reviewed_at", "rejection_reason"])
+        update_fields = ["status", "reviewed_by", "reviewed_at", "rejection_reason"]
+        # Assigned once and never reassigned — a re-approval after a status
+        # change (there isn't one today, but just in case) shouldn't mint a
+        # second number for the same application.
+        if not application.license_number:
+            type_code = "MO" if application.license_type == LicenseApplication.LicenseType.MILL_OWNER else "AP"
+            application.license_number = f"SPMB-{type_code}-{application.reviewed_at.year}-{application.id:05d}"
+            update_fields.append("license_number")
+        application.save(update_fields=update_fields)
         log_audit(request.user, "approve_license", "accounts", application.business_name)
         send_license_decision_email(application)
         return Response(self.get_serializer(application).data)
@@ -594,6 +605,20 @@ class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):
         send_license_decision_email(application)
         return Response(self.get_serializer(application).data)
 
+    @action(detail=True, methods=["get"])
+    def certificate(self, request, pk=None):
+        """Officer-side download of an approved application's digital license certificate PDF."""
+        application = self.get_object()
+        if application.status != LicenseApplication.Status.APPROVED:
+            return Response({"detail": "Only an approved application has a certificate to download."}, status=400)
+        buffer = build_license_certificate_pdf(application)
+        log_audit(request.user, "download_license_certificate", "accounts", application.business_name)
+        return FileResponse(
+            buffer, as_attachment=True,
+            filename=f"smart-pmb-license-{application.license_number}.pdf",
+            content_type="application/pdf",
+        )
+
 
 class LicenseApplicationDocumentView(APIView):
     """Lets an applicant upload/replace their own license application's supporting document while it's pending review."""
@@ -609,6 +634,23 @@ class LicenseApplicationDocumentView(APIView):
         application.document = document
         application.save(update_fields=["document"])
         return Response(LicenseApplicationSerializer(application, context={"request": request}).data)
+
+
+class MyLicenseCertificateView(APIView):
+    """Self-service download of the logged-in applicant's own digital license certificate PDF, once their application is approved."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        application = get_object_or_404(LicenseApplication, user=request.user)
+        if application.status != LicenseApplication.Status.APPROVED:
+            return Response({"detail": "Your application hasn't been approved yet."}, status=400)
+        buffer = build_license_certificate_pdf(application)
+        return FileResponse(
+            buffer, as_attachment=True,
+            filename=f"smart-pmb-license-{application.license_number}.pdf",
+            content_type="application/pdf",
+        )
 
 
 class RoleViewSet(viewsets.ModelViewSet):

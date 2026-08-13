@@ -21,24 +21,31 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
-  FileCheck,
   ClipboardList,
   Package,
   Receipt,
+  Award,
+  Boxes,
 } from "lucide-react";
 
+// "My License" (singular) is the account-approval digital certificate every
+// partner gets once a PMB officer approves their signup application (see
+// accounts.LicenseApplication / MyLicenseCertificateView) — shared by both
+// roles, unlike mill owners' separate ongoing "Licenses" (plural, the
+// mill's own renewable operating license, see mills/models.py's License).
 const BASE_NAV_ITEMS = [
   { label: "Dashboard", href: "/partner", icon: LayoutDashboard, permission: "view_dashboard" },
+  { label: "My License", href: "/partner/license", icon: Award, permission: "view_dashboard" },
 ];
 
-// Mill owners get their own ongoing License history (renewable, expiry-
-// tracked — see mills/models.py's License) and periodic milling reports.
-// Authorized purchasers instead get their rice requests against warehouse
-// stock (see purchases/models.py's RiceRequest). Both sets are gated by the
-// same view_dashboard permission as the rest of the shell — there's no
-// separate permission per business feature, same as Messages/Settings.
+// Mill owners additionally get their raw-paddy allocation requests and
+// periodic milling reports. Authorized purchasers instead get their rice
+// requests against warehouse stock (see purchases/models.py's RiceRequest).
+// Both sets are gated by the same view_dashboard permission as the rest of
+// the shell — there's no separate permission per business feature, same as
+// Messages/Settings.
 const MILL_OWNER_NAV_ITEMS = [
-  { label: "Licenses", href: "/partner/licenses", icon: FileCheck, permission: "view_dashboard" },
+  { label: "Milling Allocations", href: "/partner/milling-allocations", icon: Boxes, permission: "view_dashboard" },
   { label: "Milling Reports", href: "/partner/milling-reports", icon: ClipboardList, permission: "view_dashboard" },
 ];
 

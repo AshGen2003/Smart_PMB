@@ -18,4 +18,5 @@ urlpatterns = [
     path("logout/", views.LogoutView.as_view()),  # blacklists the refresh token
     path("me/", views.MeView.as_view()),  # get/update the logged-in user's own profile
     path("license-application/document/", views.LicenseApplicationDocumentView.as_view()),  # applicant uploads their own supporting document while pending
+    path("license-application/certificate/", views.MyLicenseCertificateView.as_view()),  # applicant downloads their own approved digital license PDF
 ]

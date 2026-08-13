@@ -9,7 +9,6 @@
 
 import React from "react";
 import { format } from "date-fns";
-import { TrendingUp } from "lucide-react";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import styles from "./PriceHistory.module.css";
 
@@ -39,33 +38,38 @@ export default function PriceHistoryManager({ groups }: { groups: PaddyTypeGroup
 
       {groups.map(({ paddyType, records }) => (
         <div key={paddyType.id} className={styles.container}>
-          <h2 className={styles.pageTitle} style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>
-            {paddyType.type_name}
-          </h2>
-          {records.length > 0 ? (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>{t.farmerPriceHistory.tablePrice}</th>
-                  <th>{t.farmerPriceHistory.tableSeason}</th>
-                  <th>{t.farmerPriceHistory.tableDate}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r) => (
-                  <tr key={r.id}>
-                    <td>{Number(r.guaranteed_price).toLocaleString()}</td>
-                    <td>{r.season === "yala" ? t.seasons.yala : t.seasons.maha}</td>
-                    <td>{format(new Date(r.effective_date), "MMM d, yyyy")}</td>
+          <div className={styles.cardHeader}>
+            <h2 className={styles.pageTitle} style={{ fontSize: "1.1rem" }}>
+              {paddyType.type_name}
+            </h2>
+            <span className={styles.currentPrice}>
+              {Number(paddyType.guaranteed_price).toLocaleString()}
+              <span className={styles.currentPriceUnit}>Rs./kg</span>
+            </span>
+          </div>
+
+          {records.length > 0 && (
+            <>
+              <p className={styles.historyLabel}>{t.farmerPriceHistory.historyLabel}</p>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>{t.farmerPriceHistory.tablePrice}</th>
+                    <th>{t.farmerPriceHistory.tableSeason}</th>
+                    <th>{t.farmerPriceHistory.tableDate}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className={styles.emptyState}>
-              <TrendingUp size={24} style={{ marginBottom: "0.5rem", opacity: 0.6 }} />
-              <div>{t.farmerPriceHistory.emptyState}</div>
-            </div>
+                </thead>
+                <tbody>
+                  {records.map((r) => (
+                    <tr key={r.id}>
+                      <td>{Number(r.guaranteed_price).toLocaleString()}</td>
+                      <td>{r.season === "yala" ? t.seasons.yala : t.seasons.maha}</td>
+                      <td>{format(new Date(r.effective_date), "MMM d, yyyy")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       ))}

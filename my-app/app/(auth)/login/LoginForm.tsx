@@ -21,8 +21,8 @@ const initialState: FormState = {};
 
 /**
  * Wraps the actual form in Suspense because it reads `useSearchParams()`
- * (to detect the `?registered=1` flag from a just-completed signup), which
- * requires a Suspense boundary during static rendering.
+ * (to detect the `?registered=1` / `?applied=1` flags from a just-completed
+ * signup), which requires a Suspense boundary during static rendering.
  */
 export default function LoginForm() {
   return (
@@ -39,6 +39,7 @@ function LoginFormInner() {
   const [showPassword, setShowPassword] = useState(false);
   const searchParams = useSearchParams();
   const justRegistered = searchParams.get("registered") === "1";
+  const justApplied = searchParams.get("applied") === "1";
   const justReset = searchParams.get("reset") === "1";
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -63,6 +64,12 @@ function LoginFormInner() {
       {justRegistered && !state.error && (
         <div className={clsx(styles.banner, styles.bannerSuccess)}>
           {t.login.registeredBanner}
+        </div>
+      )}
+
+      {justApplied && !state.error && (
+        <div className={clsx(styles.banner, styles.bannerSuccess)}>
+          {t.login.appliedBanner}
         </div>
       )}
 

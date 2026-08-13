@@ -14,6 +14,26 @@ from .models import (
 )
 
 
+def _delivery_status(obj):
+    """
+    Shared by MillingAllocationSerializer-style self-service serializers:
+    the requester's own view of whichever Delivery (see farmers.Delivery)
+    is transporting their request, or None if an officer hasn't scheduled
+    one yet. At most one is ever linked (see
+    farmers.DeliveryWriteSerializer.validate), so `.first()` is safe.
+    """
+    delivery = obj.deliveries.select_related("driver", "vehicle").first()
+    if not delivery:
+        return None
+    return {
+        "status": delivery.status,
+        "assignment_status": delivery.assignment_status,
+        "driver_name": delivery.driver.full_name,
+        "vehicle_registration": delivery.vehicle.registration_no,
+        "scheduled_date": delivery.scheduled_date,
+    }
+
+
 class MillSerializer(serializers.ModelSerializer):
     """Read representation of a Mill, with district/province names resolved for display."""
 
@@ -170,13 +190,17 @@ class MillingAllocationSerializer(serializers.ModelSerializer):
     """Read representation of a MillingAllocation, for a mill owner viewing their own requests."""
 
     paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+    delivery = serializers.SerializerMethodField()
 
     class Meta:
         model = MillingAllocation
         fields = [
             "id", "paddy_type", "paddy_type_name", "quantity_kg", "status",
-            "requested_date", "review_notes",
+            "requested_date", "review_notes", "delivery",
         ]
+
+    def get_delivery(self, obj):
+        return _delivery_status(obj)
 
 
 class MillingAllocationCreateSerializer(serializers.ModelSerializer):
@@ -194,6 +218,7 @@ class OfficerMillingAllocationSerializer(serializers.ModelSerializer):
     paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
     reviewed_by_name = serializers.CharField(source="reviewed_by.full_name", default=None)
     fulfilled_from_warehouse_name = serializers.CharField(source="fulfilled_from_warehouse.name", default=None)
+    has_delivery = serializers.SerializerMethodField()
 
     class Meta:
         model = MillingAllocation
@@ -201,7 +226,11 @@ class OfficerMillingAllocationSerializer(serializers.ModelSerializer):
             "id", "mill", "mill_name", "paddy_type", "paddy_type_name",
             "quantity_kg", "status", "requested_date", "reviewed_by_name",
             "fulfilled_from_warehouse", "fulfilled_from_warehouse_name", "review_notes",
+            "has_delivery",
         ]
+
+    def get_has_delivery(self, obj):
+        return obj.deliveries.exists()
 
 
 class MillStockSerializer(serializers.ModelSerializer):
@@ -218,13 +247,17 @@ class MillingReturnRequestSerializer(serializers.ModelSerializer):
     """Read representation of a MillingReturnRequest, for a mill owner viewing their own return requests."""
 
     destination_warehouse_name = serializers.CharField(source="destination_warehouse.name", default=None)
+    delivery = serializers.SerializerMethodField()
 
     class Meta:
         model = MillingReturnRequest
         fields = [
             "id", "allocation", "destination_warehouse", "destination_warehouse_name",
-            "rice_kg", "status", "requested_date", "review_notes",
+            "rice_kg", "status", "requested_date", "review_notes", "delivery",
         ]
+
+    def get_delivery(self, obj):
+        return _delivery_status(obj)
 
 
 class MillingReturnRequestCreateSerializer(serializers.ModelSerializer):
@@ -249,11 +282,15 @@ class OfficerMillingReturnRequestSerializer(serializers.ModelSerializer):
     mill_name = serializers.CharField(source="mill.mill_name", default=None)
     destination_warehouse_name = serializers.CharField(source="destination_warehouse.name", default=None)
     reviewed_by_name = serializers.CharField(source="reviewed_by.full_name", default=None)
+    has_delivery = serializers.SerializerMethodField()
 
     class Meta:
         model = MillingReturnRequest
         fields = [
             "id", "mill", "mill_name", "allocation", "destination_warehouse",
             "destination_warehouse_name", "rice_kg", "status", "requested_date",
-            "reviewed_by_name", "review_notes",
+            "reviewed_by_name", "review_notes", "has_delivery",
         ]
+
+    def get_has_delivery(self, obj):
+        return obj.deliveries.exists()

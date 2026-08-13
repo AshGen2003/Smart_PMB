@@ -147,21 +147,19 @@ export default function SignupPartnerForm({ districts }: { districts: DistrictOp
         </div>
 
         <div className={styles.row2}>
-          {isMillOwner && (
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="nic">
-                NIC
-              </label>
-              <input
-                id="nic"
-                name="nic"
-                type="text"
-                required
-                className={styles.input}
-                placeholder="e.g. 991234567V"
-              />
-            </div>
-          )}
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="nic">
+              NIC / ID number
+            </label>
+            <input
+              id="nic"
+              name="nic"
+              type="text"
+              required
+              className={styles.input}
+              placeholder="e.g. 991234567V"
+            />
+          </div>
 
           <div className={styles.field}>
             <label className={styles.label} htmlFor="districtId">

@@ -509,13 +509,20 @@ class Route(models.Model):
 
 class Delivery(models.Model):
     """
-    A scheduled or in-progress transport job. `warehouse` is the **origin**
-    warehouse paddy is collected from when neither `dispatch_manifest` nor
-    `milling_return_request` is set (the original harvest-collection case,
-    unchanged) -- but the **destination** warehouse when either is set (a
-    purchaser's or mill owner's approved request to transport goods TO a
-    warehouse). At most one of `dispatch_manifest`/`milling_return_request`
-    is ever set on a given Delivery.
+    A scheduled or in-progress transport job. `warehouse` is the
+    **destination** warehouse when `dispatch_manifest` or
+    `milling_return_request` is set (a purchaser's or mill owner's approved
+    request to transport goods TO a warehouse) -- but the **origin**
+    warehouse in every other case: the original harvest-collection case
+    (none of the four linked-request fields set), a `rice_request` (an
+    officer sending a purchaser's fulfilled rice out of the warehouse), or a
+    `milling_allocation` (an officer sending a mill's fulfilled raw-paddy
+    allocation out of the warehouse) -- both of those already moved stock at
+    fulfillment time (see purchases.OfficerRiceRequestViewSet.fulfill /
+    mills.OfficerMillingAllocationViewSet.fulfill), so linking a Delivery to
+    either is purely for tracking the physical transport, not stock
+    accounting. At most one of `dispatch_manifest`/`milling_return_request`/
+    `rice_request`/`milling_allocation` is ever set on a given Delivery.
     """
 
     class Status(models.TextChoices):
@@ -547,6 +554,12 @@ class Delivery(models.Model):
     )
     milling_return_request = models.ForeignKey(
         "mills.MillingReturnRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
+    )
+    rice_request = models.ForeignKey(
+        "purchases.RiceRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
+    )
+    milling_allocation = models.ForeignKey(
+        "mills.MillingAllocation", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
     )
     scheduled_date = models.DateField()
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.SCHEDULED)

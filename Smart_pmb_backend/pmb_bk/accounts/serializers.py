@@ -223,13 +223,12 @@ class RegisterLicenseApplicantSerializer(serializers.Serializer):
     business_name = serializers.CharField(max_length=150)
     business_registration_no = serializers.CharField(max_length=50)
     contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    # NIC is required for every license type — it becomes Mill.nic for mill
+    # owners or AuthorizedPurchaser.nic for purchasers (see create() below).
+    nic = serializers.CharField(max_length=20)
     # Mill-only fields below — required when license_type == "mill_owner" so
     # a real Mill profile (see mills/models.py) can be created alongside the
     # account, ready to use the moment the LicenseApplication is approved.
-    # Left blank/omitted for authorized_purchaser applicants, who have no
-    # equivalent profile model (purchases/models.py's RiceRequest/
-    # PurchaserStock reference the User directly).
-    nic = serializers.CharField(max_length=20, required=False, allow_blank=True)
     district_id = serializers.IntegerField(required=False, allow_null=True)
     capacity_mt_per_day = serializers.DecimalField(
         max_digits=10, decimal_places=2, required=False, allow_null=True
@@ -241,24 +240,25 @@ class RegisterLicenseApplicantSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
+        try:
+            validate_nic_format(attrs["nic"])
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"nic": exc.message})
         if attrs["license_type"] == LicenseApplication.LicenseType.MILL_OWNER:
-            if not attrs.get("nic"):
-                raise serializers.ValidationError({"nic": "NIC is required for a mill owner application."})
-            try:
-                validate_nic_format(attrs["nic"])
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError({"nic": exc.message})
             if Mill.objects.filter(nic=attrs["nic"]).exists():
                 raise serializers.ValidationError({"nic": "An account with this NIC already exists."})
             district_id = attrs.get("district_id")
             if not district_id or not District.objects.filter(pk=district_id).exists():
                 raise serializers.ValidationError({"district_id": "Select a valid district."})
-        elif attrs.get("district_id") and not District.objects.filter(pk=attrs["district_id"]).exists():
-            # Authorized purchasers may optionally pick a district (unlike
-            # mill owners, it's not required — a purchaser's operating area
-            # is less tied to a single physical location), but if one was
-            # sent it must be real.
-            raise serializers.ValidationError({"district_id": "Select a valid district."})
+        else:
+            if AuthorizedPurchaser.objects.filter(nic=attrs["nic"]).exists():
+                raise serializers.ValidationError({"nic": "An account with this NIC already exists."})
+            if attrs.get("district_id") and not District.objects.filter(pk=attrs["district_id"]).exists():
+                # Authorized purchasers may optionally pick a district (unlike
+                # mill owners, it's not required — a purchaser's operating area
+                # is less tied to a single physical location), but if one was
+                # sent it must be real.
+                raise serializers.ValidationError({"district_id": "Select a valid district."})
         return attrs
 
     def create(self, validated_data):
@@ -300,6 +300,7 @@ class RegisterLicenseApplicantSerializer(serializers.Serializer):
                     user=user,
                     organization=validated_data["business_name"],
                     reg_number=validated_data["business_registration_no"],
+                    nic=validated_data["nic"],
                     district_id=district_id,
                     phone=validated_data.get("contact_number", ""),
                 )
@@ -328,7 +329,7 @@ class LicenseApplicationSerializer(serializers.ModelSerializer):
             "id", "applicant_name", "applicant_email", "license_type",
             "license_type_display", "business_name", "business_registration_no",
             "contact_number", "status", "submitted_at", "reviewed_by_name",
-            "reviewed_at", "rejection_reason", "document_url",
+            "reviewed_at", "rejection_reason", "document_url", "license_number",
         ]
 
     def get_reviewed_by_name(self, obj):

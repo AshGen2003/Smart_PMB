@@ -41,8 +41,6 @@ import {
   ChevronRight,
   User,
   BadgeCheck,
-  FileCheck,
-  Package,
   Receipt,
 } from "lucide-react";
 

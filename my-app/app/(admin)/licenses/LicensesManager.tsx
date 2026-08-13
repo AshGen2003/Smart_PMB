@@ -9,7 +9,7 @@
 import React, { useMemo, useState, useTransition } from "react";
 import { format } from "date-fns";
 import clsx from "clsx";
-import { Check, X } from "lucide-react";
+import { Check, FileDown, X } from "lucide-react";
 import { approveLicense, rejectLicense } from "@/app/actions/licenses";
 import StyledSelect from "@/app/components/StyledSelect";
 import styles from "../residents/Users.module.css";
@@ -30,6 +30,8 @@ export type LicenseApplicationRow = {
   reviewed_at: string | null;
   rejection_reason: string;
   document_url: string | null;
+  // Assigned the moment an application is approved (see accounts.LicenseApplicationViewSet.approve) — null until then.
+  license_number: string | null;
 };
 
 const STATUS_BADGE: Record<LicenseApplicationRow["status"], string> = {
@@ -122,6 +124,7 @@ export default function LicensesManager({
                 <th>Type</th>
                 <th>Status</th>
                 <th>Document</th>
+                <th>Digital license</th>
                 <th>Submitted</th>
                 <th></th>
               </tr>
@@ -149,6 +152,20 @@ export default function LicensesManager({
                   <td>
                     {a.document_url ? (
                       <a href={a.document_url} target="_blank" rel="noreferrer">View</a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    {a.status === "approved" && a.license_number ? (
+                      <a
+                        href={`/api/licenses/${a.id}/certificate`}
+                        className={styles.rowActions}
+                        title="Download the digital license certificate PDF"
+                      >
+                        <span>{a.license_number}</span>
+                        <FileDown size={14} />
+                      </a>
                     ) : (
                       "—"
                     )}

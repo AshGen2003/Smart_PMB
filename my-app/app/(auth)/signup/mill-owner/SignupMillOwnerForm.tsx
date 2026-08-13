@@ -98,7 +98,7 @@ export default function SignupMillOwnerForm({
         <div className={styles.row2}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="nic">
-              NIC number
+              NIC / ID number
             </label>
             <input
               id="nic"
@@ -112,12 +112,13 @@ export default function SignupMillOwnerForm({
 
           <div className={styles.field}>
             <label className={styles.label} htmlFor="businessRegNo">
-              Business reg. no. <span className={styles.optional}>(optional)</span>
+              Business reg. no.
             </label>
             <input
               id="businessRegNo"
               name="businessRegNo"
               type="text"
+              required
               className={styles.input}
               placeholder="PV 00123456"
             />
