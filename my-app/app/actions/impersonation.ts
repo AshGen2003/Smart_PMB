@@ -20,12 +20,14 @@
  */
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requirePermission, homeFor } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import { verifyAccessToken } from "@/app/lib/jwt";
 import {
+  REFRESH_COOKIE,
   setTokenCookies,
   stashImpersonatorTokens,
   restoreImpersonatorTokens,
@@ -116,16 +118,27 @@ export async function overrideImpersonation(userId: string, reason: string): Pro
 }
 
 /**
- * Ends impersonation: restores the admin's real stashed tokens and returns
- * to /users (the Users page impersonation is started from) — same
- * reasoning as exitPreview() returning to /preview instead of /dashboard:
- * an admin ending one impersonation is usually about to start another (or
- * just came from there), so this saves them re-navigating back every time.
- * Only the *start* of impersonation is server-audited (see the backend
- * action) — ending it is just restoring cookies, not a new privileged
- * action, so no extra backend call is made here.
+ * Ends impersonation: blacklists the target's refresh token (mirrors
+ * actions/auth.ts's logout() — without this, the freshly-minted session
+ * from impersonate()/impersonate_override() would stay fully valid and
+ * replayable for its whole natural lifetime, up to 7 days, even after the
+ * admin believes they've "stopped"), then restores the admin's real
+ * stashed tokens and returns to /users (the Users page impersonation is
+ * started from) — same reasoning as exitPreview() returning to /preview
+ * instead of /dashboard: an admin ending one impersonation is usually
+ * about to start another (or just came from there), so this saves them
+ * re-navigating back every time.
  */
 export async function stopImpersonation() {
+  const cookieStore = await cookies();
+  const targetRefresh = cookieStore.get(REFRESH_COOKIE)?.value;
+  if (targetRefresh) {
+    await apiFetch("/api/auth/logout/", {
+      method: "POST",
+      body: JSON.stringify({ refresh: targetRefresh }),
+    }).catch(() => {});
+  }
+
   const restored = await restoreImpersonatorTokens();
   revalidatePath("/", "layout");
   redirect(restored ? "/users" : "/login");

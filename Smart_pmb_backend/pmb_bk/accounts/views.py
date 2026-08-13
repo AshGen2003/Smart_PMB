@@ -420,6 +420,13 @@ class AdminUserViewSet(viewsets.ModelViewSet):
             "manage_purchasers",
         )
     ]
+    # DRF's @action(...) kwarg override only accepts keys the class already
+    # declares (ViewSetMixin.as_view() checks hasattr(cls, key)) -- unlike
+    # throttle_classes, throttle_scope isn't a base APIView/ViewSet
+    # attribute at all, so request_impersonation_otp's per-action override
+    # below needs this declared here first, even though no other action on
+    # this viewset sets one.
+    throttle_scope = None
     queryset = (
         User.objects.all()
         .select_related("role", "farmer_profile", "pmb_officer_profile")
@@ -576,6 +583,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     @action(
         detail=True, methods=["post"], url_path="impersonate/request-otp",
         permission_classes=[HasPermission("impersonate_users")],
+        throttle_classes=[ScopedRateThrottle], throttle_scope="impersonation_otp",
     )
     def request_impersonation_otp(self, request, pk=None):
         """

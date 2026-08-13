@@ -256,6 +256,10 @@ REST_FRAMEWORK = {
         # endpoint has no per-account lockout of its own (it's unauthenticated
         # by definition), so this is its only abuse/spam guard.
         'password_reset': '5/min',
+        # Caps how fast one admin can trigger impersonation-OTP emails to a
+        # target — request_impersonation_otp had no throttle at all before,
+        # unlike every other OTP-emailing endpoint in this file.
+        'impersonation_otp': '10/min',
         # The scheduler calls this at most once a day — a generous cap that
         # still bounds how fast a leaked/guessed INTERNAL_TASK_SECRET could
         # be brute-forced or used to spam the job.
