@@ -112,7 +112,7 @@ export async function requestMillingAllocation(
   const res = await apiFetch("/api/mill-owner/milling-allocations/", {
     method: "POST",
     body: JSON.stringify({
-      paddy_type: Number(formData.get("paddy_type")),
+      paddy_type: formData.get("paddy_type") ? Number(formData.get("paddy_type")) : null,
       quantity_kg: String(formData.get("quantity_kg") ?? ""),
     }),
   });

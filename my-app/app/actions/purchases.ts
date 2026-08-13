@@ -27,7 +27,7 @@ export async function submitRiceRequest(
   const res = await apiFetch("/api/purchaser/requests/", {
     method: "POST",
     body: JSON.stringify({
-      paddy_type: Number(formData.get("paddy_type")),
+      paddy_type: formData.get("paddy_type") ? Number(formData.get("paddy_type")) : null,
       quantity_kg: String(formData.get("quantity_kg") ?? ""),
     }),
   });
@@ -53,6 +53,23 @@ export async function withdrawRiceRequest(requestId: number): Promise<{ error?: 
     return { error: firstErrorMessage(data) };
   }
 
+  revalidatePath("/purchaser/rice-requests");
+  revalidatePath("/purchaser");
+  return {};
+}
+
+/** Purchaser's own confirmation that a "delivered" load has actually arrived — closes the request out as "received". */
+export async function confirmRiceRequestReceipt(requestId: number): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/purchaser/requests/${requestId}/confirm_receipt/`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/purchaser/deliveries");
   revalidatePath("/purchaser/rice-requests");
   revalidatePath("/purchaser");
   return {};
@@ -138,7 +155,7 @@ export async function submitFarmGatePurchase(
     method: "POST",
     body: JSON.stringify({
       farmer: farmerId,
-      paddy_type: Number(formData.get("paddy_type")),
+      paddy_type: formData.get("paddy_type") ? Number(formData.get("paddy_type")) : null,
       weight_kg: String(formData.get("weight_kg") ?? ""),
     }),
   });

@@ -164,7 +164,7 @@ export async function adjustWarehouseStock(
   const res = await apiFetch(`/api/admin/warehouses/${warehouseId}/adjust-stock/`, {
     method: "POST",
     body: JSON.stringify({
-      paddy_type: Number(formData.get("paddy_type")),
+      paddy_type: formData.get("paddy_type") ? Number(formData.get("paddy_type")) : null,
       grade: String(formData.get("grade") ?? "") || null,
       quantity: String(formData.get("quantity") ?? ""),
       direction: String(formData.get("direction") ?? ""),
