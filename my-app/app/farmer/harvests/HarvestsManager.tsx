@@ -96,6 +96,7 @@ export default function HarvestsManager({
                   <th>{t.farmerHarvests.tableQuantity}</th>
                   <th>{t.farmerHarvests.tableHarvestDate}</th>
                   <th>{t.farmerHarvests.tableStatus}</th>
+                  <th>{t.farmerHarvests.tableQuality}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -108,6 +109,26 @@ export default function HarvestsManager({
                     <td>
                       <span className={clsx(styles.badge, styles[HARVEST_BADGE[h.status] ?? "badge-neutral"])}>
                         {STATUS_LABEL[h.status] ?? h.status}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={clsx(
+                          styles.badge,
+                          styles[
+                            h.meets_pmb_quality_standard === null
+                              ? "badge-neutral"
+                              : h.meets_pmb_quality_standard
+                              ? "badge-success"
+                              : "badge-danger"
+                          ]
+                        )}
+                      >
+                        {h.meets_pmb_quality_standard === null
+                          ? t.farmerHarvests.qualityNotAssessed
+                          : h.meets_pmb_quality_standard
+                          ? t.farmerHarvests.qualityPass
+                          : t.farmerHarvests.qualityFail}
                       </span>
                     </td>
                     <td>
