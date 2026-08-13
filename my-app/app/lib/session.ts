@@ -77,17 +77,32 @@ export async function clearTokenCookies() {
 /**
  * Copies the admin's *current* access/refresh cookies into the impersonator
  * stash, before startImpersonation overwrites them with the target user's
- * tokens — so stopImpersonation has something real to restore. 1-hour
- * lifetime, matching PREVIEW_COOKIE's — an impersonation session shouldn't
- * quietly outlive the tab either.
+ * tokens — so stopImpersonation has something real to restore.
+ *
+ * Lifetime matches REFRESH_COOKIE's own 7-day maxAge (== Django's
+ * REFRESH_TOKEN_LIFETIME) rather than something shorter: the *active*
+ * impersonated session (access_token/refresh_token, holding the target's
+ * identity) is never itself time-boxed below its normal login lifetime —
+ * proxy.ts refreshes it exactly like any other session for as long as its
+ * refresh token stays valid. A shorter cap here (this used to be 1 hour,
+ * matching PREVIEW_COOKIE) doesn't shrink that exposure window at all; it
+ * only breaks the admin's own way back once it silently expires — either
+ * stopImpersonation redirecting to /login with nothing to restore, or
+ * worse, getImpersonation() (dal.ts) finding no stash and just treating
+ * the session as a normal login *as the target*, with the banner and
+ * "stop impersonating" control both gone. See the stashed access token's
+ * own 15-minute staleness note: that's fine, restoreImpersonatorTokens()
+ * setting it back onto ACCESS_COOKIE just means the very next request
+ * hits proxy.ts's normal expired-access-token refresh path immediately.
  */
 export async function stashImpersonatorTokens() {
   const cookieStore = await cookies();
   const access = cookieStore.get(ACCESS_COOKIE)?.value;
   const refresh = cookieStore.get(REFRESH_COOKIE)?.value;
   if (!access || !refresh) return;
-  cookieStore.set(IMPERSONATOR_ACCESS_COOKIE, access, { ...cookieOpts, maxAge: 60 * 60 });
-  cookieStore.set(IMPERSONATOR_REFRESH_COOKIE, refresh, { ...cookieOpts, maxAge: 60 * 60 });
+  const maxAge = 60 * 60 * 24 * 7;
+  cookieStore.set(IMPERSONATOR_ACCESS_COOKIE, access, { ...cookieOpts, maxAge });
+  cookieStore.set(IMPERSONATOR_REFRESH_COOKIE, refresh, { ...cookieOpts, maxAge });
 }
 
 /**
