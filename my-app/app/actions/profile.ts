@@ -12,6 +12,33 @@ import { apiFetch } from "@/app/lib/api";
 import { firstErrorMessage } from "@/app/lib/errors";
 import { setTokenCookies } from "@/app/lib/session";
 
+// Every portal that has its own profile/settings pages and dashboard shell
+// showing the avatar (admin/officer share the bare (admin) route group).
+// A profile-picture or name change is visible on all three per role, so
+// every action below that touches those fields needs to revalidate all of
+// them, not just the one the user happened to submit from.
+const PORTAL_ROOTS = [
+  "", // (admin)/officer — bare root
+  "/farmer",
+  "/driver",
+  "/warehouse-manager",
+  "/mill-owner",
+  "/purchaser",
+];
+
+function revalidateProfilePaths() {
+  for (const root of PORTAL_ROOTS) {
+    revalidatePath(root || "/dashboard");
+    revalidatePath(`${root}/profile`);
+    revalidatePath(`${root}/settings`);
+  }
+  // Officer portal is a distinct route tree from (admin) despite sharing
+  // the same bare-root pattern conceptually.
+  revalidatePath("/officer");
+  revalidatePath("/officer/profile");
+  revalidatePath("/officer/settings");
+}
+
 // success is included alongside error because, unlike most action results,
 // the caller doesn't navigate away or reset the form on success (the user
 // often stays on the settings page), so the UI needs an explicit success
@@ -89,12 +116,7 @@ export async function updateProfile(
   const { access, refresh } = await res.json();
   await setTokenCookies(access, refresh);
 
-  // Both farmer and admin/officer variants of the settings/profile pages
-  // need refreshing since this one action serves both roles.
-  revalidatePath("/settings");
-  revalidatePath("/farmer/settings");
-  revalidatePath("/profile");
-  revalidatePath("/farmer/profile");
+  revalidateProfilePaths();
   return { success: "Your changes have been saved." };
 }
 
@@ -114,7 +136,7 @@ export type ProfilePictureState = {
  * @param formData Must contain a `profile_picture` File field.
  * @returns `{ error }` if no file was selected or the upload failed,
  *   otherwise `{}` after revalidating every page that displays the user's
- *   avatar (settings/profile pages for both roles, plus the dashboards).
+ *   avatar across every portal.
  */
 export async function uploadProfilePicture(
   _prevState: ProfilePictureState,
@@ -138,11 +160,32 @@ export async function uploadProfilePicture(
     return { error: firstErrorMessage(data, "Could not upload your photo.") };
   }
 
-  revalidatePath("/settings");
-  revalidatePath("/farmer/settings");
-  revalidatePath("/profile");
-  revalidatePath("/farmer/profile");
-  revalidatePath("/dashboard");
-  revalidatePath("/farmer");
+  revalidateProfilePaths();
+  return {};
+}
+
+/**
+ * Removes the current user's profile picture. Distinct from a plain PATCH
+ * with no `profile_picture` field (which means "leave it unchanged") via
+ * the explicit `remove_profile_picture` flag — see SelfProfileSerializer.
+ *
+ * @returns `{ error }` if the API call failed, otherwise `{}` after
+ *   revalidating every page that displays the user's avatar.
+ */
+export async function removeProfilePicture(
+  _prevState: ProfilePictureState,
+  _formData: FormData
+): Promise<ProfilePictureState> {
+  const res = await apiFetch("/api/auth/me/", {
+    method: "PATCH",
+    body: JSON.stringify({ remove_profile_picture: true }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data, "Could not remove your photo.") };
+  }
+
+  revalidateProfilePaths();
   return {};
 }

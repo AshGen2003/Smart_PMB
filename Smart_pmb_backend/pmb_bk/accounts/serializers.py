@@ -355,6 +355,11 @@ class SelfProfileSerializer(serializers.Serializer):
     nic = serializers.CharField(max_length=20, required=False, allow_blank=True)
     phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
     profile_picture = serializers.ImageField(required=False, allow_null=True)
+    # Separate from profile_picture=null: a multipart request simply omits a
+    # file field it doesn't want to change, so there's no way to tell "no
+    # file sent" apart from "clear the picture" on that field alone. This
+    # flag makes removal an explicit, unambiguous request.
+    remove_profile_picture = serializers.BooleanField(required=False, default=False)
     current_password = serializers.CharField(
         required=False, allow_blank=True, write_only=True
     )
@@ -395,6 +400,7 @@ class SelfProfileSerializer(serializers.Serializer):
         nic = self.validated_data.get("nic")
         phone_number = self.validated_data.get("phone_number")
         profile_picture = self.validated_data.get("profile_picture")
+        remove_profile_picture = self.validated_data.get("remove_profile_picture")
         new_password = self.validated_data.get("new_password")
         notify_in_app_messages = self.validated_data.get("notify_in_app_messages")
         notify_harvest_updates = self.validated_data.get("notify_harvest_updates")
@@ -406,7 +412,16 @@ class SelfProfileSerializer(serializers.Serializer):
             user.nic = nic.strip()
         if phone_number is not None:
             user.phone_number = phone_number.strip()
-        if profile_picture is not None:
+        if remove_profile_picture:
+            if user.profile_picture:
+                user.profile_picture.delete(save=False)
+            user.profile_picture = None
+        elif profile_picture is not None:
+            # Delete the old file before pointing at the new one -- ImageField
+            # otherwise just overwrites the DB pointer, leaving the previous
+            # upload orphaned on disk forever.
+            if user.profile_picture:
+                user.profile_picture.delete(save=False)
             user.profile_picture = profile_picture
         if new_password:
             user.set_password(new_password)
