@@ -6,6 +6,7 @@ import secrets
 import string
 from datetime import timedelta
 
+from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -336,10 +337,14 @@ class LicenseApplicationSerializer(serializers.ModelSerializer):
         return obj.reviewed_by.full_name if obj.reviewed_by else None
 
     def get_document_url(self, obj):
-        request = self.context.get("request")
+        # settings.BACKEND_URL, not request.build_absolute_uri() -- this is
+        # fetched via a server-to-server call straight to 127.0.0.1:8000,
+        # not through nginx/the public hostname, so the request's own Host
+        # header would bake a browser-unreachable internal address into the
+        # URL. See BACKEND_URL's own comment in settings.py.
         if not obj.document:
             return None
-        return request.build_absolute_uri(obj.document.url) if request else obj.document.url
+        return f"{settings.BACKEND_URL}{obj.document.url}"
 
 
 class LicenseDecisionSerializer(serializers.Serializer):

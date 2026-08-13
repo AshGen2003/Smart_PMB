@@ -302,12 +302,15 @@ class MeView(APIView):
     """Lets the logged-in user view (GET) and edit (PATCH) their own profile, including changing their password."""
     permission_classes = [IsAuthenticated]
 
-    def _profile_picture_url(self, request, user):
+    def _profile_picture_url(self, user):
         # Build a full absolute URL (not just the relative media path) so
-        # the frontend can use it directly as an <img src>.
+        # the frontend can use it directly as an <img src>. Uses
+        # settings.BACKEND_URL rather than request.build_absolute_uri() --
+        # see BACKEND_URL's own comment for why the request's Host header
+        # isn't trustworthy here.
         if not user.profile_picture:
             return None
-        return request.build_absolute_uri(user.profile_picture.url)
+        return f"{settings.BACKEND_URL}{user.profile_picture.url}"
 
     def _notification_prefs(self, user):
         # notify_harvest_updates/notify_via_sms only exist on farmer_profile,
@@ -352,7 +355,7 @@ class MeView(APIView):
                 "full_name": user.full_name,
                 "nic": user.nic,
                 "phone_number": user.phone_number,
-                "profile_picture": self._profile_picture_url(request, user),
+                "profile_picture": self._profile_picture_url(user),
                 "role": user.role.slug,
                 "role_name": user.role.name,
                 "permissions": list(
@@ -383,7 +386,7 @@ class MeView(APIView):
                 "full_name": user.full_name,
                 "nic": user.nic,
                 "phone_number": user.phone_number,
-                "profile_picture": self._profile_picture_url(request, user),
+                "profile_picture": self._profile_picture_url(user),
                 "role": user.role.slug,
                 "role_name": user.role.name,
                 "permissions": list(

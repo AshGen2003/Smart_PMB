@@ -272,6 +272,15 @@ REST_FRAMEWORK = {
 # outgoing emails (e.g. the email-confirmation link in accounts/emails.py).
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 
+# Public base URL of this backend itself, used to build absolute media URLs
+# (profile pictures, license application documents) that get sent to the
+# browser. Deliberately NOT request.build_absolute_uri() -- the frontend
+# calls this API server-to-server, straight over 127.0.0.1:8000 rather than
+# through nginx/the public hostname (see NEXT_PUBLIC_DJANGO_API_URL), so a
+# request-based host would bake that internal, browser-unreachable address
+# into the URL instead of the real public one.
+BACKEND_URL = config('BACKEND_URL', default='http://localhost:8000')
+
 # Defaults to printing emails to the console in development; set real SMTP
 # credentials via environment variables for production email delivery.
 EMAIL_BACKEND = config(
