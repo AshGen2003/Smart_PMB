@@ -45,6 +45,7 @@ from farmers.views import (
     InventoryViewSet,
     MaintenanceRecordViewSet,
     OfficerHarvestViewSet,
+    OfficerPaymentViewSet,
     PaddyTypeViewSet,
     RouteViewSet,
     TransactionLogViewSet,

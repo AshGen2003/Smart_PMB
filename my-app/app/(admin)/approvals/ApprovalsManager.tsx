@@ -51,6 +51,9 @@ export type HarvestRow = {
   purchase_date: string | null;
   grade: "A" | "B" | "C" | null;
   moisture_level: string | null;
+  impurity_percent: string | null;
+  empty_grains_percent: string | null;
+  meets_pmb_quality_standard: boolean | null;
   quality_check: boolean | null;
   unit_price: string | null;
   status: "pending" | "verified" | "collected" | "rejected";
@@ -207,6 +210,7 @@ export default function ApprovalsManager({
                   <th>Warehouse</th>
                   <th>Quantity (kg)</th>
                   <th>Grade</th>
+                  <th>Quality</th>
                   <th>Unit price</th>
                   <th>Date</th>
                   <th>Processed by</th>
@@ -226,6 +230,24 @@ export default function ApprovalsManager({
                     <td>{h.warehouse_name ?? "—"}</td>
                     <td>{Number(h.quantity_kg).toLocaleString()}</td>
                     <td>{h.grade ? `Grade ${h.grade}` : "—"}</td>
+                    <td>
+                      <span
+                        className={clsx(
+                          styles.badge,
+                          h.meets_pmb_quality_standard === null
+                            ? styles["badge-neutral"]
+                            : h.meets_pmb_quality_standard
+                            ? styles["badge-success"]
+                            : styles["badge-danger"]
+                        )}
+                      >
+                        {h.meets_pmb_quality_standard === null
+                          ? "Not assessed"
+                          : h.meets_pmb_quality_standard
+                          ? "PMB Pass"
+                          : "PMB Fail"}
+                      </span>
+                    </td>
                     <td>{h.unit_price ? `Rs. ${Number(h.unit_price).toLocaleString()}` : "—"}</td>
                     <td>{h.purchase_date ?? h.harvest_date}</td>
                     <td>{h.processed_by_name ?? "—"}</td>
@@ -248,6 +270,8 @@ export default function ApprovalsManager({
                                   purchase_date: h.purchase_date,
                                   grade: h.grade,
                                   moisture_level: h.moisture_level,
+                                  impurity_percent: h.impurity_percent,
+                                  empty_grains_percent: h.empty_grains_percent,
                                   quality_check: h.quality_check,
                                   unit_price: h.unit_price,
                                 },

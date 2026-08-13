@@ -20,6 +20,7 @@ class AuthorizedPurchaser(models.Model):
     )
     organization = models.CharField(max_length=150)
     reg_number = models.CharField(max_length=50, blank=True)
+    nic = models.CharField(max_length=20, unique=True)
     district = models.ForeignKey(
         "farmers.District", on_delete=models.SET_NULL, null=True, blank=True, related_name="authorized_purchasers"
     )

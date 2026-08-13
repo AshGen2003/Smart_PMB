@@ -10,8 +10,13 @@
 import React, { useMemo, useState, useTransition } from "react";
 import clsx from "clsx";
 import { format } from "date-fns";
-import { Check, FileCheck, X } from "lucide-react";
-import { approveMillLicense, rejectMillLicense } from "@/app/actions/mill-licenses";
+import { Ban, Check, ChevronDown, ChevronUp, FileCheck, PauseCircle, X } from "lucide-react";
+import {
+  approveMillLicense,
+  rejectMillLicense,
+  revokeMillLicense,
+  suspendMillLicense,
+} from "@/app/actions/mill-licenses";
 import styles from "./Licenses.module.css";
 
 export type LicenseRow = {
@@ -20,19 +25,41 @@ export type LicenseRow = {
   mill_name: string | null;
   mill_registration_no: string | null;
   license_no: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "suspended" | "revoked";
   applied_date: string;
   issued_date: string | null;
   expiry_date: string | null;
   reviewed_by_name: string | null;
   review_notes: string;
+  renewed_from: number | null;
+  requested_capacity_mt_per_day: string | null;
+  milling_type: "raw" | "parboiled" | "both" | "";
+  premises_address: string;
+  justification: string;
+  contact_number: string;
+};
+
+const MILLING_TYPE_LABEL: Record<string, string> = {
+  raw: "Raw",
+  parboiled: "Parboiled",
+  both: "Both",
 };
 
 const TABS: { key: LicenseRow["status"]; label: string }[] = [
   { key: "pending", label: "Pending" },
   { key: "approved", label: "Approved" },
+  { key: "suspended", label: "Suspended" },
+  { key: "revoked", label: "Revoked" },
   { key: "rejected", label: "Rejected" },
 ];
+
+const STATUS_BADGE: Record<LicenseRow["status"], string> = {
+  pending: "badge-warning",
+  approved: "badge-success",
+  suspended: "badge-warning",
+  revoked: "badge-danger",
+  rejected: "badge-danger",
+};
 
 export default function LicensesManager({
   licenses,
@@ -42,9 +69,12 @@ export default function LicensesManager({
   canWrite: boolean;
 }) {
   const [tab, setTab] = useState<LicenseRow["status"]>("pending");
-  const [rejectTarget, setRejectTarget] = useState<LicenseRow | null>(null);
-  const [rejectNotes, setRejectNotes] = useState("");
+  // A single modal handles reject/suspend/revoke — they're all "pick a
+  // target, write a reason, confirm" with only the action and copy differing.
+  const [reasonTarget, setReasonTarget] = useState<{ license: LicenseRow; kind: "reject" | "suspend" | "revoke" } | null>(null);
+  const [reasonNotes, setReasonNotes] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const filtered = useMemo(() => licenses.filter((l) => l.status === tab), [licenses, tab]);
@@ -67,13 +97,21 @@ export default function LicensesManager({
     runAction(() => approveMillLicense(l.id));
   }
 
-  function handleRejectConfirm() {
-    if (!rejectTarget) return;
-    const target = rejectTarget;
-    setRejectTarget(null);
+  const REASON_COPY = {
+    reject: { title: "Reject license application", action: rejectMillLicense, placeholder: "Reason (optional)", required: false },
+    suspend: { title: "Suspend license", action: suspendMillLicense, placeholder: "Reason (required)", required: true },
+    revoke: { title: "Revoke license", action: revokeMillLicense, placeholder: "Reason (required)", required: true },
+  } as const;
+
+  function handleReasonConfirm() {
+    if (!reasonTarget) return;
+    const { license, kind } = reasonTarget;
+    const copy = REASON_COPY[kind];
+    if (copy.required && !reasonNotes.trim()) return;
+    setReasonTarget(null);
     runAction(async () => {
-      const result = await rejectMillLicense(target.id, rejectNotes);
-      setRejectNotes("");
+      const result = await copy.action(license.id, reasonNotes.trim());
+      setReasonNotes("");
       return result;
     });
   }
@@ -109,21 +147,41 @@ export default function LicensesManager({
                   <th>Mill</th>
                   <th>Reg. No.</th>
                   <th>License No.</th>
+                  <th>Milling type</th>
+                  <th>Requested capacity</th>
                   <th>Applied</th>
                   <th>Expiry</th>
+                  <th>Status</th>
                   <th>Reviewed by</th>
+                  <th></th>
                   {canWrite && <th></th>}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((l) => (
-                  <tr key={l.id}>
+                  <React.Fragment key={l.id}>
+                  <tr>
                     <td>{l.mill_name ?? "—"}</td>
                     <td>{l.mill_registration_no ?? "—"}</td>
                     <td>{l.license_no ?? "—"}</td>
+                    <td>{l.milling_type ? MILLING_TYPE_LABEL[l.milling_type] : "—"}</td>
+                    <td>{l.requested_capacity_mt_per_day ? `${Number(l.requested_capacity_mt_per_day).toLocaleString()} MT/day` : "—"}</td>
                     <td>{format(new Date(l.applied_date), "MMM d, yyyy")}</td>
                     <td>{l.expiry_date ? format(new Date(l.expiry_date), "MMM d, yyyy") : "—"}</td>
+                    <td>
+                      <span className={clsx(styles.badge, styles[STATUS_BADGE[l.status]])}>{l.status}</span>
+                    </td>
                     <td>{l.reviewed_by_name ?? "—"}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className={styles.linkBtn}
+                        onClick={() => setExpandedId(expandedId === l.id ? null : l.id)}
+                      >
+                        {expandedId === l.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        Details
+                      </button>
+                    </td>
                     {canWrite && (
                       <td>
                         {l.status === "pending" && (
@@ -142,15 +200,65 @@ export default function LicensesManager({
                               className={clsx(styles.iconBtn, styles.rejectBtn)}
                               aria-label="Reject"
                               disabled={isPending}
-                              onClick={() => setRejectTarget(l)}
+                              onClick={() => { setReasonNotes(""); setReasonTarget({ license: l, kind: "reject" }); }}
                             >
                               <X size={15} />
+                            </button>
+                          </div>
+                        )}
+                        {l.status === "approved" && (
+                          <div className={styles.rowActions}>
+                            <button
+                              type="button"
+                              className={styles.iconBtn}
+                              aria-label="Suspend"
+                              title="Suspend"
+                              disabled={isPending}
+                              onClick={() => { setReasonNotes(""); setReasonTarget({ license: l, kind: "suspend" }); }}
+                            >
+                              <PauseCircle size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className={clsx(styles.iconBtn, styles.rejectBtn)}
+                              aria-label="Revoke"
+                              title="Revoke"
+                              disabled={isPending}
+                              onClick={() => { setReasonNotes(""); setReasonTarget({ license: l, kind: "revoke" }); }}
+                            >
+                              <Ban size={15} />
+                            </button>
+                          </div>
+                        )}
+                        {l.status === "suspended" && (
+                          <div className={styles.rowActions}>
+                            <button
+                              type="button"
+                              className={clsx(styles.iconBtn, styles.rejectBtn)}
+                              aria-label="Revoke"
+                              title="Revoke"
+                              disabled={isPending}
+                              onClick={() => { setReasonNotes(""); setReasonTarget({ license: l, kind: "revoke" }); }}
+                            >
+                              <Ban size={15} />
                             </button>
                           </div>
                         )}
                       </td>
                     )}
                   </tr>
+                  {expandedId === l.id && (
+                    <tr>
+                      <td colSpan={canWrite ? 10 : 9} style={{ background: "var(--sidebar-hover)" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", padding: "0.5rem 0" }}>
+                          <div><strong>Premises address:</strong> {l.premises_address || "—"}</div>
+                          <div><strong>Justification:</strong> {l.justification || "—"}</div>
+                          <div><strong>Contact number:</strong> {l.contact_number || "—"}</div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -163,22 +271,27 @@ export default function LicensesManager({
         )}
       </div>
 
-      {rejectTarget && (
-        <div className={styles.overlay} onClick={() => setRejectTarget(null)}>
+      {reasonTarget && (
+        <div className={styles.overlay} onClick={() => setReasonTarget(null)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <h3 className={styles.modalTitle}>Reject license application</h3>
+            <h3 className={styles.modalTitle}>{REASON_COPY[reasonTarget.kind].title}</h3>
             <textarea
               className={styles.textarea}
-              placeholder="Reason (optional)"
-              value={rejectNotes}
-              onChange={(e) => setRejectNotes(e.target.value)}
+              placeholder={REASON_COPY[reasonTarget.kind].placeholder}
+              value={reasonNotes}
+              onChange={(e) => setReasonNotes(e.target.value)}
             />
             <div className={styles.modalActions}>
-              <button type="button" className={styles.secondaryBtn} onClick={() => setRejectTarget(null)}>
+              <button type="button" className={styles.secondaryBtn} onClick={() => setReasonTarget(null)}>
                 Cancel
               </button>
-              <button type="button" className={styles.primaryBtn} onClick={handleRejectConfirm}>
-                Reject
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={handleReasonConfirm}
+                disabled={REASON_COPY[reasonTarget.kind].required && !reasonNotes.trim()}
+              >
+                {REASON_COPY[reasonTarget.kind].title}
               </button>
             </div>
           </div>

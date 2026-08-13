@@ -162,15 +162,18 @@ export async function signupFarmer(
  * via Django's public registration endpoint. Like signupFarmer, this
  * doesn't log the user in — the account needs both email confirmation AND
  * an officer/admin's approval of the application before it reaches real
- * access (see the partner/ route group's layout), so this just redirects
- * to the login page with the same "check your email" success flag.
+ * access (see the partner/ route group's layout). Unlike signupFarmer, it
+ * redirects with a distinct `applied=1` flag (not `registered=1`) so the
+ * login page shows an "application submitted, wait for officer approval"
+ * message instead of the farmer-oriented "check your email" one — accurate
+ * regardless of whether real email delivery is configured.
  *
  * @param _prevState Previous form state (unused; useActionState contract).
  * @param formData Submitted fields (email, password, confirmPassword,
  *   fullName, licenseType, businessName, businessRegistrationNo,
  *   contactNumber).
  * @returns `{ error }` on validation/registration failure. On success,
- *   redirects to `/login?registered=1` instead of returning.
+ *   redirects to `/login?applied=1` instead of returning.
  */
 export async function signupPartner(
   _prevState: SignupState,
@@ -189,8 +192,8 @@ export async function signupPartner(
   if (licenseType !== "authorized_purchaser" && licenseType !== "mill_owner") {
     return { error: "Choose whether you're applying as an authorized purchaser or mill owner." };
   }
-  if (licenseType === "mill_owner" && !String(formData.get("nic") ?? "").trim()) {
-    return { error: "NIC is required for a mill owner application." };
+  if (!String(formData.get("nic") ?? "").trim()) {
+    return { error: "NIC is required." };
   }
   if (licenseType === "mill_owner" && !formData.get("districtId")) {
     return { error: "Please select your mill's district." };
@@ -226,7 +229,127 @@ export async function signupPartner(
     return { error: firstErrorMessage(data) };
   }
 
-  redirect("/login?registered=1");
+  redirect("/login?applied=1");
+}
+
+/**
+ * Registers a new mill-owner licensing application via the same
+ * `/api/auth/register/license/` endpoint as signupPartner, fixing
+ * license_type to "mill_owner". Backs SignupMillOwnerForm.tsx's dedicated
+ * (non-role-picker) fields, which differ slightly in name from
+ * SignupPartnerForm's (millName/ownerName vs businessName/fullName).
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Submitted fields (millName, ownerName, nic, businessRegNo,
+ *   email, contactNumber, password, confirmPassword, districtId,
+ *   capacityMtPerDay).
+ * @returns `{ error }` on validation/registration failure. On success,
+ *   redirects to `/login?applied=1` instead of returning.
+ */
+export async function signupMillOwner(
+  _prevState: SignupState,
+  formData: FormData
+): Promise<SignupState> {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+  const districtId = Number(formData.get("districtId"));
+
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match." };
+  }
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+  if (!String(formData.get("nic") ?? "").trim()) {
+    return { error: "NIC is required." };
+  }
+  if (!districtId) {
+    return { error: "Please select your mill's district." };
+  }
+
+  const capacityRaw = formData.get("capacityMtPerDay");
+
+  const payload = {
+    email: String(formData.get("email") ?? "").trim(),
+    password,
+    full_name: String(formData.get("ownerName") ?? "").trim(),
+    license_type: "mill_owner",
+    business_name: String(formData.get("millName") ?? "").trim(),
+    business_registration_no: String(formData.get("businessRegNo") ?? "").trim(),
+    contact_number: String(formData.get("contactNumber") ?? "").trim(),
+    nic: String(formData.get("nic") ?? "").trim(),
+    district_id: districtId,
+    capacity_mt_per_day: capacityRaw ? Number(capacityRaw) : undefined,
+  };
+
+  const res = await fetch(`${API_URL}/api/auth/register/license/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  redirect("/login?applied=1");
+}
+
+/**
+ * Registers a new authorized-purchaser licensing application via the same
+ * `/api/auth/register/license/` endpoint as signupPartner, fixing
+ * license_type to "authorized_purchaser". Backs
+ * SignupAuthorizedPurchaserForm.tsx's dedicated (non-role-picker) fields.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Submitted fields (fullName, nic, businessName,
+ *   businessRegistrationNo, contactNumber, email, password, confirmPassword).
+ * @returns `{ error }` on validation/registration failure. On success,
+ *   redirects to `/login?applied=1` instead of returning.
+ */
+export async function signupAuthorizedPurchaser(
+  _prevState: SignupState,
+  formData: FormData
+): Promise<SignupState> {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match." };
+  }
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+  if (!String(formData.get("nic") ?? "").trim()) {
+    return { error: "NIC is required." };
+  }
+
+  const payload = {
+    email: String(formData.get("email") ?? "").trim(),
+    password,
+    full_name: String(formData.get("fullName") ?? "").trim(),
+    license_type: "authorized_purchaser",
+    business_name: String(formData.get("businessName") ?? "").trim(),
+    business_registration_no: String(formData.get("businessRegistrationNo") ?? "").trim(),
+    contact_number: String(formData.get("contactNumber") ?? "").trim(),
+    nic: String(formData.get("nic") ?? "").trim(),
+  };
+
+  const res = await fetch(`${API_URL}/api/auth/register/license/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  redirect("/login?applied=1");
 }
 
 /**

@@ -31,13 +31,17 @@ class RiceRequestSerializer(serializers.ModelSerializer):
     """Read representation of a RiceRequest, for a purchaser viewing their own requests."""
 
     paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
+    delivery = serializers.SerializerMethodField()
 
     class Meta:
         model = RiceRequest
         fields = [
             "id", "paddy_type", "paddy_type_name", "quantity_kg", "status",
-            "requested_date", "review_notes",
+            "requested_date", "review_notes", "delivery",
         ]
+
+    def get_delivery(self, obj):
+        return _delivery_status(obj)
 
 
 class RiceRequestWriteSerializer(serializers.ModelSerializer):
@@ -54,14 +58,18 @@ class OfficerRiceRequestSerializer(serializers.ModelSerializer):
     purchaser_name = serializers.CharField(source="purchaser.full_name", default=None)
     paddy_type_name = serializers.CharField(source="paddy_type.type_name", default=None)
     reviewed_by_name = serializers.CharField(source="reviewed_by.full_name", default=None)
+    has_delivery = serializers.SerializerMethodField()
 
     class Meta:
         model = RiceRequest
         fields = [
             "id", "purchaser", "purchaser_name", "paddy_type", "paddy_type_name",
             "quantity_kg", "status", "requested_date", "reviewed_by_name",
-            "fulfilled_from_warehouse", "review_notes",
+            "fulfilled_from_warehouse", "review_notes", "has_delivery",
         ]
+
+    def get_has_delivery(self, obj):
+        return obj.deliveries.exists()
 
 
 class PurchaserStockSerializer(serializers.ModelSerializer):

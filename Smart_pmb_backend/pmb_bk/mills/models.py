@@ -46,16 +46,26 @@ class License(models.Model):
     """
     A mill's license application and its approval workflow: pending ->
     approved (an officer assigns a license number, issue/expiry dates) or
-    pending -> rejected. See OfficerLicenseViewSet's approve/reject actions
-    in views.py for the transitions. A pending application can be deleted
-    by its owner — that deletion *is* the "withdraw" action, so there is no
-    separate "withdrawn" status.
+    pending -> rejected; an approved license can later be suspended or
+    revoked by an officer (see OfficerLicenseViewSet's suspend/revoke
+    actions in views.py), reusing `review_notes` for the reason. A pending
+    application can be deleted by its owner — that deletion *is* the
+    "withdraw" action, so there is no separate "withdrawn" status.
+    Renewal is just applying for a new License with `renewed_from` set to
+    the one being renewed — there's no separate renewal model.
     """
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
+        SUSPENDED = "suspended", "Suspended"
+        REVOKED = "revoked", "Revoked"
+
+    class MillingType(models.TextChoices):
+        RAW = "raw", "Raw"
+        PARBOILED = "parboiled", "Parboiled"
+        BOTH = "both", "Both"
 
     mill = models.ForeignKey(Mill, on_delete=models.CASCADE, related_name="licenses")
     license_no = models.CharField(max_length=50, unique=True, null=True, blank=True)
@@ -71,6 +81,17 @@ class License(models.Model):
         related_name="reviewed_licenses",
     )
     review_notes = models.TextField(blank=True)
+    renewed_from = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="renewals"
+    )
+    # Applicant-submitted details an officer reviews before issuing a
+    # license — what the applicant is actually asking to be licensed to do,
+    # not just a bare "please issue me a license" request.
+    requested_capacity_mt_per_day = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    milling_type = models.CharField(max_length=10, choices=MillingType.choices, blank=True)
+    premises_address = models.TextField(blank=True)
+    justification = models.TextField(blank=True)
+    contact_number = models.CharField(max_length=20, blank=True)
 
     class Meta:
         ordering = ["-applied_date"]
@@ -147,12 +168,19 @@ class MillingReport(models.Model):
     harvest = models.ForeignKey(
         "farmers.Harvest", on_delete=models.SET_NULL, null=True, blank=True, related_name="milling_reports"
     )
+    # Optional link to the fulfilled MillingAllocation this report accounts
+    # for, so allocated-vs-reported-processed figures can be compared.
+    allocation = models.ForeignKey(
+        MillingAllocation, on_delete=models.SET_NULL, null=True, blank=True, related_name="milling_reports"
+    )
     paddy_type = models.ForeignKey(
         "farmers.PaddyType", on_delete=models.SET_NULL, null=True, blank=True, related_name="milling_reports"
     )
     report_date = models.DateField(auto_now_add=True)
     paddy_processed_kg = models.DecimalField(max_digits=12, decimal_places=2)
     rice_output_kg = models.DecimalField(max_digits=12, decimal_places=2)
+    husk_kg = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    bran_kg = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True)
 
     class Meta:

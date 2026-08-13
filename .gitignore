@@ -1,5 +1,5 @@
 # Python virtual environment (never commit — environment-specific, huge)
-Smart_pmb_backend/pmb/
+Smart_pmb_backend/pmb_bk/venv/
 
 # OS cruft
 .DS_Store

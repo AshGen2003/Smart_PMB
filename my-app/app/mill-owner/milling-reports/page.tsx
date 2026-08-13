@@ -4,6 +4,7 @@
  */
 import { format } from "date-fns";
 import { apiFetch } from "@/app/lib/api";
+import MillingCalculator from "./MillingCalculator";
 import MillingReportForm, { type PaddyTypeOption } from "./MillingReportForm";
 import styles from "./MillingReports.module.css";
 
@@ -12,6 +13,8 @@ type MillingReportRow = {
   report_date: string;
   paddy_processed_kg: string;
   rice_output_kg: string;
+  husk_kg: string | null;
+  bran_kg: string | null;
   paddy_type_name: string | null;
   notes: string;
 };
@@ -30,6 +33,8 @@ export default async function MillingReportsPage() {
         <h1 className={styles.pageTitle}>Milling Reports</h1>
         <span className={styles.subtitle}>Submit periodic reports of paddy processed and rice produced</span>
       </div>
+
+      <MillingCalculator />
 
       <MillingReportForm paddyTypes={paddyTypes} />
 

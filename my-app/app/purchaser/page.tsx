@@ -9,6 +9,7 @@
  * rice requests (purchases app). Preview never fetches real data, same as
  * messages/bell.
  */
+import { FileDown } from "lucide-react";
 import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
 import PurchaserPanel from "./PurchaserPanel";
@@ -44,6 +45,17 @@ export default async function PurchaserDashboardPage() {
             <span className={styles.detailLabel}>Status</span>
             <span className={styles.statusBadge}>Approved</span>
           </div>
+          {user.licenseNumber && (
+            <>
+              <div className={styles.detailRow}>
+                <span className={styles.detailLabel}>License number</span>
+                <span className={styles.detailValue}>{user.licenseNumber}</span>
+              </div>
+              <a href="/api/licenses/certificate" className={styles.certificateLink}>
+                <FileDown size={15} /> Download digital license certificate
+              </a>
+            </>
+          )}
         </div>
       )}
 

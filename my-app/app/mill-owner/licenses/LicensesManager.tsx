@@ -1,8 +1,9 @@
 /**
  * Client Component driving the mill owner's license applications: a table
- * of all their applications plus an "Apply for License" button and a
- * withdraw action (only shown on pending rows). Mirrors the table/action
- * pattern in app/farmer/harvests/HarvestsManager.tsx.
+ * of all their applications plus an "Apply for License" button (opens the
+ * full LicenseApplicationFormModal) and a withdraw action (only shown on
+ * pending rows). Mirrors the table/action pattern in
+ * app/farmer/harvests/HarvestsManager.tsx.
  */
 "use client";
 
@@ -17,30 +18,39 @@ import styles from "./Licenses.module.css";
 export type LicenseRow = {
   id: number;
   license_no: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "suspended" | "revoked";
   applied_date: string;
   issued_date: string | null;
   expiry_date: string | null;
   review_notes: string;
+  renewed_from: number | null;
+  requested_capacity_mt_per_day: string | null;
+  milling_type: "raw" | "parboiled" | "both" | "";
+  premises_address: string;
+  justification: string;
+  contact_number: string;
 };
 
 const LICENSE_BADGE: Record<string, string> = {
   pending: "badge-warning",
   approved: "badge-success",
   rejected: "badge-danger",
+  suspended: "badge-warning",
+  revoked: "badge-danger",
 };
+
+const MILLING_TYPE_LABEL: Record<string, string> = {
+  raw: "Raw",
+  parboiled: "Parboiled",
+  both: "Both",
+};
+
+const EXPIRY_WARNING_DAYS = 30;
 
 export default function LicensesManager({ licenses }: { licenses: LicenseRow[] }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  function handleApply() {
-    setActionError(null);
-    startTransition(async () => {
-      const result = await applyForLicense();
-      if (result.error) setActionError(result.error);
-    });
-  }
+  const [modal, setModal] = useState<{ renewedFrom?: number } | null>(null);
 
   const [withdrawTarget, setWithdrawTarget] = useState<LicenseRow | null>(null);
 
@@ -66,7 +76,7 @@ export default function LicensesManager({ licenses }: { licenses: LicenseRow[] }
           <h1 className={styles.pageTitle}>Licenses</h1>
           <span className={styles.subtitle}>Apply for a rice mill license and track its approval status</span>
         </div>
-        <button type="button" className={styles.newBtn} onClick={handleApply} disabled={isPending}>
+        <button type="button" className={styles.newBtn} onClick={() => setModal({})}>
           <Plus size={16} /> Apply for license
         </button>
       </div>

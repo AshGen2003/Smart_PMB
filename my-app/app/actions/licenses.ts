@@ -49,3 +49,34 @@ export async function rejectLicense(
   revalidatePath("/licenses");
   return {};
 }
+
+/**
+ * Uploads (or replaces) the logged-in applicant's own supporting business
+ * document while their LicenseApplication is still pending review. Called
+ * from partner/PendingLicenseScreen.tsx's holding screen.
+ */
+export async function uploadLicenseApplicationDocument(
+  _prevState: { error?: string },
+  formData: FormData
+): Promise<{ error?: string }> {
+  const document = formData.get("document");
+  if (!(document instanceof File) || document.size === 0) {
+    return { error: "Choose a file to upload." };
+  }
+
+  const body = new FormData();
+  body.set("document", document);
+
+  const res = await apiFetch("/api/auth/license-application/document/", {
+    method: "PATCH",
+    body,
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/partner");
+  return {};
+}

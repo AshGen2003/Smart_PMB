@@ -6,6 +6,7 @@ import secrets
 import string
 from datetime import timedelta
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -18,6 +19,7 @@ from purchases.models import AuthorizedPurchaser
 from sysops.utils import get_config_value, log_auth, raise_repeated_login_failure_alert
 
 from .constants import OFFICER_DASHBOARD_WIDGETS
+from .validators import validate_nic as validate_nic_format
 from .models import LicenseApplication, Message, Permission, PmbOfficer, Role, User
 
 
@@ -143,6 +145,10 @@ class RegisterFarmerSerializer(serializers.Serializer):
         return value
 
     def validate_nic(self, value):
+        try:
+            validate_nic_format(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message)
         if Farmer.objects.filter(nic=value).exists():
             raise serializers.ValidationError("An account with this NIC already exists.")
         return value
@@ -217,13 +223,12 @@ class RegisterLicenseApplicantSerializer(serializers.Serializer):
     business_name = serializers.CharField(max_length=150)
     business_registration_no = serializers.CharField(max_length=50)
     contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    # NIC is required for every license type — it becomes Mill.nic for mill
+    # owners or AuthorizedPurchaser.nic for purchasers (see create() below).
+    nic = serializers.CharField(max_length=20)
     # Mill-only fields below — required when license_type == "mill_owner" so
     # a real Mill profile (see mills/models.py) can be created alongside the
     # account, ready to use the moment the LicenseApplication is approved.
-    # Left blank/omitted for authorized_purchaser applicants, who have no
-    # equivalent profile model (purchases/models.py's RiceRequest/
-    # PurchaserStock reference the User directly).
-    nic = serializers.CharField(max_length=20, required=False, allow_blank=True)
     district_id = serializers.IntegerField(required=False, allow_null=True)
     capacity_mt_per_day = serializers.DecimalField(
         max_digits=10, decimal_places=2, required=False, allow_null=True
@@ -235,20 +240,25 @@ class RegisterLicenseApplicantSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
+        try:
+            validate_nic_format(attrs["nic"])
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"nic": exc.message})
         if attrs["license_type"] == LicenseApplication.LicenseType.MILL_OWNER:
-            if not attrs.get("nic"):
-                raise serializers.ValidationError({"nic": "NIC is required for a mill owner application."})
             if Mill.objects.filter(nic=attrs["nic"]).exists():
                 raise serializers.ValidationError({"nic": "An account with this NIC already exists."})
             district_id = attrs.get("district_id")
             if not district_id or not District.objects.filter(pk=district_id).exists():
                 raise serializers.ValidationError({"district_id": "Select a valid district."})
-        elif attrs.get("district_id") and not District.objects.filter(pk=attrs["district_id"]).exists():
-            # Authorized purchasers may optionally pick a district (unlike
-            # mill owners, it's not required — a purchaser's operating area
-            # is less tied to a single physical location), but if one was
-            # sent it must be real.
-            raise serializers.ValidationError({"district_id": "Select a valid district."})
+        else:
+            if AuthorizedPurchaser.objects.filter(nic=attrs["nic"]).exists():
+                raise serializers.ValidationError({"nic": "An account with this NIC already exists."})
+            if attrs.get("district_id") and not District.objects.filter(pk=attrs["district_id"]).exists():
+                # Authorized purchasers may optionally pick a district (unlike
+                # mill owners, it's not required — a purchaser's operating area
+                # is less tied to a single physical location), but if one was
+                # sent it must be real.
+                raise serializers.ValidationError({"district_id": "Select a valid district."})
         return attrs
 
     def create(self, validated_data):
@@ -290,6 +300,7 @@ class RegisterLicenseApplicantSerializer(serializers.Serializer):
                     user=user,
                     organization=validated_data["business_name"],
                     reg_number=validated_data["business_registration_no"],
+                    nic=validated_data["nic"],
                     district_id=district_id,
                     phone=validated_data.get("contact_number", ""),
                 )
@@ -310,6 +321,7 @@ class LicenseApplicationSerializer(serializers.ModelSerializer):
     applicant_email = serializers.CharField(source="user.email", read_only=True)
     license_type_display = serializers.CharField(source="get_license_type_display", read_only=True)
     reviewed_by_name = serializers.SerializerMethodField()
+    document_url = serializers.SerializerMethodField()
 
     class Meta:
         model = LicenseApplication
@@ -317,11 +329,17 @@ class LicenseApplicationSerializer(serializers.ModelSerializer):
             "id", "applicant_name", "applicant_email", "license_type",
             "license_type_display", "business_name", "business_registration_no",
             "contact_number", "status", "submitted_at", "reviewed_by_name",
-            "reviewed_at", "rejection_reason",
+            "reviewed_at", "rejection_reason", "document_url", "license_number",
         ]
 
     def get_reviewed_by_name(self, obj):
         return obj.reviewed_by.full_name if obj.reviewed_by else None
+
+    def get_document_url(self, obj):
+        request = self.context.get("request")
+        if not obj.document:
+            return None
+        return request.build_absolute_uri(obj.document.url) if request else obj.document.url
 
 
 class LicenseDecisionSerializer(serializers.Serializer):
@@ -348,6 +366,14 @@ class SelfProfileSerializer(serializers.Serializer):
     # without a farmer_profile, so it's safe to accept from every caller.
     notify_harvest_updates = serializers.BooleanField(required=False)
     notify_via_sms = serializers.BooleanField(required=False)
+
+    def validate_nic(self, value):
+        if value:
+            try:
+                validate_nic_format(value)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message)
+        return value
 
     def validate(self, attrs):
         # Changing the password requires re-confirming the current one,

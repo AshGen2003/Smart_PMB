@@ -5,15 +5,28 @@
  * Rendered by purchaser/page.tsx below the license (account-approval)
  * card.
  */
-import { Boxes, Layers, ClipboardList } from "lucide-react";
+import { Boxes, Layers, ClipboardList, Scale, Banknote } from "lucide-react";
 import { format } from "date-fns";
 import styles from "./PurchaserDashboard.module.css";
+
+type PaddyTypeOption = {
+  id: number;
+  type_name: string;
+  variety: string;
+  guaranteed_price: string;
+};
 
 type PurchaserDashboardData = {
   kpis: {
     total_stock_kg: string | number;
     stock_types_count: number;
     pending_requests_count: number;
+  };
+  limits: {
+    weight_limit_kg: string | number | null;
+    weight_used_kg: string | number;
+    weight_remaining_kg: string | number | null;
+    advance_amount: string | number | null;
   };
   stock_by_type: {
     id: number;
@@ -36,7 +49,14 @@ const STATUS_CLASS: Record<string, string> = {
   rejected: "badge-danger",
 };
 
-export default function PurchaserPanel({ data }: { data: PurchaserDashboardData }) {
+export default function PurchaserPanel({
+  data,
+  paddyTypes = [],
+}: {
+  data: PurchaserDashboardData;
+  paddyTypes?: PaddyTypeOption[];
+}) {
+  const { limits } = data;
   return (
     <>
       <div className={styles.kpiGrid}>
@@ -61,7 +81,53 @@ export default function PurchaserPanel({ data }: { data: PurchaserDashboardData 
           </div>
           <h2 className={styles.kpiValue}>{data.kpis.pending_requests_count}</h2>
         </div>
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiHeader}>
+            <span>Buying Limit (kg, this season)</span>
+            <div className={styles.kpiIcon}><Scale size={20} /></div>
+          </div>
+          <h2 className={styles.kpiValue}>
+            {limits.weight_limit_kg !== null
+              ? `${Number(limits.weight_used_kg).toLocaleString()} / ${Number(limits.weight_limit_kg).toLocaleString()}`
+              : "No limit set"}
+          </h2>
+        </div>
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiHeader}>
+            <span>Government Advance</span>
+            <div className={styles.kpiIcon}><Banknote size={20} /></div>
+          </div>
+          <h2 className={styles.kpiValue}>
+            {limits.advance_amount !== null ? `Rs. ${Number(limits.advance_amount).toLocaleString()}` : "—"}
+          </h2>
+        </div>
       </div>
+
+      {paddyTypes.length > 0 && (
+        <div className={styles.tableCard}>
+          <div className={styles.tableHeader}>
+            <h3 className={styles.tableTitle}>Guaranteed Paddy Prices (this season)</h3>
+          </div>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Paddy type</th>
+                <th>Variety</th>
+                <th>Guaranteed price (Rs./kg)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paddyTypes.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.type_name}</td>
+                  <td>{p.variety || "—"}</td>
+                  <td>Rs. {Number(p.guaranteed_price).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className={styles.tablesGrid}>
         <div className={styles.tableCard}>

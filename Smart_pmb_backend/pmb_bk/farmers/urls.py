@@ -10,6 +10,7 @@ urlpatterns = [
     path("warehouses/options/", views.WarehouseOptionsView.as_view()),  # destination-warehouse picker for mill-owner/purchaser self-service forms
     path("farmer/dashboard/", views.FarmerDashboardView.as_view()),
     path("farmer/bank-details/", views.FarmerBankDetailsView.as_view()),
+    path("farmer/payments/", views.FarmerPaymentListView.as_view()),
     path("notifications/<int:pk>/read/", views.NotificationMarkReadView.as_view()),
     path("officer/dashboard/", views.OfficerDashboardView.as_view()),
     path("officer/reports/", views.OfficerReportsView.as_view()),

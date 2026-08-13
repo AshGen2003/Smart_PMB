@@ -30,6 +30,9 @@ export type LicenseApplicationRow = {
   reviewed_by_name: string | null;
   reviewed_at: string | null;
   rejection_reason: string;
+  document_url: string | null;
+  // Assigned the moment an application is approved (see accounts.LicenseApplicationViewSet.approve) — null until then.
+  license_number: string | null;
 };
 
 const STATUS_BADGE: Record<LicenseApplicationRow["status"], string> = {
@@ -138,6 +141,8 @@ export default function LicensesManager({
                 <th>Business</th>
                 <th>Type</th>
                 <th>Status</th>
+                <th>Document</th>
+                <th>Digital license</th>
                 <th>Submitted</th>
                 <th></th>
               </tr>
@@ -160,6 +165,27 @@ export default function LicensesManager({
                     </span>
                     {a.status === "rejected" && a.rejection_reason && (
                       <div className={styles.subtitle}>{a.rejection_reason}</div>
+                    )}
+                  </td>
+                  <td>
+                    {a.document_url ? (
+                      <a href={a.document_url} target="_blank" rel="noreferrer">View</a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    {a.status === "approved" && a.license_number ? (
+                      <a
+                        href={`/api/licenses/${a.id}/certificate`}
+                        className={styles.rowActions}
+                        title="Download the digital license certificate PDF"
+                      >
+                        <span>{a.license_number}</span>
+                        <FileDown size={14} />
+                      </a>
+                    ) : (
+                      "—"
                     )}
                   </td>
                   <td>{format(new Date(a.submitted_at), "MMM d, yyyy")}</td>

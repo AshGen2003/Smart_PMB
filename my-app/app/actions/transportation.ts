@@ -98,6 +98,15 @@ function deliveryPayload(formData: FormData) {
     driver: String(formData.get("driver") ?? ""),
     route: Number(formData.get("route")),
     warehouse: formData.get("warehouse") ? Number(formData.get("warehouse")) : null,
+    // At most one of these four is ever present — the form only renders a
+    // hidden input for whichever "linked request" type is currently
+    // selected (see DeliveryFormModal) — so the other three always fall
+    // back to null here, which also correctly clears a previous link when
+    // editing a delivery to "None".
+    dispatch_manifest: formData.get("dispatch_manifest") ? Number(formData.get("dispatch_manifest")) : null,
+    milling_return_request: formData.get("milling_return_request") ? Number(formData.get("milling_return_request")) : null,
+    rice_request: formData.get("rice_request") ? Number(formData.get("rice_request")) : null,
+    milling_allocation: formData.get("milling_allocation") ? Number(formData.get("milling_allocation")) : null,
     scheduled_date: String(formData.get("scheduled_date") ?? ""),
     scheduled_time: String(formData.get("scheduled_time") ?? ""),
   };

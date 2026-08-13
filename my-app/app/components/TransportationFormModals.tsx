@@ -8,7 +8,7 @@
  */
 "use client";
 
-import React, { useEffect, useRef, useState, useActionState } from "react";
+import React, { useEffect, useRef, useState, useMemo, useActionState } from "react";
 import { Loader2, X } from "lucide-react";
 import {
   createVehicle,
@@ -303,9 +303,43 @@ export type EditableDelivery = {
   driver: string;
   route: number;
   warehouse: number | null;
+  dispatch_manifest: number | null;
+  milling_return_request: number | null;
+  rice_request: number | null;
+  milling_allocation: number | null;
   scheduled_date: string;
   scheduled_time: string | null;
 };
+
+// {id, label} options for the "linked request" picker — already filtered
+// (server-side) to requests in the right status with no delivery yet, see
+// (admin)/transportation/page.tsx.
+export type LinkableRequestOption = { id: number; label: string };
+
+type LinkedRequestType = "" | "dispatch_manifest" | "milling_return_request" | "rice_request" | "milling_allocation";
+
+const LINKED_TYPE_LABEL: Record<Exclude<LinkedRequestType, "">, string> = {
+  dispatch_manifest: "Dispatch Manifest (purchaser → warehouse)",
+  milling_return_request: "Milling Return (mill → warehouse)",
+  rice_request: "Rice Request (warehouse → purchaser)",
+  milling_allocation: "Milling Allocation (warehouse → mill)",
+};
+
+/** Which of the four linked-request fields (if any) is set on an existing delivery, for pre-selecting the picker in edit mode. */
+function linkedTypeOf(delivery: EditableDelivery | undefined): LinkedRequestType {
+  if (!delivery) return "";
+  if (delivery.dispatch_manifest) return "dispatch_manifest";
+  if (delivery.milling_return_request) return "milling_return_request";
+  if (delivery.rice_request) return "rice_request";
+  if (delivery.milling_allocation) return "milling_allocation";
+  return "";
+}
+
+function linkedIdOf(delivery: EditableDelivery | undefined, type: LinkedRequestType): string {
+  if (!delivery || !type) return "";
+  const value = delivery[type];
+  return value != null ? String(value) : "";
+}
 
 export function DeliveryFormModal({
   mode,
@@ -314,6 +348,10 @@ export function DeliveryFormModal({
   drivers,
   routes,
   warehouses,
+  dispatchManifests,
+  millingReturnRequests,
+  riceRequests,
+  millingAllocations,
   onClose,
 }: {
   mode: "create" | "edit";
@@ -322,6 +360,10 @@ export function DeliveryFormModal({
   drivers: DriverOption[];
   routes: RouteRow[];
   warehouses: { id: number; name: string }[];
+  dispatchManifests: LinkableRequestOption[];
+  millingReturnRequests: LinkableRequestOption[];
+  riceRequests: LinkableRequestOption[];
+  millingAllocations: LinkableRequestOption[];
   onClose: () => void;
 }) {
   const action = mode === "create" ? createDelivery : updateDelivery.bind(null, delivery!.id);
@@ -381,6 +423,42 @@ export function DeliveryFormModal({
             options={routes.map((r) => ({ value: String(r.id), label: `${r.origin} → ${r.destination}` }))}
           />
         </div>
+        <div className={styles.fieldRow}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="linked_request_type">
+              Linked request <span className={styles.optional}>(optional)</span>
+            </label>
+            <StyledSelect
+              id="linked_request_type"
+              value={linkedType}
+              onChange={(v) => {
+                setLinkedType(v as LinkedRequestType);
+                setLinkedId("");
+              }}
+              placeholder="None — general transport"
+              options={[
+                { value: "", label: "None — general transport" },
+                ...(Object.keys(LINKED_TYPE_LABEL) as Exclude<LinkedRequestType, "">[]).map((t) => ({
+                  value: t,
+                  label: LINKED_TYPE_LABEL[t],
+                })),
+              ]}
+            />
+          </div>
+          {linkedType && (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="linked_request_id">Select request</label>
+              <StyledSelect
+                id="linked_request_id"
+                value={linkedId}
+                onChange={setLinkedId}
+                placeholder="Select…"
+                options={currentOptions.map((o) => ({ value: String(o.id), label: o.label }))}
+              />
+            </div>
+          )}
+        </div>
+        {linkedType && linkedId && <input type="hidden" name={linkedType} value={linkedId} />}
         <div className={styles.fieldRow}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="warehouse">Warehouse <span className={styles.optional}>(optional)</span></label>

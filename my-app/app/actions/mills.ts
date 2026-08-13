@@ -15,14 +15,31 @@ export type MillFormState = {
 };
 
 /**
- * Submits a new license application for the logged-in mill owner's mill.
- * No fields are required — applying just creates a pending row for the
- * caller's mill, which an officer then reviews.
+ * Submits a new license application for the logged-in mill owner's mill —
+ * a brand new one, or a renewal of an already-approved license (pass its
+ * id as the `renewed_from` field). Requires the full set of details an
+ * officer reviews before issuing a license: requested capacity, milling
+ * type, premises address, and business justification.
+ *
+ * @param _prevState Previous form state (unused; useActionState contract).
+ * @param formData Must contain `milling_type`, `premises_address`, and
+ *   `justification`; `requested_capacity_mt_per_day`/`contact_number`/
+ *   `renewed_from` are optional.
  */
-export async function applyForLicense(): Promise<{ error?: string }> {
+export async function applyForLicense(
+  _prevState: MillFormState,
+  formData: FormData
+): Promise<MillFormState> {
   const res = await apiFetch("/api/mill-owner/licenses/", {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      renewed_from: formData.get("renewed_from") ? Number(formData.get("renewed_from")) : null,
+      requested_capacity_mt_per_day: String(formData.get("requested_capacity_mt_per_day") ?? "") || null,
+      milling_type: String(formData.get("milling_type") ?? ""),
+      premises_address: String(formData.get("premises_address") ?? "").trim(),
+      justification: String(formData.get("justification") ?? "").trim(),
+      contact_number: String(formData.get("contact_number") ?? "").trim(),
+    }),
   });
 
   if (!res.ok) {
@@ -67,6 +84,8 @@ export async function submitMillingReport(
     body: JSON.stringify({
       paddy_processed_kg: String(formData.get("paddy_processed_kg") ?? ""),
       rice_output_kg: String(formData.get("rice_output_kg") ?? ""),
+      husk_kg: String(formData.get("husk_kg") ?? "") || null,
+      bran_kg: String(formData.get("bran_kg") ?? "") || null,
       notes: String(formData.get("notes") ?? "").trim(),
       paddy_type: formData.get("paddy_type") ? Number(formData.get("paddy_type")) : null,
     }),

@@ -21,7 +21,6 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
-  FileCheck,
   ClipboardList,
   Boxes,
 } from "lucide-react";

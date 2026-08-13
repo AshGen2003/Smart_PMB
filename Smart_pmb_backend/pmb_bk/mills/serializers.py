@@ -59,8 +59,36 @@ class LicenseSerializer(serializers.ModelSerializer):
         model = License
         fields = [
             "id", "license_no", "status", "applied_date", "issued_date",
-            "expiry_date", "review_notes",
+            "expiry_date", "review_notes", "renewed_from",
+            "requested_capacity_mt_per_day", "milling_type", "premises_address",
+            "justification", "contact_number",
         ]
+
+
+class LicenseCreateSerializer(serializers.ModelSerializer):
+    """
+    Create representation for a mill owner applying for a new license or
+    renewing an existing one (pass `renewed_from`) — the full set of
+    details an officer needs to review before issuing a license, not just
+    a bare request.
+    """
+
+    class Meta:
+        model = License
+        fields = [
+            "id", "renewed_from", "requested_capacity_mt_per_day",
+            "milling_type", "premises_address", "justification", "contact_number",
+        ]
+
+    def validate_renewed_from(self, value):
+        if value is None:
+            return value
+        request = self.context.get("request")
+        if request and value.mill.user_id != request.user.id:
+            raise serializers.ValidationError("You can only renew your own mill's license.")
+        if value.status != License.Status.APPROVED:
+            raise serializers.ValidationError("Only an approved license can be renewed.")
+        return value
 
 
 class OfficerLicenseSerializer(serializers.ModelSerializer):
@@ -75,7 +103,9 @@ class OfficerLicenseSerializer(serializers.ModelSerializer):
         fields = [
             "id", "mill", "mill_name", "mill_registration_no", "license_no",
             "status", "applied_date", "issued_date", "expiry_date",
-            "reviewed_by_name", "review_notes",
+            "reviewed_by_name", "review_notes", "renewed_from",
+            "requested_capacity_mt_per_day", "milling_type", "premises_address",
+            "justification", "contact_number",
         ]
 
 
@@ -87,17 +117,20 @@ class MillingReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = MillingReport
         fields = [
-            "id", "report_date", "paddy_processed_kg", "rice_output_kg", "notes",
-            "harvest", "paddy_type", "paddy_type_name",
+            "id", "report_date", "paddy_processed_kg", "rice_output_kg",
+            "husk_kg", "bran_kg", "notes", "harvest", "allocation", "paddy_type", "paddy_type_name",
         ]
 
 
 class MillingReportWriteSerializer(serializers.ModelSerializer):
-    """Create representation of a MillingReport (submitted by the mill owner). harvest/paddy_type are optional — see MillingReport's docstring."""
+    """Create representation of a MillingReport (submitted by the mill owner). harvest/allocation/paddy_type/husk_kg/bran_kg are optional — see MillingReport's docstring."""
 
     class Meta:
         model = MillingReport
-        fields = ["id", "paddy_processed_kg", "rice_output_kg", "notes", "harvest", "paddy_type"]
+        fields = [
+            "id", "paddy_processed_kg", "rice_output_kg", "husk_kg", "bran_kg",
+            "notes", "harvest", "allocation", "paddy_type",
+        ]
 
 
 class InspectionSerializer(serializers.ModelSerializer):

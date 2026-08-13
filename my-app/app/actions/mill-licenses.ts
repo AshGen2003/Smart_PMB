@@ -46,3 +46,41 @@ export async function rejectMillLicense(
   revalidatePath("/licenses");
   return {};
 }
+
+/** Suspends a currently-approved mill license. `reason` is required. */
+export async function suspendMillLicense(
+  licenseId: number,
+  reason: string
+): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/admin/mill-licenses/${licenseId}/suspend/`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/mill-licenses");
+  return {};
+}
+
+/** Revokes a mill license (from approved or suspended). `reason` is required. */
+export async function revokeMillLicense(
+  licenseId: number,
+  reason: string
+): Promise<{ error?: string }> {
+  const res = await apiFetch(`/api/admin/mill-licenses/${licenseId}/revoke/`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { error: firstErrorMessage(data) };
+  }
+
+  revalidatePath("/mill-licenses");
+  return {};
+}

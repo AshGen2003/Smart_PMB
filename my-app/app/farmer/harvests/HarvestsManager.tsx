@@ -26,6 +26,7 @@ export type HarvestRow = {
   harvest_date: string;
   status: "pending" | "verified" | "collected" | "rejected";
   lot_code: string | null;
+  meets_pmb_quality_standard: boolean | null;
 };
 
 const HARVEST_BADGE: Record<string, string> = {

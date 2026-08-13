@@ -18,9 +18,11 @@ const initialState: BankDetailsFormState = {};
 export default function FarmerBankDetailsForm({
   bankAccount,
   bankName,
+  bankBranch,
 }: {
   bankAccount: string;
   bankName: string;
+  bankBranch: string;
 }) {
   const { t } = useLanguage();
   const [state, formAction, pending] = useActionState(updateBankDetails, initialState);
@@ -51,6 +53,18 @@ export default function FarmerBankDetailsForm({
               name="bank_account"
               type="text"
               defaultValue={bankAccount}
+              className={styles.input}
+            />
+          </div>
+        </div>
+        <div className={styles.row2}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="bank_branch">{t.settingsBankDetails.bankBranch}</label>
+            <input
+              id="bank_branch"
+              name="bank_branch"
+              type="text"
+              defaultValue={bankBranch}
               className={styles.input}
             />
           </div>

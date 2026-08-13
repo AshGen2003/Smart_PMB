@@ -30,5 +30,17 @@ export default async function PricingPage() {
   const res = await apiFetchCached("/api/admin/paddy-types/", 300, ["paddy-types"]);
   const paddyTypes = res.ok ? ((await res.json()) as PaddyTypeRow[]) : [];
 
-  return <PricingManager paddyTypes={paddyTypes} canWrite={canWrite} />;
+  // Pre-fetched here (Server Component) rather than on-demand client-side —
+  // keeps the page on the "Server Component fetches, Client Component just
+  // renders" convention with no client-side auth fetch needed. The list is
+  // small enough that fetching every paddy type's history up front is cheap.
+  const priceHistory: Record<number, { id: number; guaranteed_price: string; season: "yala" | "maha"; effective_date: string }[]> = {};
+  await Promise.all(
+    paddyTypes.map(async (p) => {
+      const historyRes = await apiFetchCached(`/api/admin/paddy-types/${p.id}/price-history/`, 300, ["paddy-types"]);
+      priceHistory[p.id] = historyRes.ok ? await historyRes.json() : [];
+    })
+  );
+
+  return <PricingManager paddyTypes={paddyTypes} priceHistory={priceHistory} canWrite={canWrite} />;
 }

@@ -32,6 +32,8 @@ function payloadFromFormData(formData: FormData) {
     purchase_date: String(formData.get("purchase_date") ?? "") || null,
     grade: String(formData.get("grade") ?? "") || null,
     moisture_level: String(formData.get("moisture_level") ?? "") || null,
+    impurity_percent: String(formData.get("impurity_percent") ?? "") || null,
+    empty_grains_percent: String(formData.get("empty_grains_percent") ?? "") || null,
     unit_price: String(formData.get("unit_price") ?? "") || null,
   };
   const qualityCheck = formData.get("quality_check");

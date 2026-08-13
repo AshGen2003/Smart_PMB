@@ -34,6 +34,13 @@ export type DashboardPayload = {
     pending_payments: number;
     total_earnings: number;
   };
+  quota: {
+    max_quota_kg: number | null;
+    quota_used_kg: number;
+    quota_remaining_kg: number | null;
+    season: "yala" | "maha";
+  };
+  current_season: "yala" | "maha";
   paddy_types: {
     id: number;
     type_name: string;
@@ -81,7 +88,11 @@ export default function FarmerDashboardView({
     );
   }
 
-  const { farmer, kpis, paddy_types: paddyTypes, harvests, notifications } = data;
+  const { farmer, kpis, quota, current_season: currentSeason, paddy_types: paddyTypes, harvests, notifications } = data;
+  const quotaUsedPct =
+    quota.max_quota_kg && quota.max_quota_kg > 0
+      ? Math.min((quota.quota_used_kg / quota.max_quota_kg) * 100, 100)
+      : 0;
 
   const STATUS_LABEL: Record<string, string> = {
     pending: t.farmerCharts.statusPending,
@@ -169,12 +180,43 @@ export default function FarmerDashboardView({
         </div>
       </div>
 
+      <div className={styles.card}>
+        <div className={styles.cardHeader}>
+          <h3 className={styles.cardTitle}>{t.farmerQuota.title}</h3>
+          <span className={styles.priceVariety}>{t.seasons[quota.season]}</span>
+        </div>
+        {quota.max_quota_kg !== null ? (
+          <>
+            <div className={styles.progressTrack}>
+              <div className={styles.progressFill} style={{ width: `${quotaUsedPct}%` }} />
+            </div>
+            <div className={styles.quotaStatsRow}>
+              <span>
+                {t.farmerQuota.used}: <span className={styles.quotaStatsValue}>{Math.round(quota.quota_used_kg).toLocaleString()} kg</span>
+              </span>
+              <span>
+                {t.farmerQuota.remaining}:{" "}
+                <span className={styles.quotaStatsValue}>
+                  {Math.round(quota.quota_remaining_kg ?? 0).toLocaleString()} kg
+                </span>
+              </span>
+              <span>
+                {t.farmerDashboard.kpiRegisteredLand}: <span className={styles.quotaStatsValue}>{Math.round(quota.max_quota_kg).toLocaleString()} kg</span>
+              </span>
+            </div>
+          </>
+        ) : (
+          <p className={styles.emptyState}>{t.farmerQuota.notSet}</p>
+        )}
+      </div>
+
       <FarmerCharts data={data.charts} />
 
       <div className={styles.gridTwo}>
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <h3 className={styles.cardTitle}>{t.farmerDashboard.guaranteedPricesTitle}</h3>
+            <span className={styles.priceVariety}>{t.seasons[currentSeason]}</span>
           </div>
           {paddyTypes.length > 0 ? (
             <div className={styles.priceList}>

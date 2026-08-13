@@ -154,6 +154,7 @@ export async function updateBankDetails(
     body: JSON.stringify({
       bank_account: String(formData.get("bank_account") ?? "").trim(),
       bank_name: String(formData.get("bank_name") ?? "").trim(),
+      bank_branch: String(formData.get("bank_branch") ?? "").trim(),
     }),
   });
 

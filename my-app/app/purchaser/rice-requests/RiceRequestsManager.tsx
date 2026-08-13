@@ -15,6 +15,14 @@ import ConfirmModal from "@/app/components/ConfirmModal";
 import RequestRiceForm, { type PaddyTypeOption } from "./RequestRiceForm";
 import styles from "../PurchaserDashboard.module.css";
 
+export type DeliveryStatus = {
+  status: "scheduled" | "in_transit" | "delivered" | "delayed" | "cancelled";
+  assignment_status: "pending" | "accepted" | "rejected";
+  driver_name: string | null;
+  vehicle_registration: string | null;
+  scheduled_date: string;
+} | null;
+
 export type RiceRequestRow = {
   id: number;
   paddy_type: number;
@@ -22,6 +30,7 @@ export type RiceRequestRow = {
   quantity_kg: string;
   status: "pending" | "approved" | "rejected" | "fulfilled";
   requested_date: string;
+  delivery: DeliveryStatus;
 };
 
 const STATUS_BADGE: Record<RiceRequestRow["status"], string> = {
@@ -30,6 +39,27 @@ const STATUS_BADGE: Record<RiceRequestRow["status"], string> = {
   fulfilled: styles["badge-success"],
   rejected: styles["badge-danger"],
 };
+
+const DELIVERY_STATUS_LABEL: Record<NonNullable<DeliveryStatus>["status"], string> = {
+  scheduled: "Scheduled",
+  in_transit: "In Transit",
+  delivered: "Delivered",
+  delayed: "Delayed",
+  cancelled: "Cancelled",
+};
+
+/** Compact "driver — status" cell, or a placeholder when no officer has scheduled a delivery yet. */
+function DeliveryCell({ delivery }: { delivery: DeliveryStatus }) {
+  if (!delivery) return <span className={styles.subtitle}>Not yet scheduled</span>;
+  return (
+    <div>
+      <div>{delivery.driver_name ?? "—"} ({delivery.vehicle_registration ?? "—"})</div>
+      <span className={clsx(styles.badge, delivery.status === "delivered" ? styles["badge-success"] : styles["badge-warning"])}>
+        {DELIVERY_STATUS_LABEL[delivery.status]}
+      </span>
+    </div>
+  );
+}
 
 export default function RiceRequestsManager({
   requests,
@@ -78,6 +108,7 @@ export default function RiceRequestsManager({
                 <th>Quantity (kg)</th>
                 <th>Requested</th>
                 <th>Status</th>
+                <th>Delivery</th>
                 <th></th>
               </tr>
             </thead>
@@ -90,6 +121,7 @@ export default function RiceRequestsManager({
                   <td>
                     <span className={clsx(styles.badge, STATUS_BADGE[r.status])}>{r.status}</span>
                   </td>
+                  <td>{r.status === "fulfilled" ? <DeliveryCell delivery={r.delivery} /> : "—"}</td>
                   <td>
                     {r.status === "pending" && (
                       <button

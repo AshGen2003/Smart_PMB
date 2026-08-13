@@ -84,6 +84,7 @@ class Farmer(models.Model):
     contact_number = models.CharField(max_length=20, blank=True)
     bank_account = models.CharField(max_length=50, blank=True)
     bank_name = models.CharField(max_length=100, blank=True)
+    bank_branch = models.CharField(max_length=100, blank=True)
     registered_date = models.DateField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     # User-controlled preference (Settings → Notifications): whether a
@@ -229,6 +230,12 @@ class Harvest(models.Model):
         B = "B", "Grade B"
         C = "C", "Grade C"
 
+    # Real PMB paddy intake standard: moisture content must be at or below
+    # this, and chaff/impurities strictly below this, or the lot fails
+    # quality regardless of grade. See meets_pmb_quality_standard below.
+    PMB_MAX_MOISTURE_PCT = 14
+    PMB_MAX_IMPURITY_PCT = 9
+
     farmer = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name="harvests")
     paddy_type = models.ForeignKey(
         PaddyType, on_delete=models.SET_NULL, null=True, blank=True, related_name="harvests"
@@ -250,9 +257,25 @@ class Harvest(models.Model):
     )
     grade = models.CharField(max_length=1, choices=Grade.choices, null=True, blank=True)
     moisture_level = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    impurity_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    empty_grains_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    # Officer's own manual sign-off — a judgment call that can consider
+    # things the numeric thresholds below don't (e.g. colour, borderline
+    # cases). Distinct from meets_pmb_quality_standard, which is purely
+    # derived from moisture_level/impurity_percent; keep both, don't merge.
     quality_check = models.BooleanField(null=True, blank=True)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     purchase_date = models.DateField(null=True, blank=True)
+
+    @property
+    def meets_pmb_quality_standard(self):
+        """Derived pass/fail against the real PMB intake standard. None means not yet assessed."""
+        if self.moisture_level is None or self.impurity_percent is None:
+            return None
+        return (
+            self.moisture_level <= self.PMB_MAX_MOISTURE_PCT
+            and self.impurity_percent < self.PMB_MAX_IMPURITY_PCT
+        )
 
     # Which officer/admin last ran approve/reject/collect on this harvest —
     # set in OfficerHarvestViewSet's action methods, never writable directly.
@@ -274,15 +297,20 @@ class Harvest(models.Model):
 class Payment(models.Model):
     """
     The amount owed to a farmer for a specific Harvest. Created (pending)
-    when an officer approves a harvest, and completed when the harvest is
-    marked collected. Kept in a one-to-one-ish relationship with Harvest
-    via `update_or_create` on `harvest` in views.py, so re-approving a
-    harvest updates the existing Payment rather than creating a duplicate.
+    when an officer approves a harvest, and moved to processing when the
+    harvest is marked collected -- "collected" means disbursement is now
+    queued, not that the farmer has actually been paid yet. An officer
+    marks it disbursed (recording a reference number) via
+    OfficerPaymentViewSet.disburse, or failed via .mark_failed. Kept in a
+    one-to-one-ish relationship with Harvest via `update_or_create` on
+    `harvest` in views.py, so re-approving a harvest updates the existing
+    Payment rather than creating a duplicate.
     """
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
-        COMPLETED = "completed", "Completed"
+        PROCESSING = "processing", "Processing"
+        DISBURSED = "disbursed", "Disbursed"
         FAILED = "failed", "Failed"
 
     class Method(models.TextChoices):
@@ -296,15 +324,23 @@ class Payment(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     payment_date = models.DateField(null=True, blank=True)
     method = models.CharField(max_length=20, choices=Method.choices, default=Method.BANK_TRANSFER)
+    disbursement_reference = models.CharField(max_length=50, blank=True)
+    disbursed_date = models.DateField(null=True, blank=True)
 
 
 class PriceRecord(models.Model):
-    """Historical snapshot of a PaddyType's guaranteed price on a given date (currently not written to by any view)."""
+    """
+    Historical snapshot of a PaddyType's guaranteed price on a given date,
+    tagged with the growing season it was set in (Yala/Maha). Written by
+    PaddyTypeViewSet.perform_create/perform_update in views.py every time a
+    guaranteed_price is set or changed; read via price_history().
+    """
 
     paddy_type = models.ForeignKey(
         PaddyType, on_delete=models.CASCADE, related_name="price_records"
     )
     guaranteed_price = models.DecimalField(max_digits=10, decimal_places=2)
+    season = models.CharField(max_length=10, choices=Season.choices, default=Season.YALA)
     effective_date = models.DateField(auto_now_add=True)
 
 
@@ -532,7 +568,22 @@ class Route(models.Model):
 
 
 class Delivery(models.Model):
-    """A scheduled or in-progress transport of collected paddy from a warehouse along a route."""
+    """
+    A scheduled or in-progress transport job. `warehouse` is the
+    **destination** warehouse when `dispatch_manifest` or
+    `milling_return_request` is set (a purchaser's or mill owner's approved
+    request to transport goods TO a warehouse) -- but the **origin**
+    warehouse in every other case: the original harvest-collection case
+    (none of the four linked-request fields set), a `rice_request` (an
+    officer sending a purchaser's fulfilled rice out of the warehouse), or a
+    `milling_allocation` (an officer sending a mill's fulfilled raw-paddy
+    allocation out of the warehouse) -- both of those already moved stock at
+    fulfillment time (see purchases.OfficerRiceRequestViewSet.fulfill /
+    mills.OfficerMillingAllocationViewSet.fulfill), so linking a Delivery to
+    either is purely for tracking the physical transport, not stock
+    accounting. At most one of `dispatch_manifest`/`milling_return_request`/
+    `rice_request`/`milling_allocation` is ever set on a given Delivery.
+    """
 
     class Status(models.TextChoices):
         SCHEDULED = "scheduled", "Scheduled"
@@ -553,6 +604,22 @@ class Delivery(models.Model):
     )
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    # Optional links to the purchaser/mill-owner request this delivery
+    # fulfills -- see this model's docstring for how they flip `warehouse`'s
+    # meaning from origin to destination. Set via the officer's
+    # "linked request" picker in DeliveryFormModal at creation time.
+    dispatch_manifest = models.ForeignKey(
+        "purchases.DispatchManifest", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
+    )
+    milling_return_request = models.ForeignKey(
+        "mills.MillingReturnRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
+    )
+    rice_request = models.ForeignKey(
+        "purchases.RiceRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
+    )
+    milling_allocation = models.ForeignKey(
+        "mills.MillingAllocation", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
     )
     scheduled_date = models.DateField()
     # Nullable so existing rows (created before this field existed) don't

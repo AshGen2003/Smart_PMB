@@ -23,6 +23,7 @@ from .models import Inspection, License, Mill, MillingAllocation, MillingReport,
 from .serializers import (
     InspectionSerializer,
     InspectionWriteSerializer,
+    LicenseCreateSerializer,
     LicenseSerializer,
     MillingAllocationCreateSerializer,
     MillingAllocationSerializer,
@@ -31,6 +32,7 @@ from .serializers import (
     MillingReturnRequestCreateSerializer,
     MillingReturnRequestSerializer,
     MillSerializer,
+    MillStockSerializer,
     MillWriteSerializer,
     OfficerInspectionSerializer,
     OfficerLicenseSerializer,
@@ -55,6 +57,7 @@ class MillOwnerDashboardView(APIView):
         milling_reports = mill.milling_reports.all()[:6]
         inspections = mill.inspections.select_related("officer").all()[:6]
         active_license = mill.licenses.filter(status=License.Status.APPROVED).order_by("-expiry_date").first()
+        mill_stock = mill.stock_entries.select_related("paddy_type")
 
         total_paddy_processed = mill.milling_reports.aggregate(
             total=Sum("paddy_processed_kg")
@@ -70,9 +73,10 @@ class MillOwnerDashboardView(APIView):
                     "total_milling_reports": mill.milling_reports.count(),
                     "total_paddy_processed_kg": total_paddy_processed,
                 },
-                "licenses": LicenseSerializer(licenses, many=True).data,
+                "licenses": LicenseSerializer(licenses, many=True, context={"request": request}).data,
                 "milling_reports": MillingReportSerializer(milling_reports, many=True).data,
                 "inspections": InspectionSerializer(inspections, many=True).data,
+                "mill_stock": MillStockSerializer(mill_stock, many=True).data,
             }
         )
 
@@ -112,17 +116,26 @@ class MillOptionsView(generics.ListAPIView):
 class LicenseViewSet(viewsets.ModelViewSet):
     """
     Self-service CRUD for a mill owner's own license applications: list/
-    view their history, apply for a new license, and withdraw one while
-    it's still pending (no update — approval fields are officer-only, set
-    via OfficerLicenseViewSet).
+    view their history, apply for a new license with the full set of
+    reviewable details (capacity, milling type, premises, justification —
+    optionally as a renewal of an approved one via `renewed_from`), and
+    withdraw one while it's still pending (no update — approval fields are
+    officer-only, set via OfficerLicenseViewSet).
     """
 
     permission_classes = [HasPermission("access_mill_owner_portal")]
     http_method_names = ["get", "post", "delete", "head", "options"]
-    serializer_class = LicenseSerializer
 
     def get_queryset(self):
         return License.objects.filter(mill__user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return LicenseCreateSerializer
+        return LicenseSerializer
+
+    def get_serializer_context(self):
+        return {**super().get_serializer_context(), "request": self.request}
 
     def perform_create(self, serializer):
         serializer.save(mill=self.request.user.mill_profile)
@@ -171,6 +184,9 @@ class OfficerLicenseViewSet(viewsets.ReadOnlyModelViewSet):
             return [HasAnyPermission("monitor_operations", "approve_licenses")]
         return [HasPermission("approve_licenses")]
 
+    def get_serializer_context(self):
+        return {**super().get_serializer_context(), "request": self.request}
+
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
         """Approves a pending license: assigns a license number and a one-year validity window."""
@@ -190,7 +206,7 @@ class OfficerLicenseViewSet(viewsets.ReadOnlyModelViewSet):
             update_fields=["status", "license_no", "issued_date", "expiry_date", "reviewed_by"]
         )
         log_audit(request.user, "approve_license", "mills", f"License #{license_obj.id}")
-        return Response(OfficerLicenseSerializer(license_obj).data)
+        return Response(self.get_serializer(license_obj).data)
 
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
@@ -206,7 +222,45 @@ class OfficerLicenseViewSet(viewsets.ReadOnlyModelViewSet):
         license_obj.reviewed_by = request.user
         license_obj.save(update_fields=["status", "review_notes", "reviewed_by"])
         log_audit(request.user, "reject_license", "mills", f"License #{license_obj.id}")
-        return Response(OfficerLicenseSerializer(license_obj).data)
+        return Response(self.get_serializer(license_obj).data)
+
+    @action(detail=True, methods=["post"])
+    def suspend(self, request, pk=None):
+        """Suspends a currently-approved license, recording a required reason."""
+        license_obj = self.get_object()
+        if license_obj.status != License.Status.APPROVED:
+            return Response(
+                {"detail": "Only an approved license can be suspended."}, status=400
+            )
+        reason = request.data.get("reason", "").strip()
+        if not reason:
+            return Response({"detail": "A reason is required."}, status=400)
+
+        license_obj.status = License.Status.SUSPENDED
+        license_obj.review_notes = reason
+        license_obj.reviewed_by = request.user
+        license_obj.save(update_fields=["status", "review_notes", "reviewed_by"])
+        log_audit(request.user, "suspend_license", "mills", f"License #{license_obj.id}: {reason}")
+        return Response(self.get_serializer(license_obj).data)
+
+    @action(detail=True, methods=["post"])
+    def revoke(self, request, pk=None):
+        """Revokes a license (from approved or suspended), recording a required reason."""
+        license_obj = self.get_object()
+        if license_obj.status not in (License.Status.APPROVED, License.Status.SUSPENDED):
+            return Response(
+                {"detail": "Only an approved or suspended license can be revoked."}, status=400
+            )
+        reason = request.data.get("reason", "").strip()
+        if not reason:
+            return Response({"detail": "A reason is required."}, status=400)
+
+        license_obj.status = License.Status.REVOKED
+        license_obj.review_notes = reason
+        license_obj.reviewed_by = request.user
+        license_obj.save(update_fields=["status", "review_notes", "reviewed_by"])
+        log_audit(request.user, "revoke_license", "mills", f"License #{license_obj.id}: {reason}")
+        return Response(self.get_serializer(license_obj).data)
 
 
 class OfficerInspectionViewSet(viewsets.ModelViewSet):
