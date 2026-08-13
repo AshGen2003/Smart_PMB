@@ -36,6 +36,7 @@ from .emails import (
     send_otp_email,
     send_temp_password_email,
 )
+from .pdf import build_license_certificate_pdf
 from .models import (
     ONLINE_WINDOW,
     ImpersonationOTP,
