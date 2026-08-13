@@ -20,6 +20,7 @@ from farmers.views import _log_transaction
 from sysops.utils import log_audit, raise_low_stock_alert
 
 from .models import Inspection, License, Mill, MillingAllocation, MillingReport, MillingReturnRequest, MillStock
+from .permissions import IsMillOwner
 from .serializers import (
     InspectionSerializer,
     InspectionWriteSerializer,
@@ -46,7 +47,7 @@ LICENSE_VALIDITY_DAYS = 365
 class MillOwnerDashboardView(APIView):
     """Aggregates a logged-in mill owner's own profile, license status, and recent milling reports."""
 
-    permission_classes = [HasPermission("access_mill_owner_portal")]
+    permission_classes = [HasPermission("access_mill_owner_portal"), IsMillOwner]
 
     def get(self, request):
         mill = get_object_or_404(
@@ -84,7 +85,7 @@ class MillOwnerDashboardView(APIView):
 class MillOwnerProfileView(APIView):
     """Lets the logged-in mill owner view (GET) and edit (PATCH) their own mill's business details."""
 
-    permission_classes = [HasPermission("access_mill_owner_portal")]
+    permission_classes = [HasPermission("access_mill_owner_portal"), IsMillOwner]
 
     def get(self, request):
         mill = get_object_or_404(Mill.objects.select_related("district", "province"), user=request.user)
@@ -123,7 +124,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
     officer-only, set via OfficerLicenseViewSet).
     """
 
-    permission_classes = [HasPermission("access_mill_owner_portal")]
+    permission_classes = [HasPermission("access_mill_owner_portal"), IsMillOwner]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def get_queryset(self):
@@ -152,7 +153,7 @@ class LicenseViewSet(viewsets.ModelViewSet):
 class MillingReportViewSet(viewsets.ModelViewSet):
     """Self-service create/list for a mill owner's own milling reports (no update/delete — a submitted report is final)."""
 
-    permission_classes = [HasPermission("access_mill_owner_portal")]
+    permission_classes = [HasPermission("access_mill_owner_portal"), IsMillOwner]
     http_method_names = ["get", "post", "head", "options"]
 
     def get_queryset(self):
@@ -294,7 +295,7 @@ class OfficerInspectionViewSet(viewsets.ModelViewSet):
 class MillingAllocationViewSet(viewsets.ModelViewSet):
     """Self-service CRUD for a mill owner's own milling-allocation requests. Mirrors LicenseViewSet's shape exactly."""
 
-    permission_classes = [HasPermission("access_mill_owner_portal")]
+    permission_classes = [HasPermission("access_mill_owner_portal"), IsMillOwner]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def get_queryset(self):
@@ -405,7 +406,7 @@ class OfficerMillingAllocationViewSet(viewsets.ReadOnlyModelViewSet):
 class MillingReturnRequestViewSet(viewsets.ModelViewSet):
     """Self-service create/list/withdraw for a mill owner's own milling-return transport requests."""
 
-    permission_classes = [HasPermission("access_mill_owner_portal")]
+    permission_classes = [HasPermission("access_mill_owner_portal"), IsMillOwner]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def get_queryset(self):

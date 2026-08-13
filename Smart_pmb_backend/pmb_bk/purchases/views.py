@@ -21,6 +21,7 @@ from farmers.views import _current_season_channel_totals_kg, _log_transaction
 from sysops.utils import get_config_value, log_audit, raise_low_stock_alert
 
 from .models import AuthorizedPurchaser, DispatchManifest, FarmGatePurchase, PurchaserStock, RiceRequest
+from .permissions import IsAuthorizedPurchaser
 from .serializers import (
     AuthorizedPurchaserSerializer,
     DispatchManifestCreateSerializer,
@@ -41,7 +42,7 @@ from .serializers import (
 class PurchaserDashboardView(APIView):
     """Aggregates a logged-in Authorized Purchaser's own profile, stock-on-hand, and recent rice requests."""
 
-    permission_classes = [HasPermission("access_purchaser_portal")]
+    permission_classes = [HasPermission("access_purchaser_portal"), IsAuthorizedPurchaser]
 
     def get(self, request):
         stock = PurchaserStock.objects.filter(purchaser=request.user).select_related("paddy_type")
@@ -96,7 +97,7 @@ class RiceRequestViewSet(viewsets.ModelViewSet):
     via OfficerRiceRequestViewSet).
     """
 
-    permission_classes = [HasPermission("access_purchaser_portal")]
+    permission_classes = [HasPermission("access_purchaser_portal"), IsAuthorizedPurchaser]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def get_queryset(self):
@@ -276,7 +277,7 @@ class FarmerNicLookupView(APIView):
     whether to buy: identity, reliability, and remaining seasonal quota.
     """
 
-    permission_classes = [HasPermission("access_purchaser_portal")]
+    permission_classes = [HasPermission("access_purchaser_portal"), IsAuthorizedPurchaser]
 
     def get(self, request):
         nic = request.query_params.get("nic", "").strip()
@@ -309,7 +310,7 @@ class FarmGatePurchaseViewSet(viewsets.ModelViewSet):
     own remaining seasonal quota.
     """
 
-    permission_classes = [HasPermission("access_purchaser_portal")]
+    permission_classes = [HasPermission("access_purchaser_portal"), IsAuthorizedPurchaser]
     http_method_names = ["get", "post", "head", "options"]
 
     def get_queryset(self):
@@ -380,7 +381,7 @@ class DispatchManifestViewSet(viewsets.ModelViewSet):
     transfer to a destination warehouse.
     """
 
-    permission_classes = [HasPermission("access_purchaser_portal")]
+    permission_classes = [HasPermission("access_purchaser_portal"), IsAuthorizedPurchaser]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def get_queryset(self):
