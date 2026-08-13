@@ -62,12 +62,22 @@ export default function LicenseTabs({
       </div>
 
       {tab === "purchaser" && (
-        <LicensesManager applications={purchaserApplications} canWrite={canWrite} />
+        <LicensesManager
+          applications={purchaserApplications}
+          canWrite={canWrite}
+          title="Authorized Purchaser Applications"
+          subtitle="Authorized purchasers requesting access"
+        />
       )}
 
       {tab === "mill" && (
         <>
-          <LicensesManager applications={millApplications} canWrite={canWrite} />
+          <LicensesManager
+            applications={millApplications}
+            canWrite={canWrite}
+            title="Mill Owner Applications"
+            subtitle="Mill owners requesting access"
+          />
           <MillLicensesManager licenses={millLicenses} canWrite={canWrite} />
           <InspectionsSection inspections={inspections} mills={mills} canWrite={canWrite} />
         </>

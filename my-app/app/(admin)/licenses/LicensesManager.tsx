@@ -41,12 +41,19 @@ const STATUS_BADGE: Record<LicenseApplicationRow["status"], string> = {
 export default function LicensesManager({
   applications,
   canWrite = true,
+  title = "Licensing Applications",
+  subtitle = "Authorized purchasers and mill owners requesting access",
 }: {
   applications: LicenseApplicationRow[];
   // False for viewers who can see applications but not decide them (e.g. a
   // monitor_operations-only officer viewing the merged /licenses page's
   // Mill License tab) — hides the Approve/Reject actions.
   canWrite?: boolean;
+  // LicenseTabs reuses this component for both the Authorized Purchaser
+  // and Mill License tabs — override the copy so the Mill tab doesn't read
+  // like it's still showing purchaser applications.
+  title?: string;
+  subtitle?: string;
 }) {
   const [statusFilter, setStatusFilter] = useState("pending");
   const [rejectTarget, setRejectTarget] = useState<LicenseApplicationRow | null>(null);
@@ -101,10 +108,8 @@ export default function LicensesManager({
     <div className={styles.page}>
       <div className={styles.headerRow}>
         <div>
-          <h1 className={styles.title}>Licensing Applications</h1>
-          <span className={styles.subtitle}>
-            Authorized purchasers and mill owners requesting access
-          </span>
+          <h1 className={styles.title}>{title}</h1>
+          <span className={styles.subtitle}>{subtitle}</span>
         </div>
 
         <div className={styles.actions}>
