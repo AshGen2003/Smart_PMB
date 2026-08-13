@@ -11,6 +11,7 @@ import Image from "next/image";
 import { useActionState } from "react";
 import clsx from "clsx";
 import { logout } from "@/app/actions/auth";
+import { uploadLicenseApplicationDocument } from "@/app/actions/licenses";
 import AuthShell from "@/app/(auth)/AuthShell";
 import styles from "@/app/(auth)/AuthForm.module.css";
 

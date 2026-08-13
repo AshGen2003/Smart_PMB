@@ -373,6 +373,27 @@ export function DeliveryFormModal({
   const [routeId, setRouteId] = useState(delivery?.route != null ? String(delivery.route) : "");
   const [warehouseId, setWarehouseId] = useState(delivery?.warehouse != null ? String(delivery.warehouse) : "");
 
+  const [linkedType, setLinkedType] = useState<LinkedRequestType>(() => linkedTypeOf(delivery));
+  const [linkedId, setLinkedId] = useState<string>(() => linkedIdOf(delivery, linkedTypeOf(delivery)));
+
+  const optionsByType: Record<Exclude<LinkedRequestType, "">, LinkableRequestOption[]> = {
+    dispatch_manifest: dispatchManifests,
+    milling_return_request: millingReturnRequests,
+    rice_request: riceRequests,
+    milling_allocation: millingAllocations,
+  };
+  // In edit mode, the delivery's own currently-linked request won't appear
+  // in the "available" list passed in (it's no longer unlinked) — add it
+  // back in so the picker doesn't show a blank selection for it.
+  const currentOptions = useMemo(() => {
+    if (!linkedType) return [];
+    const base = optionsByType[linkedType];
+    if (mode === "edit" && linkedId && !base.some((o) => String(o.id) === linkedId)) {
+      return [{ id: Number(linkedId), label: `#${linkedId} (currently linked)` }, ...base];
+    }
+    return base;
+  }, [linkedType, linkedId, mode, dispatchManifests, millingReturnRequests, riceRequests, millingAllocations]);
+
   // Picking a route auto-fills the warehouse from that route's own
   // warehouse (set once when the route was created) — still a normal,
   // independently editable dropdown afterward for the rare one-off override.

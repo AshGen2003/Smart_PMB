@@ -12,6 +12,7 @@ import { ClipboardList, Loader2, X } from "lucide-react";
 import { createHarvest, updateHarvest, type HarvestFormState } from "@/app/actions/approvals";
 import StyledSelect from "@/app/components/StyledSelect";
 import StyledDatePicker from "@/app/components/StyledDatePicker";
+import { PMB_QUALITY_THRESHOLDS } from "@/app/lib/pmbConstants";
 import styles from "./Approvals.module.css";
 
 export type FarmerOption = { id: number; name: string; registration_no: string };

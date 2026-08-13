@@ -1,12 +1,15 @@
 /**
- * `/signup` — role picker: with four self-registerable roles (farmer,
- * mill owner, warehouse manager, transport operator), this replaces
- * hardcoding a specific role's signup link everywhere. Purely a static
- * landing page — each card links to its own dedicated form/route, which
- * still works standalone for deep-linking/bookmarking.
+ * `/signup` — role picker: with three self-registerable roles (farmer,
+ * mill owner, authorized purchaser), this replaces hardcoding a specific
+ * role's signup link everywhere. Purely a static landing page — each card
+ * links to its own dedicated form/route, which still works standalone for
+ * deep-linking/bookmarking. Warehouse Manager and Driver aren't here —
+ * those are staff roles appointed by a PMB Officer/Admin, never
+ * self-registered (see accounts.PmbOfficer's own docstring for the same
+ * pattern).
  */
 import Link from "next/link";
-import { Sprout, Factory, Warehouse, Truck, ShoppingCart } from "lucide-react";
+import { Sprout, Factory, ShoppingCart } from "lucide-react";
 import AuthShell from "../AuthShell";
 import formStyles from "../AuthForm.module.css";
 import styles from "./RolePicker.module.css";
@@ -24,18 +27,6 @@ const ROLES = [
     icon: Factory,
     label: "Mill Owner",
     description: "Apply for licenses and submit milling reports.",
-  },
-  {
-    href: "/signup/warehouse-manager",
-    icon: Warehouse,
-    label: "Warehouse Manager",
-    description: "Manage stock, intake, and capacity alerts.",
-  },
-  {
-    href: "/signup/transport-operator",
-    icon: Truck,
-    label: "Transport Operator",
-    description: "Manage the vehicle fleet, drivers, and deliveries.",
   },
   {
     href: "/signup/authorized-purchaser",

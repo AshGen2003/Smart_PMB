@@ -21,6 +21,8 @@ const SAMPLE_FARMER_DASHBOARD: DashboardPayload = {
     reliability_score: 82,
   },
   kpis: { total_harvests: 8, pending_payments: 1, total_earnings: 154200 },
+  quota: { max_quota_kg: 5000, quota_used_kg: 1400, quota_remaining_kg: 3600, season: "yala" },
+  current_season: "yala",
   paddy_types: [
     { id: 1, type_name: "Nadu", variety: "Long grain", guaranteed_price: "115.00" },
     { id: 2, type_name: "Samba", variety: "Short grain", guaranteed_price: "128.00" },

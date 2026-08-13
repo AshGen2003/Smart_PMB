@@ -502,6 +502,10 @@ export default function TransportationManager({
                                         warehouse: d.warehouse,
                                         scheduled_date: d.scheduled_date,
                                         scheduled_time: d.scheduled_time,
+                                        dispatch_manifest: d.dispatch_manifest,
+                                        milling_return_request: d.milling_return_request,
+                                        rice_request: d.rice_request,
+                                        milling_allocation: d.milling_allocation,
                                       },
                                     })
                                   }

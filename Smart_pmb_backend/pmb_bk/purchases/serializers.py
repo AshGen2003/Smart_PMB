@@ -6,6 +6,26 @@ from rest_framework import serializers
 from .models import AuthorizedPurchaser, DispatchManifest, FarmGatePurchase, PurchaserStock, RiceRequest
 
 
+def _delivery_status(obj):
+    """
+    Shared by RiceRequestSerializer/DispatchManifestSerializer-style
+    self-service serializers: the requester's own view of whichever
+    Delivery (see farmers.Delivery) is transporting their request, or None
+    if an officer hasn't scheduled one yet. At most one is ever linked, so
+    `.first()` is safe.
+    """
+    delivery = obj.deliveries.select_related("driver", "vehicle").first()
+    if not delivery:
+        return None
+    return {
+        "status": delivery.status,
+        "assignment_status": delivery.assignment_status,
+        "driver_name": delivery.driver.full_name,
+        "vehicle_registration": delivery.vehicle.registration_no,
+        "scheduled_date": delivery.scheduled_date,
+    }
+
+
 class AuthorizedPurchaserSerializer(serializers.ModelSerializer):
     """Read representation of an AuthorizedPurchaser profile, with the district name resolved for display."""
 

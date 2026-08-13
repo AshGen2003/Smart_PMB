@@ -23,6 +23,7 @@ import {
   User,
   ClipboardList,
   Boxes,
+  FileCheck,
 } from "lucide-react";
 
 // A mill owner's ongoing License history (renewable, expiry-tracked — see

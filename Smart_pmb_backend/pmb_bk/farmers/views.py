@@ -341,6 +341,18 @@ class FarmerDeliverySlotViewSet(viewsets.ModelViewSet):
         return Response(status=204)
 
 
+class FarmerPaymentListView(generics.ListAPIView):
+    """A farmer's own full payment history (not just the dashboard's most-recent-10 slice) — see Payment's docstring."""
+
+    permission_classes = [HasPermission("access_farmer_portal")]
+    serializer_class = PaymentSerializer
+
+    def get_queryset(self):
+        return Payment.objects.filter(farmer__user=self.request.user).select_related("harvest").order_by(
+            "-payment_date", "-id"
+        )
+
+
 class DeliverySlotQrView(APIView):
     """
     Generates a QR PNG (on the fly, never stored) encoding the booking's

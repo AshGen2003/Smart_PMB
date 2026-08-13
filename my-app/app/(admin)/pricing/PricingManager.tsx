@@ -55,6 +55,7 @@ export default function PricingManager({
   >(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PaddyTypeRow | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Client-side filter by type name or variety (case-insensitive substring match).

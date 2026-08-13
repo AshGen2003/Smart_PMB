@@ -9,7 +9,7 @@
 import React, { useMemo, useState, useTransition } from "react";
 import { format } from "date-fns";
 import clsx from "clsx";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, FileDown, Loader2, X } from "lucide-react";
 import { approveLicense, rejectLicense } from "@/app/actions/licenses";
 import StyledSelect from "@/app/components/StyledSelect";
 import ConfirmModal from "@/app/components/ConfirmModal";

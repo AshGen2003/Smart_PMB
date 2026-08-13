@@ -8,8 +8,8 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('farmers', '0022_deliveryslot'),
-        ('mills', '0004_remove_license_document_license_contact_number_and_more'),
+        ('farmers', '0023_deliveryslot'),
+        ('mills', '0003_millingallocation_millingreturnrequest_millstock'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
