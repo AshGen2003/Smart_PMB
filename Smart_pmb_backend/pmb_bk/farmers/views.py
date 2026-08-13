@@ -58,6 +58,7 @@ from .models import (
     Warehouse,
     WarehouseTransferRequest,
     season_date_range,
+    season_for_date,
 )
 from .permissions import CanViewVehicles
 from .serializers import (
