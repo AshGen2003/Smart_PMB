@@ -50,6 +50,11 @@ class RiceRequest(models.Model):
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
         FULFILLED = "fulfilled", "Fulfilled"
+        # Set by the purchaser themselves (RiceRequestViewSet.confirm_receipt)
+        # once they've confirmed receipt of the linked Delivery — the final
+        # close-out step after FULFILLED, distinct from the warehouse-side
+        # stock accounting that already happened at fulfillment time.
+        RECEIVED = "received", "Received"
 
     purchaser = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="rice_requests"

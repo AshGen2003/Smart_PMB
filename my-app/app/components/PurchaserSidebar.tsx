@@ -24,6 +24,7 @@ import {
   Package,
   Receipt,
   Award,
+  Truck,
 } from "lucide-react";
 
 // "My License" is the one-time account-approval digital certificate every
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", href: "/purchaser", icon: LayoutDashboard, permission: "view_dashboard" },
   { label: "My License", href: "/purchaser/my-license", icon: Award, permission: "view_dashboard" },
   { label: "Paddy Requests", href: "/purchaser/rice-requests", icon: Package, permission: "view_dashboard" },
+  { label: "Deliveries", href: "/purchaser/deliveries", icon: Truck, permission: "view_dashboard" },
   { label: "Farm-Gate Purchases", href: "/purchaser/farm-gate-purchases", icon: Receipt, permission: "view_dashboard" },
   { label: "Messages", href: "/purchaser/messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", href: "/purchaser/settings", icon: Settings, permission: "view_settings" },

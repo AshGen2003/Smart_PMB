@@ -58,6 +58,7 @@ from .models import (
     Warehouse,
     WarehouseTransferRequest,
     season_date_range,
+    season_for_date,
 )
 from .permissions import CanViewVehicles
 from .serializers import (
@@ -88,9 +89,9 @@ from .serializers import (
     TransactionVerificationSerializer,
     TransactionVerificationWriteSerializer,
     VehicleSerializer,
+    WarehouseManagerDeliverySerializer,
     WarehouseManagerDeliverySlotSerializer,
     WarehouseManagerSelfUpdateSerializer,
-    WarehouseManagerDeliverySlotSerializer,
     WarehouseSerializer,
     WarehouseStockAdjustmentSerializer,
     WarehouseTransferRequestSerializer,
@@ -758,6 +759,36 @@ class WarehouseManagerTransactionsView(APIView):
 
         transactions = TransactionLog.objects.filter(warehouse=warehouse).order_by("-created_at")[:200]
         return Response(TransactionLogSerializer(transactions, many=True).data)
+
+
+class WarehouseManagerDeliveriesView(APIView):
+    """
+    GET /api/warehouse-manager/deliveries/ — every Delivery carrying a
+    purchaser's fulfilled rice request out of the logged-in manager's own
+    warehouse (Delivery.warehouse is the *origin* in this case — see the
+    model's docstring), read-only. Lets the manager see a load move
+    scheduled -> in_transit -> delivered, and once the purchaser hits
+    "Confirm Received" on their side (purchases.RiceRequestViewSet.
+    confirm_receipt), that the loop has closed. Same identity-scoped access
+    pattern as the other warehouse-manager views.
+    """
+
+    permission_classes = [HasPermission("access_warehouse_manager_portal")]
+
+    def get(self, request):
+        warehouse = Warehouse.objects.filter(managed_by=request.user).first()
+        if not warehouse:
+            return Response(
+                {"detail": "You are not currently assigned to manage a warehouse."}, status=404
+            )
+
+        deliveries = Delivery.objects.filter(
+            warehouse=warehouse, rice_request__isnull=False
+        ).select_related(
+            "driver", "vehicle", "received_by",
+            "rice_request__purchaser", "rice_request__paddy_type",
+        ).order_by("-scheduled_date", "-id")
+        return Response(WarehouseManagerDeliverySerializer(deliveries, many=True).data)
 
 
 class WarehouseManagerTransferOptionsView(APIView):

@@ -632,19 +632,6 @@ class Delivery(models.Model):
     # "driver hasn't accepted and the trip starts within 3 hours" reminder
     # has fired for this delivery, so the periodic job never sends it twice.
     reminder_sent_at = models.DateTimeField(null=True, blank=True)
-    # Set when this delivery is carrying a purchaser's dispatch manifest or
-    # a mill's finished-rice return back into PMB custody, rather than a
-    # plain warehouse-to-warehouse transfer — an officer links one of these
-    # manually from Transportation after approving the manifest/return (no
-    # Delivery is auto-created on approval). When this delivery reaches
-    # "delivered", _handle_delivery_delivered below credits the destination
-    # warehouse's stock and flips the linked manifest/return to DELIVERED.
-    dispatch_manifest = models.ForeignKey(
-        "purchases.DispatchManifest", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
-    )
-    milling_return_request = models.ForeignKey(
-        "mills.MillingReturnRequest", on_delete=models.SET_NULL, null=True, blank=True, related_name="deliveries"
-    )
 
     class AssignmentStatus(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -658,6 +645,19 @@ class Delivery(models.Model):
     # DeliveryViewSet.perform_update) whenever the driver is reassigned.
     assignment_status = models.CharField(
         max_length=20, choices=AssignmentStatus.choices, default=AssignmentStatus.PENDING
+    )
+
+    # Recipient-side confirmation that the physical load actually arrived —
+    # separate from `status` (driver-reported) above, since a driver marking
+    # "delivered" is a transport claim, not the recipient's own word. Only
+    # settable by the purchaser/mill owner on their own linked
+    # rice_request/milling_allocation once `status` is DELIVERED (see
+    # purchases.RiceRequestViewSet.confirm_receipt). Closing the loop on the
+    # request itself (RiceRequest.Status.RECEIVED) is a separate, later step
+    # gated on this being set first.
+    received_at = models.DateTimeField(null=True, blank=True)
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
 
     class Meta:

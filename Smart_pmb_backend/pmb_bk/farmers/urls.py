@@ -25,6 +25,7 @@ urlpatterns = [
     path("warehouse-manager/adjust-stock/", views.WarehouseManagerAdjustStockView.as_view()),
     path("warehouse-manager/alerts/<int:pk>/resolve/", views.WarehouseManagerResolveAlertView.as_view()),
     path("warehouse-manager/transactions/", views.WarehouseManagerTransactionsView.as_view()),
+    path("warehouse-manager/deliveries/", views.WarehouseManagerDeliveriesView.as_view()),
     path("warehouse-manager/transfer-options/", views.WarehouseManagerTransferOptionsView.as_view()),
     path("warehouse-manager/delivery-slots/lookup/", views.WarehouseManagerDeliverySlotLookupView.as_view()),
     path("warehouse-manager/delivery-slots/<int:pk>/check-in/", views.WarehouseManagerDeliverySlotCheckInView.as_view()),

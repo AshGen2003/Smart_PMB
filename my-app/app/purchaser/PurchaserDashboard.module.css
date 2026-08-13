@@ -242,6 +242,26 @@
   cursor: not-allowed;
 }
 
+.confirmReceiptBtn {
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  color: var(--success);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirmReceiptBtn:hover:not(:disabled) {
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.confirmReceiptBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .emptyRow {
   display: flex;
   align-items: center;

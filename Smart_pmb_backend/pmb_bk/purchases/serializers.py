@@ -18,11 +18,13 @@ def _delivery_status(obj):
     if not delivery:
         return None
     return {
+        "id": delivery.id,
         "status": delivery.status,
         "assignment_status": delivery.assignment_status,
         "driver_name": delivery.driver.full_name,
         "vehicle_registration": delivery.vehicle.registration_no,
         "scheduled_date": delivery.scheduled_date,
+        "received_at": delivery.received_at,
     }
 
 
