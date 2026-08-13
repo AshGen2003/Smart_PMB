@@ -24,6 +24,16 @@ const nextConfig: NextConfig = {
       dynamic: 0,
       static: 30,
     },
+    serverActions: {
+      // Default is 1mb, too small for a real profile picture (see
+      // actions/profile.ts's uploadProfilePicture) or a license
+      // application's supporting document (actions/licenses.ts's
+      // uploadLicenseApplicationDocument) — a phone photo alone routinely
+      // exceeds 1mb. Matches deploy/nginx-smartpmb.conf's
+      // client_max_body_size on the APP_HOST block, which would otherwise
+      // reject the request before it even reaches this limit.
+      bodySizeLimit: "20mb",
+    },
   },
 };
 
