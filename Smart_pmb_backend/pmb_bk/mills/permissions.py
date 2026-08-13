@@ -1,5 +1,5 @@
 # Simple role-check permission for endpoints that are only meaningful to a
-# mill owner's own account, mirroring farmers/permissions.py's IsFarmer.
+# mill owner's own account.
 from rest_framework.permissions import BasePermission
 
 
