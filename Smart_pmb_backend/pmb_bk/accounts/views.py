@@ -4,6 +4,7 @@
 # refresh are handled by djangorestframework_simplejwt; everything else is
 # plain DRF APIViews/ViewSets guarded by the custom permission classes in
 # accounts/permissions.py.
+import re
 from datetime import timedelta
 
 from django.conf import settings
@@ -715,6 +716,20 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         return Response({"access": str(token.access_token), "refresh": str(token)})
 
 
+def _license_certificate_filename(application):
+    """
+    smart-pmb-license-<business-name>-<license-type>.pdf, e.g.
+    smart-pmb-license-Gerri-Mills-Mill-Owner.pdf. business_name is free-text
+    user input, so it's slugified (non-alphanumeric runs collapsed to a
+    single hyphen) to keep the Content-Disposition header/filename safe
+    across OSes rather than trusting it verbatim.
+    """
+    def slug(value):
+        return re.sub(r"[^A-Za-z0-9]+", "-", value).strip("-") or "license"
+
+    return f"smart-pmb-license-{slug(application.business_name)}-{slug(application.get_license_type_display())}.pdf"
+
+
 class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Officer/admin review queue for authorized-purchaser/mill-owner
@@ -788,7 +803,7 @@ class LicenseApplicationViewSet(viewsets.ReadOnlyModelViewSet):
         log_audit(request.user, "download_license_certificate", "accounts", application.business_name)
         return FileResponse(
             buffer, as_attachment=True,
-            filename=f"smart-pmb-license-{application.license_number}.pdf",
+            filename=_license_certificate_filename(application),
             content_type="application/pdf",
         )
 
@@ -821,7 +836,7 @@ class MyLicenseCertificateView(APIView):
         buffer = build_license_certificate_pdf(application)
         return FileResponse(
             buffer, as_attachment=True,
-            filename=f"smart-pmb-license-{application.license_number}.pdf",
+            filename=_license_certificate_filename(application),
             content_type="application/pdf",
         )
 
