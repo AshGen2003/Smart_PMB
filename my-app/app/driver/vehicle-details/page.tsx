@@ -1,13 +1,15 @@
 /**
- * `/driver/vehicle-details` — read-only reference page for a driver: full
- * spec sheet of every vehicle they've been assigned, the routes those
- * deliveries used, and their complete delivery history. Nothing here is
- * editable — vehicles/routes/deliveries stay officer-managed
- * (`manage_transport`); this page only ever reads
+ * `/driver/vehicle-details` — "Assigned Vehicles" in the sidebar: read-only
+ * reference page for a driver: full spec sheet of every vehicle they've
+ * been assigned, the routes those deliveries used, and their complete
+ * delivery history. Nothing here is editable — vehicles/routes/deliveries
+ * stay officer-managed (`manage_transport`); this page only ever reads
  * `/api/driver/vehicle-info/`, which itself scopes everything to
  * `driver=request.user` server-side (see DriverVehicleInfoView). Requires
  * `view_vehicle_details` — granted to "driver" by default (see
  * accounts/migrations/0017), toggleable from /roles or the Preview Portal.
+ * Route/permission codename kept as "vehicle-details"/"view_vehicle_details"
+ * even after the sidebar relabel — only the displayed strings changed.
  */
 import { requirePermission } from "@/app/lib/dal";
 import { apiFetch } from "@/app/lib/api";
@@ -96,7 +98,7 @@ export default async function DriverVehicleDetailsPage() {
   return (
     <div className={styles.dashboard}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Vehicle Details</h1>
+        <h1 className={styles.title}>Assigned Vehicles</h1>
         <p className={styles.subtitle}>Read-only reference for the vehicles, routes, and deliveries assigned to you.</p>
       </div>
 
@@ -138,7 +140,7 @@ export default async function DriverVehicleDetailsPage() {
       </div>
 
       <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Routes you've driven</h2>
+        <h2 className={styles.cardTitle}>Routes you&apos;ve driven</h2>
         {data.routes.length > 0 ? (
           <div className={styles.tableWrap}>
             <table className={styles.table}>

@@ -2,10 +2,11 @@
 # (Province/District), farmer profiles, warehouses, paddy types and their
 # guaranteed prices, harvest submissions and their approval workflow, and
 # the payments/notifications generated along the way.
-from datetime import date
+from datetime import date, datetime
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class Season(models.TextChoices):
@@ -632,6 +633,11 @@ class Delivery(models.Model):
     # "driver hasn't accepted and the trip starts within 3 hours" reminder
     # has fired for this delivery, so the periodic job never sends it twice.
     reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    # Separate from reminder_sent_at above: tracks the sibling "your
+    # accepted trip starts in 3 hours" reminder (_send_accepted_trip_
+    # starting_reminder), which fires for deliveries the driver has
+    # already accepted rather than ones still awaiting a response.
+    accepted_reminder_sent_at = models.DateTimeField(null=True, blank=True)
 
     class AssignmentStatus(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -666,6 +672,18 @@ class Delivery(models.Model):
     def __str__(self):
         return f"Delivery #{self.pk} ({self.status})"
 
+    def get_scheduled_datetime(self):
+        """
+        scheduled_date + scheduled_time combined into one aware datetime, or
+        None if scheduled_time isn't set (legacy rows predating that field —
+        see its own comment above). Shared by the dashboard's expired-task
+        filter and both reminder loops so "is this delivery due soon /
+        already past" isn't computed three different ways.
+        """
+        if not self.scheduled_time:
+            return None
+        return timezone.make_aware(datetime.combine(self.scheduled_date, self.scheduled_time))
+
 
 class DeliveryLocationPing(models.Model):
     """
@@ -695,8 +713,18 @@ class FuelRecord(models.Model):
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="fuel_records")
     fuel_type = models.CharField(max_length=20, choices=FuelType.choices, default=FuelType.DIESEL)
     quantity_litres = models.DecimalField(max_digits=8, decimal_places=2)
+    # Nullable for legacy rows predating this field. Required on new writes
+    # at the serializer level -- cost itself is server-computed from this
+    # and quantity_litres (see FuelRecordSerializer), never client-entered.
+    price_per_litre = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     cost = models.DecimalField(max_digits=10, decimal_places=2)
     fuel_date = models.DateField()
+    # Optional link to the completed trip this fuel purchase was for --
+    # SET_NULL rather than CASCADE since a fuel record is a real expense
+    # that should survive even if the linked Delivery is later removed.
+    delivery = models.ForeignKey(
+        Delivery, on_delete=models.SET_NULL, null=True, blank=True, related_name="fuel_records"
+    )
 
     class Meta:
         ordering = ["-fuel_date", "-id"]
@@ -708,11 +736,44 @@ class MaintenanceRecord(models.Model):
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
 
+    # Common service items for this fleet (diesel lorries/vans/tractors/
+    # three-wheelers/pickups doing frequent paddy-transport hauling on rural
+    # roads -- dusty air filters, hard-working brakes/clutches/suspension,
+    # engine heat/coolant load). OTHER lets a driver log anything not
+    # listed, with `description` required in that case (see
+    # MaintenanceRecordSerializer.validate) -- for every other type,
+    # `description` is just an optional supplementary note.
+    class ServiceType(models.TextChoices):
+        OIL_CHANGE = "oil_change", "Oil Change"
+        TIRE_SERVICE = "tire_service", "Tire Replacement/Rotation"
+        BRAKE_SERVICE = "brake_service", "Brake Service"
+        BATTERY_REPLACEMENT = "battery_replacement", "Battery Replacement"
+        AIR_FILTER = "air_filter", "Air Filter Replacement"
+        FUEL_FILTER = "fuel_filter", "Fuel Filter Replacement"
+        COOLANT_SERVICE = "coolant_service", "Coolant/Radiator Service"
+        CLUTCH_TRANSMISSION = "clutch_transmission", "Clutch/Transmission Service"
+        SUSPENSION_SERVICE = "suspension_service", "Suspension/Shock Absorber Service"
+        WHEEL_ALIGNMENT = "wheel_alignment", "Wheel Alignment & Balancing"
+        AC_SERVICE = "ac_service", "AC Service"
+        GENERAL_INSPECTION = "general_inspection", "General Inspection"
+        OTHER = "other", "Other"
+
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="maintenance_records")
     service_date = models.DateField()
+    service_type = models.CharField(max_length=30, choices=ServiceType.choices, default=ServiceType.OTHER)
     description = models.CharField(max_length=255, blank=True)
     cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Odometer reading at time of service -- nullable for legacy rows,
+    # required at the serializer level for new writes. Powers the
+    # next-service projection below (see SERVICE_INTERVALS_KM).
+    odometer_km = models.PositiveIntegerField(null=True, blank=True)
     next_service_date = models.DateField(null=True, blank=True)
+    # Server-computed (odometer_km + the type's interval, see
+    # SERVICE_INTERVALS_KM below) whenever service_type has a known
+    # interval and odometer_km is set -- shown even when there isn't yet
+    # enough mileage history to project next_service_date to an actual
+    # calendar date (see MaintenanceRecordSerializer).
+    next_service_due_km = models.PositiveIntegerField(null=True, blank=True)
     # A driver logs a maintenance record (see DriverMaintenanceRecordViewSet)
     # and a PMB officer reviews the cost (see MaintenanceRecordViewSet's
     # approve/reject actions) -- mirrors LicenseApplication's review shape.
@@ -725,3 +786,13 @@ class MaintenanceRecord(models.Model):
 
     class Meta:
         ordering = ["-service_date", "-id"]
+
+
+# Only service types with a known distance-based interval get an automatic
+# next_service_date/next_service_due_km projection (see
+# MaintenanceRecordSerializer). Oil Change is the only one with a concrete
+# figure today; more can be added here later without a migration -- the
+# interval only ever feeds a computed field, never a schema change.
+SERVICE_INTERVALS_KM = {
+    MaintenanceRecord.ServiceType.OIL_CHANGE: 50000,
+}

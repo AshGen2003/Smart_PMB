@@ -354,14 +354,25 @@ export const PREVIEW_TRANSPORTATION = {
   riceRequests: [],
   millingAllocations: [],
   fuelRecords: [
-    { id: 1, vehicle: 1, vehicle_registration: "WP-DEMO-01", fuel_type: "diesel", quantity_litres: "60.00", cost: "24000.00", fuel_date: "2026-07-18" },
+    {
+      id: 1, vehicle: 1, vehicle_registration: "WP-DEMO-01", fuel_type: "diesel",
+      quantity_litres: "60.00", price_per_litre: "400.00", cost: "24000.00", fuel_date: "2026-07-18",
+      delivery: 3, delivery_label: "Kurunegala Regional Store → Colombo Central Store (2026-07-15)",
+    },
   ],
   maintenanceRecords: [
     {
       id: 1, vehicle: 3, vehicle_registration: "WP-DEMO-03", service_date: "2026-07-15",
-      description: "Sample data — routine service", cost: "12000.00", next_service_date: "2026-10-15",
+      service_type: "oil_change", description: "", cost: "12000.00", odometer_km: 45000,
+      next_service_date: "2026-10-15", next_service_due_km: 95000,
       status: "pending" as const, reviewed_by_name: null, rejection_reason: "",
     },
+  ],
+  // Only DELIVERED deliveries can be linked to a fuel record (see
+  // FuelRecordSerializer.validate_delivery) -- a standalone sample list
+  // since the `deliveries` array above doesn't include a delivered one.
+  completedDeliveries: [
+    { id: 3, label: "Kurunegala Regional Store → Colombo Central Store (2026-07-15)" },
   ],
   stats: {
     vehicles_total: PREVIEW_VEHICLES.length,

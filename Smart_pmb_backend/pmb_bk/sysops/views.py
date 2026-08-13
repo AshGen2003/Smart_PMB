@@ -725,9 +725,11 @@ class RunCapacityForecastsView(APIView):
 class RunDeliveryRemindersView(APIView):
     """
     POST /api/internal/run-delivery-reminders/ — runs the
-    send_delivery_reminders management command (reminds a delivery's driver
-    when they haven't accepted and the trip starts within 3 hours; see
-    farmers/views.py's _send_delivery_reminder), meant to be called every 15
+    send_delivery_reminders management command (reminds a delivery's driver,
+    3 hours before it starts, either that they haven't accepted it yet — see
+    farmers/views.py's _send_delivery_reminder — or, if they have, that the
+    trip they've accepted is starting soon — see
+    _send_accepted_trip_starting_reminder), meant to be called every 15
     minutes by .github/workflows/delivery-reminders-schedule.yml since this
     codebase has no in-process task scheduler.
 

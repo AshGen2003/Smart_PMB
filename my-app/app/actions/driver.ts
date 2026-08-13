@@ -72,12 +72,15 @@ async function remove(path: string) {
 // --- Fuel records -------------------------------------------------------
 
 function fuelRecordPayload(formData: FormData) {
+  // No `cost` here -- it's server-computed from price_per_litre *
+  // quantity_litres (see FuelRecordSerializer), never submitted.
   return {
     vehicle: Number(formData.get("vehicle")),
     fuel_type: String(formData.get("fuel_type") ?? "diesel"),
     quantity_litres: String(formData.get("quantity_litres") ?? ""),
-    cost: String(formData.get("cost") ?? ""),
+    price_per_litre: String(formData.get("price_per_litre") ?? ""),
     fuel_date: String(formData.get("fuel_date") ?? ""),
+    delivery: formData.get("delivery") ? Number(formData.get("delivery")) : null,
   };
 }
 
@@ -99,8 +102,10 @@ function maintenanceRecordPayload(formData: FormData) {
   return {
     vehicle: Number(formData.get("vehicle")),
     service_date: String(formData.get("service_date") ?? ""),
+    service_type: String(formData.get("service_type") ?? "other"),
     description: String(formData.get("description") ?? "").trim(),
     cost: String(formData.get("cost") ?? "0"),
+    odometer_km: formData.get("odometer_km") ? Number(formData.get("odometer_km")) : null,
     next_service_date: String(formData.get("next_service_date") ?? "") || null,
   };
 }

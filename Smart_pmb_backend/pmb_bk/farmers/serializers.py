@@ -1,6 +1,7 @@
 # Serializers for the farmers app. Most model pairs here follow the same
 # "read serializer nests human-readable names, write serializer accepts
 # plain foreign-key ids" pattern used throughout the admin/officer APIs.
+from datetime import timedelta
 from decimal import Decimal
 
 from rest_framework import serializers
@@ -22,6 +23,7 @@ from .models import (
     Payment,
     PriceRecord,
     Route,
+    SERVICE_INTERVALS_KM,
     TransactionLog,
     TransactionVerification,
     Vehicle,
@@ -507,16 +509,61 @@ class FuelRecordSerializer(serializers.ModelSerializer):
     field during deserialization (both try to write into the same nested
     `vehicle` slot in the input dict — DRF raises "'Vehicle' object does
     not support item assignment").
+
+    `cost` is read_only: it's always server-computed from price_per_litre *
+    quantity_litres (see create/update below) rather than trusted from the
+    client, so a driver can't submit a fuel record with a cost that doesn't
+    match the rate they entered.
     """
 
     vehicle_registration = serializers.CharField(source="vehicle.registration_no", read_only=True, default=None)
+    price_per_litre = serializers.DecimalField(max_digits=8, decimal_places=2, required=True)
+    cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    delivery_label = serializers.SerializerMethodField()
 
     class Meta:
         model = FuelRecord
         fields = [
             "id", "vehicle", "vehicle_registration", "fuel_type",
-            "quantity_litres", "cost", "fuel_date",
+            "quantity_litres", "price_per_litre", "cost", "fuel_date",
+            "delivery", "delivery_label",
         ]
+
+    def get_delivery_label(self, obj):
+        if not obj.delivery_id or not obj.delivery.route_id:
+            return None
+        return f"{obj.delivery.route.origin} → {obj.delivery.route.destination} ({obj.delivery.scheduled_date})"
+
+    def validate_delivery(self, value):
+        if value is None:
+            return value
+        request = self.context.get("request")
+        if request and value.driver_id != request.user.id:
+            raise serializers.ValidationError("You can only link fuel records to your own deliveries.")
+        if value.status != Delivery.Status.DELIVERED:
+            raise serializers.ValidationError("Only a completed delivery can be linked to a fuel record.")
+        return value
+
+    def validate(self, attrs):
+        delivery = attrs.get("delivery", getattr(self.instance, "delivery", None))
+        vehicle = attrs.get("vehicle", getattr(self.instance, "vehicle", None))
+        if delivery and vehicle and delivery.vehicle_id != vehicle.id:
+            raise serializers.ValidationError(
+                {"delivery": "This delivery was made with a different vehicle."}
+            )
+        return attrs
+
+    def _compute_cost(self, validated_data, instance=None):
+        price = validated_data.get("price_per_litre", getattr(instance, "price_per_litre", None))
+        quantity = validated_data.get("quantity_litres", getattr(instance, "quantity_litres", None))
+        validated_data["cost"] = (price * quantity).quantize(Decimal("0.01"))
+        return validated_data
+
+    def create(self, validated_data):
+        return super().create(self._compute_cost(validated_data))
+
+    def update(self, instance, validated_data):
+        return super().update(instance, self._compute_cost(validated_data, instance))
 
 
 class MaintenanceRecordSerializer(serializers.ModelSerializer):
@@ -530,22 +577,74 @@ class MaintenanceRecordSerializer(serializers.ModelSerializer):
     views.py) -- status/reviewed_at/rejection_reason MUST stay read_only
     here, or a driver's own PATCH could set their own approval status.
     They're only ever set server-side, by the approve/reject actions.
+
+    next_service_date/next_service_due_km: for service_types with a known
+    distance interval (see SERVICE_INTERVALS_KM), both are recalculated
+    server-side on every save from actual odometer history (see
+    create/update below) -- whatever the client sends for next_service_date
+    is discarded for those types. For every other service_type, both stay
+    exactly as submitted (or unchanged, on update); there's no known
+    interval to project from.
     """
 
     vehicle_registration = serializers.CharField(source="vehicle.registration_no", read_only=True, default=None)
     reviewed_by_name = serializers.SerializerMethodField()
+    odometer_km = serializers.IntegerField(required=True, min_value=0)
+    next_service_due_km = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = MaintenanceRecord
         fields = [
-            "id", "vehicle", "vehicle_registration", "service_date",
-            "description", "cost", "next_service_date", "status",
-            "reviewed_by_name", "reviewed_at", "rejection_reason",
+            "id", "vehicle", "vehicle_registration", "service_date", "service_type",
+            "description", "cost", "odometer_km", "next_service_date", "next_service_due_km",
+            "status", "reviewed_by_name", "reviewed_at", "rejection_reason",
         ]
         read_only_fields = ["status", "reviewed_at", "rejection_reason"]
 
     def get_reviewed_by_name(self, obj):
         return obj.reviewed_by.full_name if obj.reviewed_by else None
+
+    def validate(self, attrs):
+        service_type = attrs.get("service_type", getattr(self.instance, "service_type", None))
+        description = attrs.get("description", getattr(self.instance, "description", ""))
+        if service_type == MaintenanceRecord.ServiceType.OTHER and not description.strip():
+            raise serializers.ValidationError(
+                {"description": "Describe the maintenance when \"Other\" is selected."}
+            )
+        return attrs
+
+    def _apply_service_interval(self, instance, validated_data):
+        service_type = validated_data.get("service_type", instance.service_type if instance else None)
+        odometer_km = validated_data.get("odometer_km")
+        interval = SERVICE_INTERVALS_KM.get(service_type)
+        if interval is None or odometer_km is None:
+            return validated_data
+
+        validated_data["next_service_due_km"] = odometer_km + interval
+
+        vehicle = validated_data.get("vehicle", instance.vehicle if instance else None)
+        prior = MaintenanceRecord.objects.filter(
+            vehicle=vehicle, service_type=service_type, odometer_km__isnull=False,
+        ).exclude(pk=instance.pk if instance else None).order_by("-service_date", "-id").first()
+
+        if prior is None:
+            return validated_data
+
+        service_date = validated_data.get("service_date", instance.service_date if instance else None)
+        days_elapsed = (service_date - prior.service_date).days
+        km_elapsed = odometer_km - prior.odometer_km
+        if days_elapsed <= 0 or km_elapsed <= 0:
+            return validated_data
+
+        km_per_day = km_elapsed / days_elapsed
+        validated_data["next_service_date"] = service_date + timedelta(days=round(interval / km_per_day))
+        return validated_data
+
+    def create(self, validated_data):
+        return super().create(self._apply_service_interval(None, validated_data))
+
+    def update(self, instance, validated_data):
+        return super().update(instance, self._apply_service_interval(instance, validated_data))
 
 
 class MaintenanceDecisionSerializer(serializers.Serializer):

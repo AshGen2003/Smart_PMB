@@ -17,6 +17,7 @@ urlpatterns = [
     path("officer/reports/pdf/", views.OfficerReportsPdfView.as_view()),
     path("officer/farmers/", views.FarmerListView.as_view()),  # farmer picker for recording a purchase
     path("driver/dashboard/", views.DriverDashboardView.as_view()),
+    path("driver/tasks/", views.DriverTasksView.as_view()),
     path("driver/vehicle-info/", views.DriverVehicleInfoView.as_view()),
     path("driver/deliveries/<int:pk>/respond/", views.DeliveryRespondView.as_view()),
     path("driver/deliveries/<int:pk>/status/", views.DriverDeliveryStatusView.as_view()),

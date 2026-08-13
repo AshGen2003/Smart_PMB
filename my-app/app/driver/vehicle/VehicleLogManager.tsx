@@ -13,6 +13,7 @@ import { deleteFuelRecord, deleteMaintenanceRecord } from "@/app/actions/driver"
 import {
   FuelRecordFormModal,
   MaintenanceRecordFormModal,
+  type CompletedDeliveryOption,
   type EditableFuelRecord,
   type EditableMaintenanceRecord,
 } from "./VehicleLogFormModals";
@@ -27,8 +28,11 @@ export type FuelRecordRow = {
   vehicle_registration: string | null;
   fuel_type: string;
   quantity_litres: string;
+  price_per_litre: string | null;
   cost: string;
   fuel_date: string;
+  delivery: number | null;
+  delivery_label: string | null;
 };
 
 export type MaintenanceRecordRow = {
@@ -36,12 +40,34 @@ export type MaintenanceRecordRow = {
   vehicle: number;
   vehicle_registration: string | null;
   service_date: string;
+  service_type: string;
   description: string;
   cost: string;
+  odometer_km: number | null;
   next_service_date: string | null;
+  next_service_due_km: number | null;
   status: "pending" | "approved" | "rejected";
   reviewed_by_name: string | null;
   rejection_reason: string;
+};
+
+// Compact labels for the table cell -- SERVICE_TYPE_OPTIONS in
+// VehicleLogFormModals.tsx uses longer dropdown copy (with the 50,000 km
+// hint for Oil Change) that's too verbose for a table column.
+const SERVICE_TYPE_LABEL: Record<string, string> = {
+  oil_change: "Oil Change",
+  tire_service: "Tire Service",
+  brake_service: "Brake Service",
+  battery_replacement: "Battery Replacement",
+  air_filter: "Air Filter",
+  fuel_filter: "Fuel Filter",
+  coolant_service: "Coolant Service",
+  clutch_transmission: "Clutch/Transmission",
+  suspension_service: "Suspension Service",
+  wheel_alignment: "Wheel Alignment",
+  ac_service: "AC Service",
+  general_inspection: "General Inspection",
+  other: "Other",
 };
 
 type Tab = "fuel" | "maintenance";
@@ -50,10 +76,12 @@ export default function VehicleLogManager({
   vehicles,
   fuelRecords,
   maintenanceRecords,
+  completedDeliveries,
 }: {
   vehicles: VehicleOption[];
   fuelRecords: FuelRecordRow[];
   maintenanceRecords: MaintenanceRecordRow[];
+  completedDeliveries: CompletedDeliveryOption[];
 }) {
   const [tab, setTab] = useState<Tab>("fuel");
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +155,7 @@ export default function VehicleLogManager({
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Vehicle</th><th>Fuel</th><th>Quantity (L)</th><th>Cost (Rs.)</th><th>Date</th><th></th>
+                      <th>Vehicle</th><th>Fuel</th><th>Quantity (L)</th><th>Price/L (Rs.)</th><th>Cost (Rs.)</th><th>Date</th><th>Trip</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -136,8 +164,10 @@ export default function VehicleLogManager({
                         <td>{f.vehicle_registration ?? "—"}</td>
                         <td>{f.fuel_type}</td>
                         <td>{Number(f.quantity_litres).toLocaleString()}</td>
+                        <td>{f.price_per_litre ? Number(f.price_per_litre).toLocaleString() : "—"}</td>
                         <td>{Number(f.cost).toLocaleString()}</td>
                         <td>{f.fuel_date}</td>
+                        <td>{f.delivery_label ?? "—"}</td>
                         <td>
                           <div className={styles.rowActions}>
                             <button type="button" className={styles.iconBtn} aria-label="Edit fuel record" onClick={() => setFuelModal({ mode: "edit", row: f })}>
@@ -177,7 +207,7 @@ export default function VehicleLogManager({
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Vehicle</th><th>Description</th><th>Service date</th><th>Cost (Rs.)</th><th>Next service</th><th>Status</th><th></th>
+                      <th>Vehicle</th><th>Type</th><th>Description</th><th>Service date</th><th>Odometer (km)</th><th>Cost (Rs.)</th><th>Next service</th><th>Status</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -186,10 +216,14 @@ export default function VehicleLogManager({
                       return (
                       <tr key={m.id}>
                         <td>{m.vehicle_registration ?? "—"}</td>
+                        <td>{SERVICE_TYPE_LABEL[m.service_type] ?? m.service_type}</td>
                         <td>{m.description || "—"}</td>
                         <td>{m.service_date}</td>
+                        <td>{m.odometer_km != null ? m.odometer_km.toLocaleString() : "—"}</td>
                         <td>{Number(m.cost).toLocaleString()}</td>
-                        <td>{m.next_service_date || "—"}</td>
+                        <td>
+                          {m.next_service_date || (m.next_service_due_km != null ? `${m.next_service_due_km.toLocaleString()} km` : "—")}
+                        </td>
                         <td>
                           <span
                             className={clsx(
@@ -239,8 +273,8 @@ export default function VehicleLogManager({
         )}
       </div>
 
-      {fuelModal?.mode === "create" && <FuelRecordFormModal mode="create" vehicles={vehicles} onClose={() => setFuelModal(null)} />}
-      {fuelModal?.mode === "edit" && <FuelRecordFormModal mode="edit" record={fuelModal.row} vehicles={vehicles} onClose={() => setFuelModal(null)} />}
+      {fuelModal?.mode === "create" && <FuelRecordFormModal mode="create" vehicles={vehicles} completedDeliveries={completedDeliveries} onClose={() => setFuelModal(null)} />}
+      {fuelModal?.mode === "edit" && <FuelRecordFormModal mode="edit" record={fuelModal.row} vehicles={vehicles} completedDeliveries={completedDeliveries} onClose={() => setFuelModal(null)} />}
 
       {maintenanceModal?.mode === "create" && <MaintenanceRecordFormModal mode="create" vehicles={vehicles} onClose={() => setMaintenanceModal(null)} />}
       {maintenanceModal?.mode === "edit" && <MaintenanceRecordFormModal mode="edit" record={maintenanceModal.row} vehicles={vehicles} onClose={() => setMaintenanceModal(null)} />}

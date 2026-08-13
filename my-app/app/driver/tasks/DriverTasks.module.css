@@ -1,0 +1,69 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.tabsRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tab {
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab:hover {
+  background-color: var(--sidebar-hover);
+}
+
+.tabActive {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.searchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--primary-text);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.searchInput {
+  padding: 0.55rem 0.75rem 0.55rem 2.25rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background-color: color-mix(in srgb, var(--primary) 8%, var(--card-bg));
+  color: var(--foreground);
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  width: 220px;
+  transition: border-color 0.2s ease, width 0.2s ease;
+}
+
+.searchInput::placeholder {
+  color: var(--text-muted);
+}
+
+.searchInput:focus {
+  border-color: var(--primary);
+  width: 260px;
+}

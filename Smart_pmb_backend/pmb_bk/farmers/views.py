@@ -1783,6 +1783,37 @@ def _send_delivery_reminder(delivery):
         logger.exception("Failed to send delivery-reminder email to %s", driver.email)
 
 
+def _send_accepted_trip_starting_reminder(delivery):
+    """
+    Reminds a delivery's driver that a trip they've *already accepted*
+    starts within the next 3 hours — a heads-up to get ready, distinct from
+    _send_delivery_reminder above (which nags about an unaccepted task,
+    including an SMS since that one's a real accept-or-miss-it deadline).
+    This one is email + in-app only, matching the notification channels
+    actually asked for.
+    """
+    driver = delivery.driver
+    body = (
+        f"Your delivery #{delivery.id} ({delivery.route.origin} → {delivery.route.destination}) "
+        f"starts at {delivery.scheduled_time.strftime('%H:%M')} on {delivery.scheduled_date}. "
+        "Make sure you and the vehicle are ready."
+    )
+
+    if delivery.approved_by_id:
+        Message.objects.create(sender=delivery.approved_by, recipient=driver, body=body)
+
+    try:
+        send_mail(
+            subject="Smart PMB: your delivery starts soon",
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[driver.email],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception("Failed to send trip-starting-reminder email to %s", driver.email)
+
+
 class DeliveryViewSet(viewsets.ModelViewSet):
     """
     CRUD over deliveries, plus a lightweight `update_status` action.
@@ -1924,7 +1955,15 @@ class DriverDashboardView(APIView):
         deliveries = Delivery.objects.filter(driver=request.user).select_related(
             "vehicle", "route", "warehouse"
         )
-        pending_tasks = deliveries.filter(assignment_status=Delivery.AssignmentStatus.PENDING)
+        # Excludes tasks whose start time has already passed without a
+        # response -- those are now surfaced on the driver's Tasks page
+        # (see DriverTasksView) instead of cluttering the dashboard. A task
+        # with no scheduled_time (legacy rows) never counts as expired here.
+        now = timezone.now()
+        pending_tasks = [
+            d for d in deliveries.filter(assignment_status=Delivery.AssignmentStatus.PENDING)
+            if not d.get_scheduled_datetime() or d.get_scheduled_datetime() >= now
+        ]
         active_task = deliveries.filter(
             assignment_status=Delivery.AssignmentStatus.ACCEPTED,
             status__in=[Delivery.Status.SCHEDULED, Delivery.Status.IN_TRANSIT],
@@ -1944,7 +1983,7 @@ class DriverDashboardView(APIView):
                         assignment_status=Delivery.AssignmentStatus.ACCEPTED
                     ).count(),
                     "completed_deliveries": deliveries.filter(status=Delivery.Status.DELIVERED).count(),
-                    "pending_tasks": pending_tasks.count(),
+                    "pending_tasks": len(pending_tasks),
                 },
             }
         )
@@ -1980,6 +2019,31 @@ class DriverVehicleInfoView(APIView):
                 "deliveries": DeliverySerializer(deliveries.order_by("-scheduled_date"), many=True).data,
             }
         )
+
+
+class DriverTasksView(APIView):
+    """
+    Full list of a driver's own "live" delivery tasks — the Tasks page's
+    data source. Deliberately excludes DELIVERED/CANCELLED/REJECTED ones:
+    completed history already has a home on the dashboard's "recent
+    deliveries" table, and mixing it in here would blur the "still needs
+    attention" framing the Tasks page is for. Search, prioritized/overdue
+    clustering, and sub-tabs are all handled client-side (see
+    DriverTasksManager.tsx) over this one full list, same as
+    WarehousesManager's search pattern.
+    """
+
+    permission_classes = [HasPermission("access_driver_portal")]
+
+    def get(self, request):
+        tasks = Delivery.objects.filter(
+            driver=request.user,
+            status__in=[Delivery.Status.SCHEDULED, Delivery.Status.IN_TRANSIT, Delivery.Status.DELAYED],
+        ).exclude(
+            assignment_status=Delivery.AssignmentStatus.REJECTED
+        ).select_related("vehicle", "route", "warehouse").order_by("scheduled_date", "scheduled_time")
+
+        return Response({"tasks": DeliverySerializer(tasks, many=True).data})
 
 
 class DeliveryRespondView(APIView):
@@ -2071,11 +2135,22 @@ class DeliveryLocationPingView(APIView):
 
 
 class DriverFuelRecordViewSet(viewsets.ModelViewSet):
-    """The driver-side counterpart to FuelRecordViewSet — full CRUD, since fuel entries are now driver-owned."""
+    """
+    The driver-side counterpart to FuelRecordViewSet — full CRUD, since fuel
+    entries are now driver-owned. Scoped to vehicles this driver has
+    actually had a Delivery on (mirrors DriverVehicleInfoView's own
+    scoping query) — previously unscoped, so any driver could read/edit/
+    delete any other driver's fuel records by guessing an id.
+    """
 
     permission_classes = [HasPermission("access_driver_portal")]
-    queryset = FuelRecord.objects.select_related("vehicle")
     serializer_class = FuelRecordSerializer
+
+    def get_queryset(self):
+        driver_vehicle_ids = Delivery.objects.filter(
+            driver=self.request.user
+        ).values_list("vehicle_id", flat=True).distinct()
+        return FuelRecord.objects.filter(vehicle_id__in=driver_vehicle_ids).select_related("vehicle")
 
 
 class DriverMaintenanceRecordViewSet(viewsets.ModelViewSet):
@@ -2084,12 +2159,19 @@ class DriverMaintenanceRecordViewSet(viewsets.ModelViewSet):
     except a record that's already been reviewed (approved or rejected)
     locks against further edits/deletes, so an officer's decision on a
     specific cost can't be silently undermined afterward. A fresh record
-    always starts PENDING, so creation is unaffected.
+    always starts PENDING, so creation is unaffected. Scoped to vehicles
+    this driver has actually had a Delivery on — see DriverFuelRecordViewSet
+    above for why.
     """
 
     permission_classes = [HasPermission("access_driver_portal")]
-    queryset = MaintenanceRecord.objects.select_related("vehicle")
     serializer_class = MaintenanceRecordSerializer
+
+    def get_queryset(self):
+        driver_vehicle_ids = Delivery.objects.filter(
+            driver=self.request.user
+        ).values_list("vehicle_id", flat=True).distinct()
+        return MaintenanceRecord.objects.filter(vehicle_id__in=driver_vehicle_ids).select_related("vehicle")
 
     def _reject_if_reviewed(self, instance):
         if instance.status != MaintenanceRecord.Status.PENDING:

@@ -3,10 +3,10 @@
  * `permissions` the same way the admin Sidebar is — every item (and the
  * bottom-pinned Profile link) has a view_* permission gating it; Dashboard/
  * Messages/Settings/Profile are granted to every role by default (see
- * accounts/migrations/0015), while Vehicle Details/Vehicle Log are
+ * accounts/migrations/0015), while Tasks/Assigned Vehicles/Vehicle Log are
  * driver-specific and only granted to "driver" by default (see
- * accounts/migrations/0017) — all toggleable per role from /roles or the
- * Preview Portal's quick-toggle checklist. Log out lives in the shared
+ * accounts/migrations/0017, 0036) — all toggleable per role from /roles or
+ * the Preview Portal's quick-toggle checklist. Log out lives in the shared
  * Header (top-right) instead of here — see Header.tsx.
  */
 "use client";
@@ -20,6 +20,7 @@ import styles from "./Sidebar.module.css";
 import clsx from "clsx";
 import {
   LayoutDashboard,
+  ListChecks,
   MessageSquare,
   Settings,
   ChevronLeft,
@@ -31,7 +32,8 @@ import {
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/driver", icon: LayoutDashboard, permission: "view_dashboard" },
-  { label: "Vehicle Details", href: "/driver/vehicle-details", icon: Info, permission: "view_vehicle_details" },
+  { label: "Tasks", href: "/driver/tasks", icon: ListChecks, permission: "view_tasks" },
+  { label: "Assigned Vehicles", href: "/driver/vehicle-details", icon: Info, permission: "view_vehicle_details" },
   { label: "Vehicle Log", href: "/driver/vehicle", icon: Truck, permission: "view_vehicle_log" },
   { label: "Messages", href: "/driver/messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", href: "/driver/settings", icon: Settings, permission: "view_settings" },
