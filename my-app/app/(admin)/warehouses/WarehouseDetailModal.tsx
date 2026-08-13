@@ -4,16 +4,13 @@
  * recent stock movements (TransactionLog) — additive telemetry alongside
  * the card grid's single current_stock number. Data is fetched once for
  * all warehouses by the page and filtered client-side here, same shape as
- * the create/edit modal it sits alongside (WarehouseFormModal.tsx). When
- * `canWrite`, also offers Add/Remove Stock actions (opens
- * WarehouseStockAdjustModal.tsx on top).
+ * the create/edit modal it sits alongside (WarehouseFormModal.tsx).
  */
 "use client";
 
 import React, { useState } from "react";
 import { format } from "date-fns";
-import { ClipboardList, Minus, Plus, UserCog, Warehouse as WarehouseIcon, X } from "lucide-react";
-import WarehouseStockAdjustModal, { type PaddyTypeOption } from "./WarehouseStockAdjustModal";
+import { ClipboardList, UserCog, Warehouse as WarehouseIcon, X } from "lucide-react";
 import AppointWarehouseManagerModal, { type ManagerOption } from "./AppointWarehouseManagerModal";
 import styles from "./Warehouses.module.css";
 
@@ -55,7 +52,6 @@ export default function WarehouseDetailModal({
   warehouse,
   inventory,
   transactions,
-  paddyTypes,
   managers,
   permissions,
   canWrite,
@@ -64,13 +60,11 @@ export default function WarehouseDetailModal({
   warehouse: WarehouseSummary;
   inventory: InventoryLine[];
   transactions: TransactionLogEntry[];
-  paddyTypes: PaddyTypeOption[];
   managers: ManagerOption[];
   permissions: string[];
   canWrite: boolean;
   onClose: () => void;
 }) {
-  const [adjustDirection, setAdjustDirection] = useState<"add" | "remove" | null>(null);
   const [appointing, setAppointing] = useState(false);
   const maxQty = Math.max(...inventory.map((i) => Number(i.quantity)), 1);
   const canAppoint = canWrite && permissions.includes("appoint_warehouse_managers");
@@ -107,17 +101,6 @@ export default function WarehouseDetailModal({
               <span className={styles.heroStatValue}>{Number(warehouse.remaining_capacity).toLocaleString()} kg</span>
             </div>
           </div>
-
-          {canWrite && (
-            <div className={styles.heroActions}>
-              <button type="button" className={styles.primaryBtn} onClick={() => setAdjustDirection("add")}>
-                <Plus size={16} /> Add stock
-              </button>
-              <button type="button" className={styles.secondaryBtn} onClick={() => setAdjustDirection("remove")}>
-                <Minus size={16} /> Remove stock
-              </button>
-            </div>
-          )}
 
           <div className={styles.detailListRow} style={{ marginBottom: "0.5rem" }}>
             <span className={styles.detailListMain}>
@@ -196,16 +179,6 @@ export default function WarehouseDetailModal({
           )}
         </div>
       </div>
-
-      {adjustDirection && (
-        <WarehouseStockAdjustModal
-          warehouseId={warehouse.id}
-          warehouseName={warehouse.name}
-          direction={adjustDirection}
-          paddyTypes={paddyTypes}
-          onClose={() => setAdjustDirection(null)}
-        />
-      )}
 
       {appointing && (
         <AppointWarehouseManagerModal

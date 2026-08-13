@@ -35,7 +35,6 @@ import WarehouseDetailModal, {
   type InventoryLine,
   type TransactionLogEntry,
 } from "./WarehouseDetailModal";
-import type { PaddyTypeOption } from "./WarehouseStockAdjustModal";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import styles from "./Warehouses.module.css";
 
@@ -95,7 +94,6 @@ export default function WarehousesManager({
   officers,
   inventory,
   transactions,
-  paddyTypes,
   alerts,
   permissions,
   canWrite = true,
@@ -106,7 +104,6 @@ export default function WarehousesManager({
   officers: OfficerOption[];
   inventory: InventoryLine[];
   transactions: TransactionLogEntry[];
-  paddyTypes: PaddyTypeOption[];
   alerts: AlertRow[];
   permissions: string[];
   // False for viewers who can only see warehouses (Portal Preview, or a
@@ -456,7 +453,6 @@ export default function WarehousesManager({
           warehouse={detailWarehouse}
           inventory={inventory.filter((i) => i.warehouse === detailWarehouse.id)}
           transactions={transactions.filter((t) => t.warehouse === detailWarehouse.id)}
-          paddyTypes={paddyTypes}
           managers={officers.filter((o) => o.role === "warehouse_manager")}
           permissions={permissions}
           canWrite={canWrite}
