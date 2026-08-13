@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { LanguageProvider } from "./components/LanguageProvider";
 import TabActivityIndicator from "./components/TabActivityIndicator";
+import AutoRefresh from "./components/AutoRefresh";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
@@ -27,6 +28,7 @@ export default function RootLayout({
         <LanguageProvider>
           <ThemeProvider>
             <TabActivityIndicator />
+            <AutoRefresh />
             {children}
           </ThemeProvider>
         </LanguageProvider>
