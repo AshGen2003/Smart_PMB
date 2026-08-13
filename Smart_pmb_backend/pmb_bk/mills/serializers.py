@@ -20,7 +20,7 @@ def _delivery_status(obj):
     self-service serializers: the requester's own view of whichever
     Delivery (see farmers.Delivery) is transporting their request, or None
     if an officer hasn't scheduled one yet. At most one is ever linked, so
-    `.first()` is safe.
+    `.first()` is safe. Mirrors purchases.serializers._delivery_status.
     """
     delivery = obj.deliveries.select_related("driver", "vehicle").first()
     if not delivery:

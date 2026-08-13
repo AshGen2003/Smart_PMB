@@ -405,6 +405,34 @@ class DeliverySerializer(serializers.ModelSerializer):
         }
 
 
+class WarehouseManagerDeliverySerializer(serializers.ModelSerializer):
+    """
+    Read-only view of a Delivery for the warehouse manager whose warehouse
+    it's shipping a fulfilled rice request out of — see
+    WarehouseManagerDeliveriesView. Purposefully narrower than
+    DeliverySerializer: just enough to see the load is moving and, once the
+    purchaser confirms on their end (purchases.RiceRequestViewSet.
+    confirm_receipt), that it's been received.
+    """
+
+    purchaser_name = serializers.CharField(source="rice_request.purchaser.full_name", default=None)
+    paddy_type_name = serializers.CharField(source="rice_request.paddy_type.type_name", default=None)
+    quantity_kg = serializers.DecimalField(
+        source="rice_request.quantity_kg", max_digits=10, decimal_places=2, default=None
+    )
+    driver_name = serializers.CharField(source="driver.full_name", default=None)
+    vehicle_registration = serializers.CharField(source="vehicle.registration_no", default=None)
+    received_by_name = serializers.CharField(source="received_by.full_name", default=None)
+
+    class Meta:
+        model = Delivery
+        fields = [
+            "id", "rice_request", "purchaser_name", "paddy_type_name", "quantity_kg",
+            "driver_name", "vehicle_registration", "scheduled_date", "status",
+            "received_at", "received_by_name",
+        ]
+
+
 class DeliveryLocationPingSerializer(serializers.ModelSerializer):
     """Write-only: a single GPS reading the driver's browser reports while a delivery is in transit."""
 

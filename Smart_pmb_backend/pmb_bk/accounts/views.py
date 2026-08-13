@@ -49,6 +49,7 @@ from .models import (
     User,
 )
 from .otp import MAX_OTP_ATTEMPTS, OTP_EXPIRY_MINUTES, generate_otp_code
+from .pdf import build_license_certificate_pdf
 from .permissions import HasAnyPermission, HasPermission, RoleAccessPermission, _has_codename
 from .serializers import (
     AdminUserSerializer,

@@ -15,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import HasAnyPermission, HasPermission
-from farmers.models import Farmer, TransactionLog, Warehouse, season_date_range
+from farmers.models import Delivery, Farmer, TransactionLog, Warehouse, season_date_range
 from farmers.serializers import TransactionVerificationSerializer, TransactionVerificationWriteSerializer
 from farmers.views import _current_season_channel_totals_kg, _log_transaction
 from sysops.utils import get_config_value, log_audit, raise_low_stock_alert
@@ -118,6 +118,39 @@ class RiceRequestViewSet(viewsets.ModelViewSet):
                 {"detail": "Only pending requests can be withdrawn."}, status=400
             )
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=["post"])
+    def confirm_receipt(self, request, pk=None):
+        """
+        The purchaser's own word that a "delivered" load has actually
+        arrived — see farmers.Delivery.received_at's docstring for why this
+        is separate from the driver-reported delivery status. Stamps the
+        linked Delivery and closes the request out as RECEIVED.
+        """
+        rice_request = self.get_object()
+        if rice_request.status != RiceRequest.Status.FULFILLED:
+            return Response(
+                {"detail": "Only fulfilled requests can be confirmed as received."}, status=400
+            )
+        delivery = rice_request.deliveries.first()
+        if not delivery or delivery.status != Delivery.Status.DELIVERED:
+            return Response(
+                {"detail": "This request's delivery hasn't arrived yet."}, status=400
+            )
+        if delivery.received_at:
+            return Response(
+                {"detail": "Receipt has already been confirmed for this request."}, status=400
+            )
+
+        delivery.received_at = timezone.now()
+        delivery.received_by = request.user
+        delivery.save(update_fields=["received_at", "received_by"])
+
+        rice_request.status = RiceRequest.Status.RECEIVED
+        rice_request.save(update_fields=["status"])
+
+        log_audit(request.user, "confirm_rice_request_receipt", "purchases", f"RiceRequest #{rice_request.id}")
+        return Response(RiceRequestSerializer(rice_request).data)
 
 
 class OfficerRiceRequestViewSet(viewsets.ReadOnlyModelViewSet):

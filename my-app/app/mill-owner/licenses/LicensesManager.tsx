@@ -10,9 +10,10 @@
 import React, { useState, useTransition } from "react";
 import clsx from "clsx";
 import { format } from "date-fns";
-import { Plus, FileCheck } from "lucide-react";
-import { applyForLicense, withdrawLicense } from "@/app/actions/mills";
+import { Plus, FileCheck, Download } from "lucide-react";
+import { withdrawLicense } from "@/app/actions/mills";
 import ConfirmModal from "@/app/components/ConfirmModal";
+import LicenseApplicationFormModal from "./LicenseApplicationFormModal";
 import styles from "./Licenses.module.css";
 
 export type LicenseRow = {
@@ -108,6 +109,14 @@ export default function LicensesManager({ licenses }: { licenses: LicenseRow[] }
                       </span>
                     </td>
                     <td>
+                      {l.status === "approved" && (
+                        <a
+                          href={`/api/mill-licenses/${l.id}/certificate`}
+                          className={styles.linkBtn}
+                        >
+                          <Download size={14} /> Download PDF
+                        </a>
+                      )}
                       {l.status === "pending" && (
                         <button
                           type="button"
@@ -142,6 +151,13 @@ export default function LicensesManager({ licenses }: { licenses: LicenseRow[] }
           pending={isPending}
           onConfirm={confirmWithdraw}
           onClose={() => setWithdrawTarget(null)}
+        />
+      )}
+
+      {modal && (
+        <LicenseApplicationFormModal
+          renewedFrom={modal.renewedFrom}
+          onClose={() => setModal(null)}
         />
       )}
     </div>

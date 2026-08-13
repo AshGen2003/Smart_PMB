@@ -27,7 +27,7 @@ export async function adjustMyWarehouseStock(
   const res = await apiFetch("/api/warehouse-manager/adjust-stock/", {
     method: "POST",
     body: JSON.stringify({
-      paddy_type: Number(formData.get("paddy_type")),
+      paddy_type: formData.get("paddy_type") ? Number(formData.get("paddy_type")) : null,
       grade: String(formData.get("grade") ?? "") || null,
       quantity: String(formData.get("quantity") ?? ""),
       direction: String(formData.get("direction") ?? ""),
@@ -82,8 +82,8 @@ export async function requestWarehouseTransfer(
   const res = await apiFetch("/api/warehouse-manager/transfer-requests/", {
     method: "POST",
     body: JSON.stringify({
-      from_warehouse: Number(formData.get("from_warehouse")),
-      paddy_type: Number(formData.get("paddy_type")),
+      from_warehouse: formData.get("from_warehouse") ? Number(formData.get("from_warehouse")) : null,
+      paddy_type: formData.get("paddy_type") ? Number(formData.get("paddy_type")) : null,
       grade: String(formData.get("grade") ?? "") || null,
       quantity_kg: String(formData.get("quantity_kg") ?? ""),
       notes: String(formData.get("notes") ?? "").trim(),

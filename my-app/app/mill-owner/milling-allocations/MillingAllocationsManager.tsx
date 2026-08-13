@@ -17,6 +17,14 @@ import MillingAllocationForm, { type PaddyTypeOption } from "./MillingAllocation
 import RequestReturnForm, { type WarehouseOption } from "./RequestReturnForm";
 import styles from "./MillingAllocations.module.css";
 
+export type DeliveryStatus = {
+  status: "scheduled" | "in_transit" | "delivered" | "delayed" | "cancelled";
+  assignment_status: "pending" | "accepted" | "rejected";
+  driver_name: string | null;
+  vehicle_registration: string | null;
+  scheduled_date: string;
+} | null;
+
 export type AllocationRow = {
   id: number;
   paddy_type: number;
@@ -25,6 +33,7 @@ export type AllocationRow = {
   status: "pending" | "approved" | "rejected" | "fulfilled";
   requested_date: string;
   review_notes: string;
+  delivery: DeliveryStatus;
 };
 
 export type ReturnRow = {
@@ -36,6 +45,7 @@ export type ReturnRow = {
   status: "pending" | "approved" | "rejected" | "dispatched" | "delivered";
   requested_date: string;
   review_notes: string;
+  delivery: DeliveryStatus;
 };
 
 const ALLOCATION_BADGE: Record<AllocationRow["status"], string> = {
@@ -52,6 +62,27 @@ const RETURN_BADGE: Record<ReturnRow["status"], string> = {
   delivered: styles["badge-success"],
   rejected: styles["badge-danger"],
 };
+
+const DELIVERY_STATUS_LABEL: Record<NonNullable<DeliveryStatus>["status"], string> = {
+  scheduled: "Scheduled",
+  in_transit: "In Transit",
+  delivered: "Delivered",
+  delayed: "Delayed",
+  cancelled: "Cancelled",
+};
+
+/** Compact "driver — status" cell, or a placeholder when no officer has scheduled a delivery yet. Mirrors purchaser/rice-requests/RiceRequestsManager.tsx's DeliveryCell. */
+function DeliveryCell({ delivery }: { delivery: DeliveryStatus }) {
+  if (!delivery) return <span className={styles.subtitle}>Not yet scheduled</span>;
+  return (
+    <div>
+      <div>{delivery.driver_name ?? "—"} ({delivery.vehicle_registration ?? "—"})</div>
+      <span className={clsx(styles.badge, delivery.status === "delivered" ? styles["badge-success"] : styles["badge-warning"])}>
+        {DELIVERY_STATUS_LABEL[delivery.status]}
+      </span>
+    </div>
+  );
+}
 
 export default function MillingAllocationsManager({
   allocations,
@@ -122,6 +153,7 @@ export default function MillingAllocationsManager({
                   <th>Quantity (kg)</th>
                   <th>Requested</th>
                   <th>Status</th>
+                  <th>Delivery</th>
                   <th>Notes</th>
                   <th></th>
                 </tr>
@@ -136,6 +168,7 @@ export default function MillingAllocationsManager({
                       <td>
                         <span className={clsx(styles.badge, ALLOCATION_BADGE[a.status])}>{a.status}</span>
                       </td>
+                      <td>{a.status === "fulfilled" ? <DeliveryCell delivery={a.delivery} /> : "—"}</td>
                       <td>{a.review_notes || "—"}</td>
                       <td>
                         <div className={styles.rowActions}>
@@ -163,7 +196,7 @@ export default function MillingAllocationsManager({
                     </tr>
                     {returnFormFor === a.id && (
                       <tr className={styles.returnFormRow}>
-                        <td colSpan={6}>
+                        <td colSpan={7}>
                           <RequestReturnForm
                             allocationId={a.id}
                             warehouses={warehouses}
@@ -196,6 +229,7 @@ export default function MillingAllocationsManager({
                   <th>Rice (kg)</th>
                   <th>Requested</th>
                   <th>Status</th>
+                  <th>Delivery</th>
                   <th>Notes</th>
                   <th></th>
                 </tr>
@@ -209,6 +243,7 @@ export default function MillingAllocationsManager({
                     <td>
                       <span className={clsx(styles.badge, RETURN_BADGE[r.status])}>{r.status}</span>
                     </td>
+                    <td>{r.status === "approved" || r.status === "dispatched" || r.status === "delivered" ? <DeliveryCell delivery={r.delivery} /> : "—"}</td>
                     <td>{r.review_notes || "—"}</td>
                     <td>
                       {r.status === "pending" && (

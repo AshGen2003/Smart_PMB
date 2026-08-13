@@ -23,18 +23,18 @@ import {
   User,
   ClipboardList,
   Boxes,
-  FileCheck,
   Award,
+  FileCheck,
 } from "lucide-react";
 
-// A mill owner's ongoing License history (renewable, expiry-tracked — see
-// mills/models.py's License) and periodic milling reports. Gated by the
-// same view_dashboard permission as the rest of the shell — there's no
-// separate permission per business feature, same as Messages/Settings.
-// "My License" is a different thing from "Licenses" below: it's the
-// digital certificate for the account's own approved LicenseApplication
-// (accounts.MyLicenseCertificateView), not the renewable operating-license
-// history.
+// "My License" is the one-time account-approval digital certificate every
+// mill owner gets once a PMB officer approves their signup application
+// (accounts.LicenseApplication / MyLicenseCertificateView) — distinct from
+// the separate, renewable "Licenses" (plural, the mill's own ongoing
+// operating license, see mills/models.py's License) and periodic milling
+// reports. Gated by the same view_dashboard permission as the rest of the
+// shell — there's no separate permission per business feature, same as
+// Messages/Settings.
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/mill-owner", icon: LayoutDashboard, permission: "view_dashboard" },
   { label: "My License", href: "/mill-owner/license", icon: Award, permission: "view_dashboard" },

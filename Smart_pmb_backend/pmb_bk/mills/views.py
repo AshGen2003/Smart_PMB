@@ -7,6 +7,7 @@ import random
 
 from django.db import transaction
 from django.db.models import F, Sum
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, viewsets
@@ -20,6 +21,7 @@ from farmers.views import _log_transaction
 from sysops.utils import log_audit, raise_low_stock_alert
 
 from .models import Inspection, License, Mill, MillingAllocation, MillingReport, MillingReturnRequest, MillStock
+from .pdf import build_mill_license_certificate_pdf
 from .permissions import IsMillOwner
 from .serializers import (
     InspectionSerializer,
@@ -148,6 +150,20 @@ class LicenseViewSet(viewsets.ModelViewSet):
                 {"detail": "Only pending license applications can be withdrawn."}, status=400
             )
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=["get"])
+    def certificate(self, request, pk=None):
+        """Self-service download of the mill owner's own approved operating-license certificate PDF."""
+        license_obj = self.get_object()
+        if license_obj.status != License.Status.APPROVED:
+            return Response({"detail": "Only an approved license has a certificate to download."}, status=400)
+        buffer = build_mill_license_certificate_pdf(license_obj)
+        log_audit(request.user, "download_mill_license_certificate", "mills", f"License #{license_obj.id}")
+        return FileResponse(
+            buffer, as_attachment=True,
+            filename=f"smart-pmb-mill-license-{license_obj.license_no}.pdf",
+            content_type="application/pdf",
+        )
 
 
 class MillingReportViewSet(viewsets.ModelViewSet):

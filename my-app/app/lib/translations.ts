@@ -568,7 +568,7 @@ const si: typeof en = {
   farmerSidebar: {
     dashboard: "උපකරණ පුවරුව",
     harvests: "අස්වැන්න",
-    deliverySlots: "බෙදාහැරීම් වේලා",
+    deliverySlots: "බෙදාහැරීමේ වේලා",
     priceHistory: "මිල ගණන්",
     payments: "ගෙවීම්",
     messages: "පණිවිඩ",

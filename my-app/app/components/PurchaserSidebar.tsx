@@ -24,18 +24,21 @@ import {
   Package,
   Receipt,
   Award,
+  Truck,
 } from "lucide-react";
 
 // A purchaser's rice requests against warehouse stock (see
 // purchases/models.py's RiceRequest). Gated by the same view_dashboard
 // permission as the rest of the shell — there's no separate permission per
-// business feature, same as Messages/Settings. "My License" is the digital
-// certificate for the account's own approved LicenseApplication (see
-// accounts.MyLicenseCertificateView).
+// business feature, same as Messages/Settings. "My License" is the
+// one-time account-approval digital certificate every authorized purchaser
+// gets once a PMB officer approves their signup application
+// (accounts.LicenseApplication / MyLicenseCertificateView).
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/purchaser", icon: LayoutDashboard, permission: "view_dashboard" },
   { label: "My License", href: "/purchaser/license", icon: Award, permission: "view_dashboard" },
   { label: "Paddy Requests", href: "/purchaser/rice-requests", icon: Package, permission: "view_dashboard" },
+  { label: "Deliveries", href: "/purchaser/deliveries", icon: Truck, permission: "view_dashboard" },
   { label: "Farm-Gate Purchases", href: "/purchaser/farm-gate-purchases", icon: Receipt, permission: "view_dashboard" },
   { label: "Messages", href: "/purchaser/messages", icon: MessageSquare, permission: "view_messages" },
   { label: "Settings", href: "/purchaser/settings", icon: Settings, permission: "view_settings" },
