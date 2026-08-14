@@ -16,6 +16,9 @@ export type PaddyTypeOption = { id: number; type_name: string };
 const initialState: PurchaseRequestFormState = {};
 
 export default function RequestRiceForm({ paddyTypes }: { paddyTypes: PaddyTypeOption[] }) {
+  // Connects this <form> to submitRiceRequest() in app/actions/purchases.ts,
+  // which POSTs to /api/purchaser/requests/. `state.error` shows the last
+  // failed attempt's message; `pending` is true while it's submitting.
   const [state, formAction, pending] = useActionState(submitRiceRequest, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const wasSubmitting = useRef(false);
@@ -38,6 +41,11 @@ export default function RequestRiceForm({ paddyTypes }: { paddyTypes: PaddyTypeO
       {state.error && <div className={`${formStyles.banner} ${formStyles.bannerError}`}>{state.error}</div>}
 
       <form action={formAction} ref={formRef} noValidate>
+        {/* `paddyTypes` comes from page.tsx, which fetched it from the backend.
+            To add a new field to this form: add an <input>/<select> here, then
+            add it in submitRiceRequest() (actions/purchases.ts), then in
+            RiceRequestWriteSerializer (purchases/serializers.py), then as a
+            column on the RiceRequest model (purchases/models.py). */}
         <div className={formStyles.field}>
           <label className={formStyles.label} htmlFor="paddy_type">Paddy type</label>
           <select id="paddy_type" name="paddy_type" required className={formStyles.input} defaultValue="">

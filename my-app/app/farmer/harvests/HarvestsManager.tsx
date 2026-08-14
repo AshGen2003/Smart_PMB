@@ -19,11 +19,17 @@ import ConfirmModal from "@/app/components/ConfirmModal";
 import LogHarvestModal, { type PaddyTypeOption } from "./LogHarvestModal";
 import styles from "./Harvests.module.css";
 
+// Shape of one row of data as sent by the backend (see farmers/serializers.py's
+// HarvestSerializer) — TypeScript checks every place this data is used
+// matches this shape, which catches typos like `h.qty` instead of `h.quantity_kg`.
 export type HarvestRow = {
   id: number;
   paddy_type_name: string | null;
   quantity_kg: string;
   harvest_date: string;
+  // The harvest's lifecycle: pending (just logged) -> verified (officer graded
+  // + priced it) -> collected (officer confirmed pickup, payment completes).
+  // Can also go pending -> rejected. See farmers/models.py's Harvest.Status.
   status: "pending" | "verified" | "collected" | "rejected";
   lot_code: string | null;
   meets_pmb_quality_standard: boolean | null;
@@ -57,10 +63,15 @@ export default function HarvestsManager({
 
   const [withdrawTarget, setWithdrawTarget] = useState<HarvestRow | null>(null);
 
+  // Clicking "Withdraw" doesn't delete right away — it just remembers which
+  // row was clicked, which makes the <ConfirmModal> below appear.
   function handleWithdraw(h: HarvestRow) {
     setWithdrawTarget(h);
   }
 
+  // Runs only after the farmer clicks "Withdraw" a second time, inside the
+  // confirmation popup. Calls withdrawHarvest() in app/actions/farmer.ts,
+  // which deletes the harvest on the backend (only allowed while "pending").
   function confirmWithdraw() {
     if (!withdrawTarget) return;
     const target = withdrawTarget;
@@ -87,6 +98,9 @@ export default function HarvestsManager({
       {actionError && <div className={styles.modalBanner}>{actionError}</div>}
 
       <div className={styles.container}>
+        {/* The actual harvest history table. To add a new column: add a <th> here
+            and a matching <td> below, and make sure HarvestSerializer on the
+            backend actually returns that field (see farmers/serializers.py). */}
         {harvests.length > 0 ? (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
@@ -101,6 +115,7 @@ export default function HarvestsManager({
                 </tr>
               </thead>
               <tbody>
+                {/* One <tr> per harvest — h.status decides the badge color/label and whether "Withdraw" shows. */}
                 {harvests.map((h) => (
                   <tr key={h.id}>
                     <td>{h.paddy_type_name ?? "—"}</td>

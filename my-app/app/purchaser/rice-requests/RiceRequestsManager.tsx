@@ -23,6 +23,10 @@ export type DeliveryStatus = {
   scheduled_date: string;
 } | null;
 
+// Lifecycle of a request: pending -> approved (officer signs off) ->
+// fulfilled (officer releases stock from a warehouse) -> received (this
+// purchaser confirms the physical delivery arrived — see the Deliveries
+// tab). Or pending -> rejected. See purchases/models.py's RiceRequest.Status.
 export type RiceRequestRow = {
   id: number;
   paddy_type: number;
@@ -73,10 +77,14 @@ export default function RiceRequestsManager({
 
   const [withdrawTarget, setWithdrawTarget] = useState<RiceRequestRow | null>(null);
 
+  // Step 1: remember which row was clicked (shows the confirm popup).
   function handleWithdraw(r: RiceRequestRow) {
     setWithdrawTarget(r);
   }
 
+  // Step 2: runs when the confirm popup's "Withdraw" button is clicked —
+  // calls withdrawRiceRequest() (app/actions/purchases.ts), which DELETEs
+  // the request on the backend. Only allowed while status is "pending".
   function confirmWithdraw() {
     if (!withdrawTarget) return;
     const target = withdrawTarget;
