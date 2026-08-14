@@ -182,11 +182,13 @@ class Command(BaseCommand):
                 )
 
                 if outcome == "collected":
-                    # Mirrors mark_collected(): complete the payment and add
-                    # the quantity onto the warehouse's running stock.
+                    # Mirrors OfficerHarvestViewSet.mark_collected(): moves
+                    # the payment to processing and adds the quantity onto
+                    # the warehouse's running stock. Payment.Status has no
+                    # "completed" value -- pending/processing/disbursed/failed.
                     harvest.status = Harvest.Status.COLLECTED
                     harvest.save(update_fields=["status"])
-                    payment.status = Payment.Status.COMPLETED
+                    payment.status = Payment.Status.PROCESSING
                     payment.payment_date = harvest.purchase_date
                     payment.save(update_fields=["status", "payment_date"])
                     warehouse.current_stock = warehouse.current_stock + harvest.quantity_kg
