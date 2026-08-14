@@ -29,11 +29,31 @@ const LEGEND_STYLE = {
   iconSize: 8,
 };
 
+/**
+ * Custom dot for the "Accounts locked" line: only draws a marker on days
+ * that actually had a lockout (returning null on zero-days keeps the chart
+ * from being cluttered with 15 empty dots sitting on the axis), with the
+ * count labeled directly above it — lockouts are rare enough that a
+ * tooltip-on-hover would be easy to miss, unlike the smooth success/failed
+ * trend lines.
+ */
+function LockedDot({ cx, cy, payload }: { cx?: number; cy?: number; payload?: { locked: number } }) {
+  if (!cx || !cy || !payload?.locked) return null;
+  return (
+    <g>
+      <text x={cx} y={cy - 10} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--chart-3)">
+        {payload.locked}
+      </text>
+      <circle cx={cx} cy={cy} r={4} fill="var(--chart-3)" stroke="var(--card-bg)" strokeWidth={1.5} />
+    </g>
+  );
+}
+
 /** Shape of the payload returned by `GET /api/admin/reports/admin-summary/`. */
 export type AdminReportData = {
   generated_at: string;
   security: { login_success: number; login_failed: number; account_locked: number };
-  login_activity_trend: { date: string; success: number; failed: number }[];
+  login_activity_trend: { date: string; success: number; failed: number; locked: number }[];
   recent_audit: {
     created_at: string;
     actor: string;
@@ -109,6 +129,7 @@ export default function AdminReportPanel({ data }: { data: AdminReportData }) {
                 <Legend {...LEGEND_STYLE} />
                 <Line type="monotone" dataKey="success" name="Successful logins" stroke="var(--chart-1)" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="failed" name="Failed logins" stroke="var(--chart-4)" strokeWidth={2} dot={false} />
+                <Line dataKey="locked" name="Accounts locked" stroke="var(--chart-3)" strokeWidth={0} dot={<LockedDot />} activeDot={false} legendType="circle" />
               </LineChart>
             </ResponsiveContainer>
           </div>

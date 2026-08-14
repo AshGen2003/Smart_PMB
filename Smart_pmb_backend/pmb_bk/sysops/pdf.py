@@ -14,6 +14,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.graphics.charts.linecharts import HorizontalLineChart
 from reportlab.graphics.charts.legends import Legend
 from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.widgets.markers import makeMarker
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 PRIMARY = colors.HexColor("#15803d")
@@ -126,7 +127,7 @@ def _auth_rows(data):
 
 
 def _login_trend_chart(data):
-    """Line chart of daily successful/failed logins matching the web report's login-activity chart, or None if there's no trend data."""
+    """Line chart of daily successful/failed/locked logins matching the web report's login-activity chart, or None if there's no trend data."""
     trend = data["login_activity_trend"]
     if not trend:
         return None
@@ -135,7 +136,7 @@ def _login_trend_chart(data):
     chart = HorizontalLineChart()
     chart.x, chart.y = 50, 30
     chart.width, chart.height = 330, 160
-    chart.data = [[t["success"] for t in trend], [t["failed"] for t in trend]]
+    chart.data = [[t["success"] for t in trend], [t["failed"] for t in trend], [t["locked"] for t in trend]]
     chart.categoryAxis.categoryNames = [t["date"] for t in trend]
     chart.categoryAxis.labels.angle = 30
     chart.categoryAxis.labels.dy = -10
@@ -147,6 +148,14 @@ def _login_trend_chart(data):
     chart.lines[1].strokeColor = CHART_ROSE
     chart.lines[0].strokeWidth = 1.5
     chart.lines[1].strokeWidth = 1.5
+    # Locked-accounts line: markers only (matches the web chart's "just the
+    # days it happened" dots), no connecting stroke -- lockouts are rare
+    # enough that a connected line would mostly just hug the zero axis.
+    chart.lines[2].strokeColor = colors.transparent
+    chart.lines[2].symbol = makeMarker("Circle")
+    chart.lines[2].symbol.strokeColor = CHART_AMBER
+    chart.lines[2].symbol.fillColor = CHART_AMBER
+    chart.lines[2].symbol.size = 4
     drawing.add(chart)
 
     legend = Legend()
@@ -154,7 +163,11 @@ def _login_trend_chart(data):
     legend.dx, legend.dy = 8, 8
     legend.fontSize = 7
     legend.alignment = "right"
-    legend.colorNamePairs = [(CHART_TEAL, "Successful logins"), (CHART_ROSE, "Failed logins")]
+    legend.colorNamePairs = [
+        (CHART_TEAL, "Successful logins"),
+        (CHART_ROSE, "Failed logins"),
+        (CHART_AMBER, "Accounts locked"),
+    ]
     drawing.add(legend)
     return drawing
 

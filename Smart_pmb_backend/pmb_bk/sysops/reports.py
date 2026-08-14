@@ -48,21 +48,30 @@ def build_admin_report_data():
     backups = BackupRecord.objects.all()
     last_backup = backups.first()  # BackupRecord.Meta orders by -created_at, so first() is the most recent
 
-    # Daily success/failed login counts for the last 14 days, oldest first —
-    # the time series behind the admin report's login-activity chart.
+    # Daily success/failed/locked counts for the last 14 days, oldest first —
+    # the time series behind the admin report's login-activity chart. locked
+    # is included here (not just security["account_locked"]'s 30-day total
+    # above) so the chart can mark which specific days a lockout happened.
     since_14d = now - timedelta(days=14)
     daily_counts = {}
     for log in AuthLog.objects.filter(
-        created_at__gte=since_14d, action__in=["login_success", "login_failed"]
+        created_at__gte=since_14d,
+        action__in=["login_success", "login_failed", "account_locked"],
     ):
         day = log.created_at.date()
-        bucket = daily_counts.setdefault(day, {"success": 0, "failed": 0})
-        bucket["success" if log.action == "login_success" else "failed"] += 1
+        bucket = daily_counts.setdefault(day, {"success": 0, "failed": 0, "locked": 0})
+        if log.action == "login_success":
+            bucket["success"] += 1
+        elif log.action == "login_failed":
+            bucket["failed"] += 1
+        else:
+            bucket["locked"] += 1
     login_activity_trend = [
         {
             "date": (since_14d.date() + timedelta(days=i)).strftime("%b %d"),
             "success": daily_counts.get(since_14d.date() + timedelta(days=i), {}).get("success", 0),
             "failed": daily_counts.get(since_14d.date() + timedelta(days=i), {}).get("failed", 0),
+            "locked": daily_counts.get(since_14d.date() + timedelta(days=i), {}).get("locked", 0),
         }
         for i in range(15)
     ]
