@@ -25,9 +25,15 @@ export default function LogHarvestModal({
   onClose: () => void;
 }) {
   const { t } = useLanguage();
+  // `state` holds the result of the last submit attempt (e.g. an error
+  // message from the backend). `formAction` is what the <form> below calls
+  // on submit. `pending` is true while the request is in flight (used to
+  // show a spinner and disable the button).
   const [state, formAction, pending] = useActionState(submitHarvest, initialState);
   const wasSubmitting = useRef(false);
 
+  // Once a submit finishes successfully (no error), close this popup
+  // automatically so the farmer sees their new harvest in the table.
   useEffect(() => {
     if (pending) wasSubmitting.current = true;
     if (!pending && wasSubmitting.current && !state.error) {
@@ -49,9 +55,13 @@ export default function LogHarvestModal({
         </div>
 
         <div className={styles.modalBody}>
+          {/* Shows a red banner with the backend's error message, if the last submit failed. */}
           {state.error && <div className={styles.modalBanner}>{state.error}</div>}
 
+          {/* Submitting this form calls submitHarvest() in app/actions/farmer.ts,
+              which sends { paddy_type, quantity_kg } to the Django API. */}
           <form action={formAction}>
+            {/* Dropdown of paddy types, loaded from the backend and passed in as the `paddyTypes` prop. */}
             <div className={styles.field}>
               <label className={styles.label} htmlFor="paddy_type">{t.logHarvestModal.paddyTypeLabel}</label>
               <select id="paddy_type" name="paddy_type" required className={styles.input} defaultValue="">
@@ -62,6 +72,9 @@ export default function LogHarvestModal({
               </select>
             </div>
 
+            {/* To add a new field here (e.g. "notes"), copy this block, change the
+                name/id, then also add it in actions/farmer.ts, the backend
+                serializer, and the model — see the viva guide's worked example. */}
             <div className={styles.field}>
               <label className={styles.label} htmlFor="quantity_kg">{t.logHarvestModal.quantityLabel}</label>
               <input
@@ -79,6 +92,7 @@ export default function LogHarvestModal({
               <button type="button" className={styles.secondaryBtn} onClick={onClose}>
                 {t.logHarvestModal.cancel}
               </button>
+              {/* Disabled + spinner while `pending` is true, so double-clicking can't submit twice. */}
               <button type="submit" className={styles.primaryBtn} disabled={pending}>
                 {pending && <Loader2 size={16} className={styles.spin} />}
                 {pending ? t.logHarvestModal.submitting : t.logHarvestModal.submit}

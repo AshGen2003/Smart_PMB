@@ -25,6 +25,9 @@ export type DeliveryStatus = {
   scheduled_date: string;
 } | null;
 
+// One row = one allocation request. Lifecycle: pending -> approved (officer
+// signs off) -> fulfilled (officer releases the paddy from a warehouse) --
+// or pending -> rejected. See mills/models.py's MillingAllocation.Status.
 export type AllocationRow = {
   id: number;
   paddy_type: number;
@@ -103,6 +106,8 @@ export default function MillingAllocationsManager({
 
   // Allocations that already have a non-rejected return request shouldn't
   // offer "Request return" again — one return per allocation is the norm.
+  // (This is a frontend-only convenience check for hiding the button — the
+  // backend independently enforces the real rule too.)
   const allocationIdsWithReturn = new Set(
     returns.filter((r) => r.status !== "rejected").map((r) => r.allocation)
   );
@@ -142,6 +147,7 @@ export default function MillingAllocationsManager({
 
       {actionError && <div className={styles.banner}>{actionError}</div>}
 
+      {/* Table 1 of 2: this mill's own allocation request history. */}
       <div className={styles.container}>
         <h2 className={styles.sectionTitle}>My allocation requests</h2>
         {allocations.length > 0 ? (
@@ -218,6 +224,9 @@ export default function MillingAllocationsManager({
         )}
       </div>
 
+      {/* Table 2 of 2: return requests (sending the milled rice back to a warehouse
+          once an allocation above is fulfilled) — opened via the "Request return"
+          button in the table above, handled by RequestReturnForm.tsx. */}
       <div className={styles.container}>
         <h2 className={styles.sectionTitle}>My return requests</h2>
         {returns.length > 0 ? (

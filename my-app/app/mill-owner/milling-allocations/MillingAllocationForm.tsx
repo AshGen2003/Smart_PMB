@@ -16,10 +16,14 @@ export type PaddyTypeOption = { id: number; type_name: string };
 const initialState: MillFormState = {};
 
 export default function MillingAllocationForm({ paddyTypes }: { paddyTypes: PaddyTypeOption[] }) {
+  // useActionState wires this form up to requestMillingAllocation() in
+  // app/actions/mills.ts. `state.error` is the backend's error message (if
+  // any); `pending` is true while the request is in flight.
   const [state, formAction, pending] = useActionState(requestMillingAllocation, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const wasSubmitting = useRef(false);
 
+  // After a successful submit, clear the form fields so it's ready for the next request.
   useEffect(() => {
     if (pending) wasSubmitting.current = true;
     if (!pending && wasSubmitting.current && !state.error) {
@@ -36,10 +40,14 @@ export default function MillingAllocationForm({ paddyTypes }: { paddyTypes: Padd
         will review and fulfill it.
       </p>
 
+      {/* Backend validation error (e.g. "quota exceeded") shows here. */}
       {state.error && <div className={styles.banner}>{state.error}</div>}
 
+      {/* On submit, sends { paddy_type, quantity_kg } to POST /api/mill-owner/milling-allocations/
+          (see requestMillingAllocation in app/actions/mills.ts). */}
       <form action={formAction} ref={formRef} noValidate>
         <div className={styles.fieldRow}>
+          {/* Dropdown built from the `paddyTypes` list passed down from page.tsx. */}
           <div className={styles.field}>
             <label className={styles.label} htmlFor="paddy_type">Paddy type</label>
             <select id="paddy_type" name="paddy_type" required className={styles.input} defaultValue="">
@@ -50,6 +58,8 @@ export default function MillingAllocationForm({ paddyTypes }: { paddyTypes: Padd
             </select>
           </div>
 
+          {/* min="0.01" stops zero/negative amounts at the browser level;
+              the backend also checks this independently (never trust the frontend alone). */}
           <div className={styles.field}>
             <label className={styles.label} htmlFor="quantity_kg">Quantity (kg)</label>
             <input
