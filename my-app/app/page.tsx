@@ -62,51 +62,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className={styles.heroLeadership} aria-label="Agricultural leadership">
-          <article className={`${styles.heroLeader} ${styles.heroLeaderMinister}`} tabIndex={0}>
-            <Image
-              src="/images/minister-k-d-lalkantha.png"
-              alt="Hon. K. D. Lalkantha"
-              fill
-              sizes="(max-width: 700px) 25vw, 11vw"
-              className={styles.heroLeaderImage}
-            />
-            <div className={styles.heroLeaderDetails}>
-              <span>Hon. Minister</span>
-              <strong>K. D. Lalkantha</strong>
-              <small>Minister of Agriculture, Livestock, Land and Irrigation</small>
-            </div>
-          </article>
-          <article className={styles.heroLeader} tabIndex={0}>
-            <Image
-              src="/images/deputy-namal-karunarathne.png"
-              alt="Namal Karunarathne"
-              fill
-              sizes="(max-width: 700px) 18vw, 8vw"
-              className={styles.heroLeaderImage}
-            />
-            <div className={styles.heroLeaderDetails}>
-              <span>Hon. Deputy Minister</span>
-              <strong>Namal Karunarathne</strong>
-              <small>Deputy Minister of Agriculture and Livestock</small>
-            </div>
-          </article>
-          <article className={styles.heroLeader} tabIndex={0}>
-            <Image
-              src="/images/deputy-aravinda-vitharana.png"
-              alt="Aravinda Senarath Vitharana"
-              fill
-              sizes="(max-width: 700px) 18vw, 8vw"
-              className={styles.heroLeaderImage}
-            />
-            <div className={styles.heroLeaderDetails}>
-              <span>Hon. Deputy Minister</span>
-              <strong>Aravinda Senarath Vitharana</strong>
-              <small>Deputy Minister of Land and Irrigation</small>
-            </div>
-          </article>
-        </div>
-
         <a href="#about" className={styles.scrollCue} aria-label={t.hero.scrollAria}>
           <ChevronDown size={18} />
         </a>

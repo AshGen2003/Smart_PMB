@@ -49,32 +49,6 @@ type OfficerMillingAllocation = {
   quantity_kg: string; status: string; has_delivery: boolean;
 };
 
-async function transportationFetch(
-  path: string,
-  cached = false
-): Promise<Response> {
-  try {
-    return cached
-      ? await apiFetchCached(path, 300, ["warehouses"])
-      : await apiFetch(path);
-  } catch (error) {
-    console.error(`Transportation data request failed: GET ${path}`, error);
-    return new Response(
-      JSON.stringify({ detail: "The transportation service is unavailable." }),
-      { status: 503, headers: { "Content-Type": "application/json" } }
-    );
-  }
-}
-
-async function readRequiredJson<T>(response: Response, resource: string): Promise<T> {
-  if (!response.ok) {
-    throw new Error(
-      `Could not load ${resource}. The transportation service may be unavailable.`
-    );
-  }
-  return (await response.json()) as T;
-}
-
 /** Server Component: gates access, fetches every transportation resource in parallel, and renders the client-side manager. */
 export default async function TransportationPage() {
   const user = await requirePermission("manage_transport");
@@ -114,53 +88,58 @@ export default async function TransportationPage() {
     riceRequestsRes,
     millingAllocationsRes,
   ] = await Promise.all([
-    transportationFetch("/api/admin/vehicles/"),
-    transportationFetch("/api/admin/drivers/"),
-    transportationFetch("/api/admin/routes/"),
-    transportationFetch("/api/admin/deliveries/"),
-    transportationFetch("/api/admin/fuel-records/"),
-    transportationFetch("/api/admin/maintenance-records/"),
+    apiFetch("/api/admin/vehicles/"),
+    apiFetch("/api/admin/drivers/"),
+    apiFetch("/api/admin/routes/"),
+    apiFetch("/api/admin/deliveries/"),
+    apiFetch("/api/admin/fuel-records/"),
+    apiFetch("/api/admin/maintenance-records/"),
     // Just reference data for the delivery form's warehouse picker here,
     // shared with /warehouses and /approvals — see apiFetchCached's
     // docstring. Everything else on this page is live fleet/delivery state
     // that must stay fresh.
-    transportationFetch("/api/admin/warehouses/", true),
-    transportationFetch("/api/admin/transportation/dashboard/"),
+    apiFetchCached("/api/admin/warehouses/", 300, ["warehouses"]),
+    apiFetch("/api/admin/transportation/dashboard/"),
     // The four request types a Delivery can be linked to — fetched here
     // (not cached) purely to populate the delivery form's "Linked request"
     // picker with what's currently available; filtered below to the status
     // a Delivery may actually link to, with no delivery already assigned.
-    transportationFetch("/api/admin/dispatch-manifests/"),
-    transportationFetch("/api/admin/milling-returns/"),
-    transportationFetch("/api/admin/rice-requests/"),
-    transportationFetch("/api/admin/milling-allocations/"),
+    apiFetch("/api/admin/dispatch-manifests/"),
+    apiFetch("/api/admin/milling-returns/"),
+    apiFetch("/api/admin/rice-requests/"),
+    apiFetch("/api/admin/milling-allocations/"),
   ]);
 
-  const vehicles = await readRequiredJson<VehicleRow[]>(vehiclesRes, "vehicles");
-  const drivers = await readRequiredJson<DriverOption[]>(driversRes, "drivers");
-  const routes = await readRequiredJson<RouteRow[]>(routesRes, "routes");
-  const deliveries = await readRequiredJson<DeliveryRow[]>(deliveriesRes, "deliveries");
-  const fuelRecords = await readRequiredJson<FuelRecordRow[]>(fuelRes, "fuel records");
-  const maintenanceRecords = await readRequiredJson<MaintenanceRecordRow[]>(maintenanceRes, "maintenance records");
-  const warehouses = await readRequiredJson<WarehouseOption[]>(warehousesRes, "warehouses");
-  const stats = await readRequiredJson<Stats>(statsRes, "dashboard statistics");
+  const vehicles = vehiclesRes.ok ? ((await vehiclesRes.json()) as VehicleRow[]) : [];
+  const drivers = driversRes.ok ? ((await driversRes.json()) as DriverOption[]) : [];
+  const routes = routesRes.ok ? ((await routesRes.json()) as RouteRow[]) : [];
+  const deliveries = deliveriesRes.ok ? ((await deliveriesRes.json()) as DeliveryRow[]) : [];
+  const fuelRecords = fuelRes.ok ? ((await fuelRes.json()) as FuelRecordRow[]) : [];
+  const maintenanceRecords = maintenanceRes.ok ? ((await maintenanceRes.json()) as MaintenanceRecordRow[]) : [];
+  const warehouses = warehousesRes.ok ? ((await warehousesRes.json()) as WarehouseOption[]) : [];
+  const stats: Stats = statsRes.ok
+    ? await statsRes.json()
+    : {
+        vehicles_total: 0, vehicles_active: 0, drivers_total: 0, drivers_available: 0,
+        deliveries_scheduled: 0, deliveries_in_transit: 0, fuel_cost_total: 0, maintenance_cost_total: 0,
+      };
 
-  const allDispatchManifests = await readRequiredJson<OfficerDispatchManifest[]>(dispatchManifestsRes, "dispatch manifests");
+  const allDispatchManifests = dispatchManifestsRes.ok ? ((await dispatchManifestsRes.json()) as OfficerDispatchManifest[]) : [];
   const dispatchManifests: LinkableRequestOption[] = allDispatchManifests
     .filter((m) => m.status === "approved" && !m.has_delivery)
     .map((m) => ({ id: m.id, label: `#${m.id} — ${m.purchaser_name ?? "—"} → ${m.destination_warehouse_name ?? "—"}` }));
 
-  const allMillingReturns = await readRequiredJson<OfficerMillingReturnRequest[]>(millingReturnsRes, "milling returns");
+  const allMillingReturns = millingReturnsRes.ok ? ((await millingReturnsRes.json()) as OfficerMillingReturnRequest[]) : [];
   const millingReturnRequests: LinkableRequestOption[] = allMillingReturns
     .filter((r) => r.status === "approved" && !r.has_delivery)
     .map((r) => ({ id: r.id, label: `#${r.id} — ${r.mill_name ?? "—"} (${Number(r.rice_kg).toLocaleString()}kg) → ${r.destination_warehouse_name ?? "—"}` }));
 
-  const allRiceRequests = await readRequiredJson<OfficerRiceRequest[]>(riceRequestsRes, "rice requests");
+  const allRiceRequests = riceRequestsRes.ok ? ((await riceRequestsRes.json()) as OfficerRiceRequest[]) : [];
   const riceRequests: LinkableRequestOption[] = allRiceRequests
     .filter((r) => r.status === "fulfilled" && !r.has_delivery)
     .map((r) => ({ id: r.id, label: `#${r.id} — ${r.purchaser_name ?? "—"} (${Number(r.quantity_kg).toLocaleString()}kg ${r.paddy_type_name ?? "—"})` }));
 
-  const allMillingAllocations = await readRequiredJson<OfficerMillingAllocation[]>(millingAllocationsRes, "milling allocations");
+  const allMillingAllocations = millingAllocationsRes.ok ? ((await millingAllocationsRes.json()) as OfficerMillingAllocation[]) : [];
   const millingAllocations: LinkableRequestOption[] = allMillingAllocations
     .filter((a) => a.status === "fulfilled" && !a.has_delivery)
     .map((a) => ({ id: a.id, label: `#${a.id} — ${a.mill_name ?? "—"} (${Number(a.quantity_kg).toLocaleString()}kg ${a.paddy_type_name ?? "—"})` }));
