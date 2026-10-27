@@ -25,11 +25,15 @@ function wsUrl(): string {
  * @param onMessage Called with each parsed JSON payload the server pushes.
  */
 export function useNotificationSocket<T>(enabled: boolean, onMessage: (message: T) => void) {
-  // Keeps the effect below from needing onMessage in its dependency array
-  // (it's typically a fresh closure every render), without re-opening the
-  // socket every time the caller's callback identity changes.
+  // Keeps the socket effect below from depending on onMessage (it's
+  // typically a fresh closure every render), without re-opening the socket
+  // every time the caller's callback identity changes. Updating in an effect
+  // avoids mutating the ref during render and runs before the socket's
+  // connection effect on mount.
   const onMessageRef = useRef(onMessage);
-  onMessageRef.current = onMessage;
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
 
   useEffect(() => {
     if (!enabled) return;

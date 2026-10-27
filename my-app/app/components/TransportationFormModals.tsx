@@ -376,18 +376,19 @@ export function DeliveryFormModal({
   const [linkedType, setLinkedType] = useState<LinkedRequestType>(() => linkedTypeOf(delivery));
   const [linkedId, setLinkedId] = useState<string>(() => linkedIdOf(delivery, linkedTypeOf(delivery)));
 
-  const optionsByType: Record<Exclude<LinkedRequestType, "">, LinkableRequestOption[]> = {
-    dispatch_manifest: dispatchManifests,
-    milling_return_request: millingReturnRequests,
-    rice_request: riceRequests,
-    milling_allocation: millingAllocations,
-  };
   // In edit mode, the delivery's own currently-linked request won't appear
   // in the "available" list passed in (it's no longer unlinked) — add it
   // back in so the picker doesn't show a blank selection for it.
   const currentOptions = useMemo(() => {
     if (!linkedType) return [];
-    const base = optionsByType[linkedType];
+    const base =
+      linkedType === "dispatch_manifest"
+        ? dispatchManifests
+        : linkedType === "milling_return_request"
+          ? millingReturnRequests
+          : linkedType === "rice_request"
+            ? riceRequests
+            : millingAllocations;
     if (mode === "edit" && linkedId && !base.some((o) => String(o.id) === linkedId)) {
       return [{ id: Number(linkedId), label: `#${linkedId} (currently linked)` }, ...base];
     }

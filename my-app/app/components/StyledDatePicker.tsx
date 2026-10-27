@@ -243,8 +243,10 @@ export default function StyledDatePicker({
         className={clsx(styles.trigger, open && styles.triggerOpen)}
         onClick={() => (open ? setOpen(false) : openPanel())}
         disabled={disabled}
+        role="combobox"
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-controls={open ? `${domId}-dialog` : undefined}
         aria-required={required}
       >
         <Calendar size={15} className={styles.triggerIcon} />
@@ -261,6 +263,7 @@ export default function StyledDatePicker({
           <div
             ref={panelRef}
             role="dialog"
+            id={`${domId}-dialog`}
             aria-label="Choose a date"
             data-styled-select-panel=""
             className={styles.datePanel}
@@ -415,8 +418,10 @@ export function StyledTimePicker({
         className={clsx(styles.trigger, open && styles.triggerOpen)}
         onClick={() => (open ? setOpen(false) : openPanel())}
         disabled={disabled}
+        role="combobox"
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-controls={open ? `${domId}-dialog` : undefined}
         aria-required={required}
       >
         <Clock size={15} className={styles.triggerIcon} />
@@ -433,6 +438,7 @@ export function StyledTimePicker({
           <div
             ref={panelRef}
             role="dialog"
+            id={`${domId}-dialog`}
             aria-label="Choose a time"
             data-styled-select-panel=""
             className={styles.timePanel}

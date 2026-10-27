@@ -194,8 +194,13 @@ export default function StyledSelect({
         onKeyDown={handleTriggerKeyDown}
         onFocus={onFocus}
         disabled={disabled}
+        role="combobox"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? `${domId}-listbox` : undefined}
+        aria-activedescendant={
+          open && items[highlight]?.kind === "option" ? `${domId}-option-${highlight}` : undefined
+        }
         aria-required={required}
       >
         <span className={clsx(styles.triggerLabel, !selected && styles.triggerPlaceholder)}>
@@ -211,6 +216,7 @@ export default function StyledSelect({
         createPortal(
           <ul
             ref={panelRef}
+            id={`${domId}-listbox`}
             role="listbox"
             // Marks this portaled node so a host popover with its own
             // "close on outside click" listener (e.g. NotificationBell.tsx)
@@ -237,6 +243,7 @@ export default function StyledSelect({
               ) : (
                 <li
                   key={item.option.value}
+                  id={`${domId}-option-${i}`}
                   role="option"
                   aria-selected={item.option.value === currentValue}
                   className={clsx(
