@@ -341,7 +341,11 @@ class VehicleSerializer(serializers.ModelSerializer):
 class RouteSerializer(serializers.ModelSerializer):
     """Read/write representation of a Route."""
 
-    warehouse_name = serializers.CharField(source="warehouse.name", default=None)
+    # Display-only relation data must not be interpreted as nested write input
+    # when a route is created or updated.
+    warehouse_name = serializers.CharField(
+        source="warehouse.name", read_only=True, allow_null=True, default=None
+    )
 
     class Meta:
         model = Route

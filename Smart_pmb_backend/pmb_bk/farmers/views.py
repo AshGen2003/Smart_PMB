@@ -1867,8 +1867,6 @@ class DeliveryViewSet(viewsets.ModelViewSet):
             )
         delivery.status = new_status
         delivery.save(update_fields=["status"])
-        if new_status == Delivery.Status.DELIVERED:
-            _handle_delivery_delivered(delivery, request.user)
         return Response(DeliverySerializer(delivery).data)
 
 
