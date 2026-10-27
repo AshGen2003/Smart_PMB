@@ -18,10 +18,24 @@ export type TransportFormState = {
 };
 
 async function submit(path: string, method: "POST" | "PATCH", body: unknown) {
-  const res = await apiFetch(path, { method, body: JSON.stringify(body) });
+  let res: Response;
+  try {
+    res = await apiFetch(path, { method, body: JSON.stringify(body) });
+  } catch (error) {
+    // Keep a backend outage from surfacing as an unhandled Server Action
+    // failure, which leaves the form without a useful explanation.
+    console.error(`Transportation API request failed (${method} ${path})`, error);
+    return {
+      error: "Cannot reach the PMB server. Check that the backend is running and try again.",
+    };
+  }
+
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
+    const fallback = res.status >= 500
+      ? `The PMB server could not complete this request (HTTP ${res.status}). Please try again or contact support.`
+      : undefined;
+    return { error: firstErrorMessage(data, fallback) };
   }
   revalidatePath("/transportation");
   return {};
