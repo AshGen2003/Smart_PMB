@@ -4,8 +4,8 @@
  * (role "driver") edited on the Users page. Fuel/maintenance records
  * aren't created here either — see app/actions/driver.ts — the officer
  * side is read-only for those (see farmers/views.py's FuelRecordViewSet/
- * MaintenanceRecordViewSet docstrings). All mutations revalidate
- * "/transportation".
+ * MaintenanceRecordViewSet docstrings). All mutations revalidate both
+ * transportation portal URLs.
  */
 "use server";
 
@@ -17,24 +17,39 @@ export type TransportFormState = {
   error?: string;
 };
 
-async function submit(path: string, method: "POST" | "PATCH", body: unknown) {
-  const res = await apiFetch(path, { method, body: JSON.stringify(body) });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
-  }
+function revalidateTransportation() {
   revalidatePath("/transportation");
-  return {};
+  revalidatePath("/officer/transportation");
+}
+
+async function submit(path: string, method: "POST" | "PATCH", body: unknown) {
+  try {
+    const res = await apiFetch(path, { method, body: JSON.stringify(body) });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Transportation request failed: ${method} ${path}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
+  }
 }
 
 async function remove(path: string) {
-  const res = await apiFetch(path, { method: "DELETE" });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
+  try {
+    const res = await apiFetch(path, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Transportation request failed: DELETE ${path}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
   }
-  revalidatePath("/transportation");
-  return {};
 }
 
 // --- Vehicles ---------------------------------------------------------
@@ -74,6 +89,7 @@ function routePayload(formData: FormData) {
     destination: String(formData.get("destination") ?? "").trim(),
     distance_km: String(formData.get("distance_km") ?? ""),
     estimated_time: String(formData.get("estimated_time") ?? "").trim(),
+    warehouse: formData.get("warehouse") ? Number(formData.get("warehouse")) : null,
   };
 }
 
@@ -97,8 +113,17 @@ function deliveryPayload(formData: FormData) {
     driver: String(formData.get("driver") ?? ""),
     route: Number(formData.get("route")),
     warehouse: formData.get("warehouse") ? Number(formData.get("warehouse")) : null,
+    // At most one of these four is ever present — the form only renders a
+    // hidden input for whichever "linked request" type is currently
+    // selected (see DeliveryFormModal) — so the other three always fall
+    // back to null here, which also correctly clears a previous link when
+    // editing a delivery to "None".
+    dispatch_manifest: formData.get("dispatch_manifest") ? Number(formData.get("dispatch_manifest")) : null,
+    milling_return_request: formData.get("milling_return_request") ? Number(formData.get("milling_return_request")) : null,
+    rice_request: formData.get("rice_request") ? Number(formData.get("rice_request")) : null,
+    milling_allocation: formData.get("milling_allocation") ? Number(formData.get("milling_allocation")) : null,
     scheduled_date: String(formData.get("scheduled_date") ?? ""),
-    status: String(formData.get("status") ?? "scheduled"),
+    scheduled_time: String(formData.get("scheduled_time") ?? ""),
   };
 }
 
@@ -114,17 +139,85 @@ export async function deleteDelivery(id: number) {
   return remove(`/api/admin/deliveries/${id}/`);
 }
 
-/** Lightweight status-only update, used by the delivery table's inline status dropdown. */
+/** Lightweight status-only update — used by the delivery table's Mark Delayed / Cancel delivery buttons (the backend only accepts "delayed"/"cancelled" here; scheduled/in_transit/delivered are driver-driven). */
 export async function updateDeliveryStatus(id: number, newStatus: string) {
-  const res = await apiFetch(`/api/admin/deliveries/${id}/update_status/`, {
-    method: "POST",
-    body: JSON.stringify({ status: newStatus }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
+  try {
+    const res = await apiFetch(`/api/admin/deliveries/${id}/update_status/`, {
+      method: "POST",
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Transportation status update failed for delivery ${id}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
   }
-  revalidatePath("/transportation");
-  return {};
 }
 
+/**
+ * Lightweight driver-only reassignment — used by the ReassignDriverModal
+ * shown on a delivery the previous driver rejected (Edit is hidden for
+ * those; this is the only path left to act on one). A plain PATCH with
+ * just `driver` set: the backend's DeliveryViewSet.perform_update resets
+ * assignment_status to pending and revives status back to scheduled.
+ */
+export async function reassignDelivery(id: number, driverId: string) {
+  try {
+    const res = await apiFetch(`/api/admin/deliveries/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify({ driver: driverId }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Transportation reassignment failed for delivery ${id}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
+  }
+}
+
+// --- Maintenance record review ------------------------------------------
+
+/** Approves a driver-logged maintenance record's cost. */
+export async function approveMaintenanceRecord(id: number) {
+  try {
+    const res = await apiFetch(`/api/admin/maintenance-records/${id}/approve/`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Maintenance approval failed for record ${id}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
+  }
+}
+
+/** Rejects a driver-logged maintenance record's cost — a reason is required. */
+export async function rejectMaintenanceRecord(id: number, reason: string) {
+  try {
+    const res = await apiFetch(`/api/admin/maintenance-records/${id}/reject/`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Maintenance rejection failed for record ${id}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
+  }
+}
