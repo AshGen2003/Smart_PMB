@@ -40,6 +40,14 @@ const LICENSE_BADGE: Record<string, string> = {
   revoked: "badge-danger",
 };
 
+const MILLING_TYPE_LABEL: Record<string, string> = {
+  raw: "Raw",
+  parboiled: "Parboiled",
+  both: "Both",
+};
+
+const EXPIRY_WARNING_DAYS = 30;
+
 export default function LicensesManager({ licenses }: { licenses: LicenseRow[] }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();

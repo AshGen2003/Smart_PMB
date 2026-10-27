@@ -6,7 +6,7 @@
  */
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useSyncExternalStore } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 interface LayoutContextType {
   isSidebarOpen: boolean;
@@ -18,44 +18,27 @@ interface LayoutContextType {
 
 const LayoutContext = createContext<LayoutContextType | undefined>(undefined);
 
-// The server snapshot matches the original desktop-first default so the
-// initial server render and hydration agree. Once hydrated, the client
-// snapshot reflects the actual viewport without a setState-in-effect pass.
-function subscribeToViewport(onChange: () => void) {
-  window.addEventListener("resize", onChange);
-  return () => window.removeEventListener("resize", onChange);
-}
-
-function getViewportSidebarDefault() {
-  return window.innerWidth > 1024;
-}
-
-function getServerSidebarDefault() {
-  return true;
-}
-
 /**
- * Provides sidebar state to descendants. Defaults the desktop sidebar to
- * open only on wide viewports (>1024px) and auto-closes the mobile overlay
- * sidebar whenever the viewport is resized past the mobile breakpoint
- * (>768px), so it doesn't stay stuck open after a resize.
+ * Provides sidebar state to descendants. On mount, defaults the desktop
+ * sidebar to open only on wide viewports (>1024px) and auto-closes the
+ * mobile overlay sidebar whenever the viewport is resized past the mobile
+ * breakpoint (>768px), so it doesn't stay stuck open after a resize.
  */
 export function LayoutProvider({ children }: { children: React.ReactNode }) {
-  const viewportSidebarDefault = useSyncExternalStore(
-    subscribeToViewport,
-    getViewportSidebarDefault,
-    getServerSidebarDefault
-  );
-  const [sidebarOverride, setSidebarOverride] = useState<boolean | null>(null);
-  const isSidebarOpen = sidebarOverride ?? viewportSidebarDefault;
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
+    const initialSidebarState = window.innerWidth > 1024;
+    setIsSidebarOpen(initialSidebarState);
+
     const handleResize = () => {
       if (window.innerWidth > 768) {
         setIsMobileSidebarOpen(false);
       }
     };
+
+    handleResize();
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -74,7 +57,7 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isMobileSidebarOpen]);
 
-  const toggleSidebar = () => setSidebarOverride((current) => !(current ?? viewportSidebarDefault));
+  const toggleSidebar = () => setIsSidebarOpen(prev => !prev);
   const toggleMobileSidebar = () => setIsMobileSidebarOpen(prev => !prev);
   const closeMobileSidebar = () => setIsMobileSidebarOpen(false);
 

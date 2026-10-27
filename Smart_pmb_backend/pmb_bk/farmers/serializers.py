@@ -341,13 +341,7 @@ class VehicleSerializer(serializers.ModelSerializer):
 class RouteSerializer(serializers.ModelSerializer):
     """Read/write representation of a Route."""
 
-    # This is display-only data, not a writable nested relation. Leaving it
-    # writable makes DRF interpret a missing warehouse_name as
-    # `warehouse: {name: None}` during POST, which overrides the submitted
-    # warehouse ID and prevents ModelSerializer from creating the route.
-    warehouse_name = serializers.CharField(
-        source="warehouse.name", read_only=True, allow_null=True, default=None
-    )
+    warehouse_name = serializers.CharField(source="warehouse.name", default=None)
 
     class Meta:
         model = Route

@@ -1,6 +1,4 @@
 :root {
-  --font-sans: "Plus Jakarta Sans Variable";
-
   /* Tells the browser which palette to draw its own native chrome in —
      scrollbars, checkbox/radio controls, autofill backgrounds — so they
      match the theme instead of always assuming light. */

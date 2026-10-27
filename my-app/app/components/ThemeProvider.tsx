@@ -6,11 +6,9 @@
  */
 "use client";
 
-import React, { createContext, useContext, useEffect, useSyncExternalStore } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
-
-const THEME_CHANGE_EVENT = "smart-pmb-theme-change";
 
 interface ThemeContextType {
   theme: Theme;
@@ -20,48 +18,35 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 /**
- * The browser preference is an external store, so useSyncExternalStore keeps
- * server rendering deterministic while restoring localStorage/system theme
- * after hydration without a synchronous state update from an effect.
+ * On mount, restores the saved theme from localStorage, or falls back to
+ * the OS-level `prefers-color-scheme` if the user hasn't chosen one yet.
+ * This runs client-side only (after hydration) since localStorage/
+ * matchMedia aren't available during server rendering.
  */
-function subscribeTheme(listener: () => void) {
-  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-  window.addEventListener("storage", listener);
-  window.addEventListener(THEME_CHANGE_EVENT, listener);
-  mediaQuery.addEventListener("change", listener);
-
-  return () => {
-    window.removeEventListener("storage", listener);
-    window.removeEventListener(THEME_CHANGE_EVENT, listener);
-    mediaQuery.removeEventListener("change", listener);
-  };
-}
-
-function getThemeSnapshot(): Theme {
-  const savedTheme = localStorage.getItem("smart-pmb-theme");
-  if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function getServerThemeSnapshot(): Theme {
-  return "light";
-}
-
-/** Restores the saved theme, or follows the OS preference if no choice is saved. */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const theme = useSyncExternalStore(subscribeTheme, getThemeSnapshot, getServerThemeSnapshot);
+  const [theme, setTheme] = useState<Theme>("light");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+    const savedTheme = localStorage.getItem("smart-pmb-theme") as Theme | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+      document.documentElement.setAttribute("data-theme", savedTheme);
+    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      setTheme("dark");
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }, []);
 
   // Flips the theme, persists the choice, and updates the <html> attribute
   // immediately so the CSS variables switch without a page reload.
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
     localStorage.setItem("smart-pmb-theme", newTheme);
     document.documentElement.setAttribute("data-theme", newTheme);
-    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   };
 
   return (
@@ -71,7 +56,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Hook for consuming the theme context; throws if called outside a ThemeProvider so misuse fails during development. */
+/** Hook for consuming the theme context; throws if called outside a ThemeProvider so misuse fails loudly during development. */
 export function useTheme() {
   const context = useContext(ThemeContext);
   if (context === undefined) {

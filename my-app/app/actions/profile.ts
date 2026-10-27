@@ -172,7 +172,10 @@ export async function uploadProfilePicture(
  * @returns `{ error }` if the API call failed, otherwise `{}` after
  *   revalidating every page that displays the user's avatar.
  */
-export async function removeProfilePicture(): Promise<ProfilePictureState> {
+export async function removeProfilePicture(
+  _prevState: ProfilePictureState,
+  _formData: FormData
+): Promise<ProfilePictureState> {
   const res = await apiFetch("/api/auth/me/", {
     method: "PATCH",
     body: JSON.stringify({ remove_profile_picture: true }),
