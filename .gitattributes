@@ -1,0 +1,3 @@
+# Office and PDF deliverables should not be diffed as plain text.
+*.docx binary
+*.pdf binary
