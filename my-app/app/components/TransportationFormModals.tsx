@@ -185,6 +185,7 @@ export function RouteFormModal({
   const [estimatedTime, setEstimatedTime] = useState(route?.estimated_time ?? "");
   const [calculating, setCalculating] = useState(false);
   const [calcError, setCalcError] = useState<string | null>(null);
+  const lookupVersion = useRef(0);
 
   // Auto-calculates distance/travel time from origin+destination via
   // OpenRouteService (calculateRouteDistance, a Server Action so the API
@@ -193,6 +194,7 @@ export function RouteFormModal({
   // address, missing key, network error): the fields stay normal, editable
   // inputs the whole time, so a manual value always still works.
   useEffect(() => {
+    const version = ++lookupVersion.current;
     if (!origin.trim() || !destination.trim()) return;
     const timer = setTimeout(() => {
       // Clearing the previous error and flipping to "calculating" both
@@ -201,19 +203,24 @@ export function RouteFormModal({
       // cascading render on every keystroke for no visible benefit.
       setCalcError(null);
       setCalculating(true);
-      calculateRouteDistance(origin, destination).then((result) => {
-        setCalculating(false);
-        if (!result.distanceKm || !result.estimatedTime) {
-          // Logged rather than shown to the user — the specific reason
-          // (unconfigured key, unrecognized address, ORS request failure)
-          // is only useful for debugging.
-          console.warn("Distance lookup failed:", result.error);
-          setCalcError("Couldn't calculate distance for these locations — enter it manually.");
-          return;
-        }
-        setDistanceKm(result.distanceKm);
-        setEstimatedTime(result.estimatedTime);
-      });
+      calculateRouteDistance(origin, destination)
+        .then((result) => {
+          if (version !== lookupVersion.current) return;
+          setCalculating(false);
+          if (!result.distanceKm || !result.estimatedTime) {
+            console.warn("Distance lookup failed:", result.error);
+            setCalcError("Couldn't calculate distance for these locations — enter it manually.");
+            return;
+          }
+          setDistanceKm(result.distanceKm);
+          setEstimatedTime(result.estimatedTime);
+        })
+        .catch((error: unknown) => {
+          if (version !== lookupVersion.current) return;
+          console.error("Distance lookup request failed:", error);
+          setCalculating(false);
+          setCalcError("Couldn't calculate distance automatically — enter it manually.");
+        });
     }, 800);
     return () => clearTimeout(timer);
   }, [origin, destination]);
@@ -230,7 +237,11 @@ export function RouteFormModal({
               type="text"
               required
               value={origin}
-              onChange={(e) => setOrigin(e.target.value)}
+              onChange={(e) => {
+                setOrigin(e.target.value);
+                setCalculating(false);
+                setCalcError(null);
+              }}
               className={styles.input}
             />
           </div>
@@ -242,7 +253,11 @@ export function RouteFormModal({
               type="text"
               required
               value={destination}
-              onChange={(e) => setDestination(e.target.value)}
+              onChange={(e) => {
+                setDestination(e.target.value);
+                setCalculating(false);
+                setCalcError(null);
+              }}
               className={styles.input}
             />
           </div>
@@ -698,4 +713,3 @@ export function MaintenanceRejectModal({
     </ModalShell>
   );
 }
-

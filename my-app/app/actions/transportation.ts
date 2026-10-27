@@ -4,8 +4,8 @@
  * (role "driver") edited on the Users page. Fuel/maintenance records
  * aren't created here either — see app/actions/driver.ts — the officer
  * side is read-only for those (see farmers/views.py's FuelRecordViewSet/
- * MaintenanceRecordViewSet docstrings). All mutations revalidate
- * "/transportation".
+ * MaintenanceRecordViewSet docstrings). All mutations revalidate both
+ * transportation portal URLs.
  */
 "use server";
 
@@ -17,24 +17,39 @@ export type TransportFormState = {
   error?: string;
 };
 
-async function submit(path: string, method: "POST" | "PATCH", body: unknown) {
-  const res = await apiFetch(path, { method, body: JSON.stringify(body) });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
-  }
+function revalidateTransportation() {
   revalidatePath("/transportation");
-  return {};
+  revalidatePath("/officer/transportation");
+}
+
+async function submit(path: string, method: "POST" | "PATCH", body: unknown) {
+  try {
+    const res = await apiFetch(path, { method, body: JSON.stringify(body) });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Transportation request failed: ${method} ${path}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
+  }
 }
 
 async function remove(path: string) {
-  const res = await apiFetch(path, { method: "DELETE" });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
+  try {
+    const res = await apiFetch(path, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Transportation request failed: DELETE ${path}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
   }
-  revalidatePath("/transportation");
-  return {};
 }
 
 // --- Vehicles ---------------------------------------------------------
@@ -126,16 +141,21 @@ export async function deleteDelivery(id: number) {
 
 /** Lightweight status-only update — used by the delivery table's Mark Delayed / Cancel delivery buttons (the backend only accepts "delayed"/"cancelled" here; scheduled/in_transit/delivered are driver-driven). */
 export async function updateDeliveryStatus(id: number, newStatus: string) {
-  const res = await apiFetch(`/api/admin/deliveries/${id}/update_status/`, {
-    method: "POST",
-    body: JSON.stringify({ status: newStatus }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
+  try {
+    const res = await apiFetch(`/api/admin/deliveries/${id}/update_status/`, {
+      method: "POST",
+      body: JSON.stringify({ status: newStatus }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Transportation status update failed for delivery ${id}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
   }
-  revalidatePath("/transportation");
-  return {};
 }
 
 /**
@@ -146,44 +166,58 @@ export async function updateDeliveryStatus(id: number, newStatus: string) {
  * assignment_status to pending and revives status back to scheduled.
  */
 export async function reassignDelivery(id: number, driverId: string) {
-  const res = await apiFetch(`/api/admin/deliveries/${id}/`, {
-    method: "PATCH",
-    body: JSON.stringify({ driver: driverId }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
+  try {
+    const res = await apiFetch(`/api/admin/deliveries/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify({ driver: driverId }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Transportation reassignment failed for delivery ${id}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
   }
-  revalidatePath("/transportation");
-  return {};
 }
 
 // --- Maintenance record review ------------------------------------------
 
 /** Approves a driver-logged maintenance record's cost. */
 export async function approveMaintenanceRecord(id: number) {
-  const res = await apiFetch(`/api/admin/maintenance-records/${id}/approve/`, {
-    method: "POST",
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
+  try {
+    const res = await apiFetch(`/api/admin/maintenance-records/${id}/approve/`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Maintenance approval failed for record ${id}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
   }
-  revalidatePath("/transportation");
-  return {};
 }
 
 /** Rejects a driver-logged maintenance record's cost — a reason is required. */
 export async function rejectMaintenanceRecord(id: number, reason: string) {
-  const res = await apiFetch(`/api/admin/maintenance-records/${id}/reject/`, {
-    method: "POST",
-    body: JSON.stringify({ reason }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    return { error: firstErrorMessage(data) };
+  try {
+    const res = await apiFetch(`/api/admin/maintenance-records/${id}/reject/`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: firstErrorMessage(data) };
+    }
+    revalidateTransportation();
+    return {};
+  } catch (error) {
+    console.error(`Maintenance rejection failed for record ${id}`, error);
+    return { error: "Could not reach the transportation service. Please try again." };
   }
-  revalidatePath("/transportation");
-  return {};
 }
-
